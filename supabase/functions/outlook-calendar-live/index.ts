@@ -1,13 +1,15 @@
 // outlook-calendar-live — de schrijfbaan van de Agenda. Drie acties:
 //
-//   { action: 'create_event', subject, date, start, end, location? } →
-//     nieuw event in de standaardagenda van de INGELOGDE gebruiker. Zonder
-//     genodigden: zodra die meegaan stuurt Graph uitnodigingen en dat is
-//     volgens Microsoft "can't be configured".
+//   { action: 'create_event', subject, date, start, end, location?, attendees? } →
+//     nieuw event in de standaardagenda van de INGELOGDE gebruiker. Gaan er
+//     genodigden mee, dan stuurt Graph de uitnodigingen — dat is volgens
+//     Microsoft "can't be configured", dus het scherm zegt het vóór de klik.
 //
-//   { action: 'update_event', graph_id, subject, date, start, end, location? } →
+//   { action: 'update_event', graph_id, subject, date, start, end, location?, attendees? } →
 //     bestaand event wijzigen. READ-MODIFY-WRITE, want een kale patch wist
 //     genodigden, locatie, categorieën en show_as (zie _shared/outlook-calendar.ts).
+//     `attendees` weglaten = de bestaande lijst laten staan; `[]` meesturen =
+//     iedereen eraf. Dat onderscheid zit in `fieldsFrom` hieronder.
 //
 //   { action: 'delete_event', graph_id } →
 //     verwijderen, ALTIJD zonder afzeggingsmail.
@@ -55,7 +57,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 import { requireCapability } from '../_shared/user-gate.ts';
 import { buildCtxForCaller, type CallerCtx } from '../_shared/outlook-ctx.ts';
 import {
-  createEvent, deleteEvent, getEvent, graphUtcToIso, updateEvent,
+  cleanAttendees, createEvent, deleteEvent, getEvent, graphUtcToIso, updateEvent,
   type CalendarEventFields, type GraphEvent,
 } from '../_shared/outlook-calendar.ts';
 
@@ -208,15 +210,29 @@ function fieldsFrom(p: Record<string, unknown>): CalendarEventFields {
     start: typeof p.start === 'string' ? p.start : null,
     end: typeof p.end === 'string' ? p.end : null,
     location: typeof p.location === 'string' ? p.location : null,
+    // `Array.isArray` en niet `p.attendees ?? null`: een meegestuurde lege array
+    // betekent "haal iedereen eraf" en moet dus dóór, terwijl een ontbrekend
+    // veld "niet aangeraakt" betekent en de bestaande lijst moet laten staan.
+    // `cleanAttendees` (in outlook-calendar.ts) schoont de inhoud op — dit is
+    // gebruikersinvoer en gaat rechtstreeks naar Graph.
+    attendees: Array.isArray(p.attendees) ? cleanAttendees(p.attendees) : null,
   };
 }
 
 async function doCreate(
   supabase: SupabaseClient, ctx: CallerCtx, p: Record<string, unknown>,
 ) {
-  const { graphId, event } = await createEvent(ctx, fieldsFrom(p));
+  const f = fieldsFrom(p);
+  const { graphId, event } = await createEvent(ctx, f);
   await upsertMirror(supabase, event, ctx.ownerUserId);
-  return { ok: true, graph_id: graphId, subject: event.subject ?? null };
+  // Bij CREATE mét genodigden stuurt Graph de uitnodigingen zelf, en dat is
+  // niet uit te zetten. Het scherm zegt dat vooraf; dit is de bevestiging
+  // achteraf, gelezen uit het teruggelezen event en niet uit het verzoek.
+  const invited = attendeeCount(event);
+  return {
+    ok: true, graph_id: graphId, subject: event.subject ?? null,
+    attendees_invited: invited > 0, attendee_count: invited,
+  };
 }
 
 async function doUpdate(
@@ -227,13 +243,21 @@ async function doUpdate(
   const row = await ownedRow(supabase, graphId, caller);
   assertEditable(await getEvent(ctx, graphId), row);
 
-  const { event, attendeeCount: n } = await updateEvent(ctx, graphId, fieldsFrom(p));
+  const { event, attendeeCount: n, attendeeCountBefore: before } =
+    await updateEvent(ctx, graphId, fieldsFrom(p));
   await upsertMirror(supabase, event, ctx.ownerUserId);
   // `attendees_notified` is geen keuze maar een constatering: Graph stuurt bij
-  // een tijd- of locatiewijziging een update-mail naar de genodigden en heeft
-  // daar geen onderdrukkingsparameter voor. De UI zegt het vooraf; dit is de
-  // bevestiging achteraf, zodat de toast kan kloppen.
-  return { ok: true, graph_id: graphId, attendees_notified: n > 0, attendee_count: n };
+  // een tijd-, locatie- of genodigdenwijziging bericht en heeft daar geen
+  // onderdrukkingsparameter voor. De UI zegt het vooraf; dit is de bevestiging
+  // achteraf, zodat de toast kan kloppen.
+  //
+  // Ook `before` telt mee: wie de laatste genodigde eraf haalt eindigt op nul,
+  // en juist dán is er post uitgegaan.
+  return {
+    ok: true, graph_id: graphId,
+    attendees_notified: n > 0 || before > 0,
+    attendee_count: n, attendee_count_before: before,
+  };
 }
 
 async function doDelete(

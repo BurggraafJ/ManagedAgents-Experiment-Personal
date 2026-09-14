@@ -28,7 +28,10 @@ import { BLOCK_TEXT, canDeleteEvent, canEditEvent } from '../../../lib/agendaWri
  * `disabled` zonder uitleg is een raadsel, geen ontwerp. De echte controle
  * staat in de edge-functie, op het live event — dit is de beleefde versie
  * ervan. */
-const POP_W = 344
+// v1.203: 344 → 380. Met het genodigden-veld erbij liep het knoppenrijtje
+// ("Outlook ↗ · Annuleren · Opslaan") op 344 px over twee regels, en een chip
+// met een volledige naam kapte al bij de tweede lettergreep af.
+const POP_W = 380
 const GAP = 10
 
 function place(anchor, height) {
@@ -97,7 +100,7 @@ export default function AgendaEventPopover({
             mode={mode}
             event={event}
             draft={draft}
-            attendeeCount={attendees.length}
+            attendees={mode === 'edit' ? attendees : []}
             write={write}
             onCancel={() => (mode === 'edit' ? setMode('detail') : onClose())}
             onSaved={onClose}
@@ -212,22 +215,28 @@ function DetailPane({ event, classified, attendees, start, end, onEdit, onDelete
       {blockNote && <p className="ag-pop__note">{blockNote}</p>}
 
       <div className="ag-pop__actions">
-        {edit.ok && (
-          <button type="button" className="ag-btn ag-btn--xs" onClick={onEdit}>Wijzigen</button>
-        )}
-        {del.ok && (
-          <button type="button" className="ag-btn ag-btn--xs ag-pop__danger" onClick={onDelete}>
-            Verwijderen
-          </button>
-        )}
         <button
           type="button"
-          className="ag-btn ag-btn--xs ag-pop__spacer"
+          className="ag-btn ag-btn--xs ag-pop__link"
           onClick={() => openOutlook(OUTLOOK_CALENDAR_URL)}
           title="Outlook blijft bron-van-waarheid"
         >
           Outlook ↗
         </button>
+        {del.ok && (
+          <button type="button" className="ag-btn ag-btn--xs ag-pop__danger ag-pop__spacer" onClick={onDelete}>
+            Verwijderen
+          </button>
+        )}
+        {edit.ok && (
+          <button
+            type="button"
+            className={`ag-btn ag-btn--xs ag-btn--primary${del.ok ? '' : ' ag-pop__spacer'}`}
+            onClick={onEdit}
+          >
+            Wijzigen
+          </button>
+        )}
       </div>
     </>
   )
@@ -259,24 +268,26 @@ function DeletePane({ event, attendeeCount, write, onBack, onDeleted }) {
         </p>
       </div>
       <div className="ag-pop__actions">
-        <button type="button" className="ag-btn ag-btn--xs" onClick={onBack} disabled={busy}>Terug</button>
+        <button
+          type="button"
+          className="ag-btn ag-btn--xs ag-pop__link"
+          onClick={() => openOutlook(OUTLOOK_CALENDAR_URL)}
+        >
+          Outlook ↗
+        </button>
+        <button type="button" className="ag-btn ag-btn--xs ag-pop__spacer" onClick={onBack} disabled={busy}>
+          Terug
+        </button>
         {del.ok && (
           <button
             type="button"
-            className="ag-btn ag-btn--xs ag-pop__danger"
+            className="ag-btn ag-btn--xs ag-pop__danger ag-pop__danger--solid"
             onClick={onConfirm}
             disabled={busy}
           >
             {busy ? 'Bezig…' : 'Verwijderen'}
           </button>
         )}
-        <button
-          type="button"
-          className="ag-btn ag-btn--xs ag-pop__spacer"
-          onClick={() => openOutlook(OUTLOOK_CALENDAR_URL)}
-        >
-          Outlook ↗
-        </button>
       </div>
     </>
   )

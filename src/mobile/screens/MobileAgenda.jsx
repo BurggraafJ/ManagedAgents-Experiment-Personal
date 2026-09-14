@@ -13,9 +13,13 @@ import '../mobile-agenda.css'
 // Design A "Luchtlijn" (2026-09-12): de dagdeel-secties
 // (Vanochtend/Vanmiddag/Vanavond) zijn vervangen door één tijdgrid met
 // haarlijnen — dezelfde taal als de desktop-week. Tik op een event opent de
-// detail-sheet (wijzig/verwijder/nieuw zitten daarin); er is géén schrijf-pad
-// naar Outlook, de sheet vertelt dat ook. De kop (week-strip, sync-knop,
-// week-navigatie, morgen-preview) blijft ongewijzigd.
+// detail-sheet (wijzig/verwijder/nieuw zitten daarin).
+//
+// v1.203 — twee wijzigingen uit Jelle's feedback op #120 (2026-09-15):
+//   • het "Morgen"-blok onderaan is weg. Het toonde wat de weekstrip erboven
+//     al toont, en het bezette juist de hoek waar nu de FAB staat;
+//   • "Nieuw event" is van het vierde icoontje rechtsboven een zwarte FAB
+//     rechtsonder geworden, zoals in Taken.
 const DAYS = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']
 const DAYS_FULL = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag']
 const MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december']
@@ -28,7 +32,6 @@ function startOfWeek(d) {
   return x
 }
 function isSameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate() }
-function fmtHM(iso) { return new Date(iso).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) }
 function dayKey(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` }
 
 function formatSyncTime(iso) {
@@ -68,12 +71,16 @@ export default function MobileAgenda() {
     return map
   }, [events])
 
-  // Aantal genodigden per event — de sheet heeft het nodig voor de
-  // verwijder-hek (nul genodigden) en voor de waarschuwing bij wijzigen.
-  const attendeeCounts = useMemo(() => {
+  // Genodigden per event. Tot v1.202 was dit een teller: de sheet had alleen
+  // een aantal nodig voor het verwijder-hek en de waarschuwing. Sinds v1.203
+  // kun je de lijst bewerken, dus de rijen zelf gaan mee — namen in de
+  // detail-stand, chips in de wijzig-stand.
+  const attendeesByEvent = useMemo(() => {
     const map = new Map()
     for (const a of (attendees || [])) {
-      map.set(a.calendar_event_id, (map.get(a.calendar_event_id) || 0) + 1)
+      const list = map.get(a.calendar_event_id)
+      if (list) list.push(a)
+      else map.set(a.calendar_event_id, [a])
     }
     return map
   }, [attendees])
@@ -123,17 +130,7 @@ export default function MobileAgenda() {
     }
   }
 
-  // Morgen-preview voor onderaan: vult de lege ruimte boven de tab bar met
-  // iets nuttigs i.p.v. een leeg paper-vlak. Toont enkel op vandaag's dag-view.
-  const tomorrow = useMemo(() => { const d = new Date(selected); d.setDate(selected.getDate() + 1); return d }, [selected])
-  const tomorrowEvents = eventsByDay.get(dayKey(tomorrow)) || []
-  const jumpToTomorrow = () => {
-    setSelected(tomorrow)
-    const ws = startOfWeek(tomorrow)
-    if (ws.getTime() !== weekStart.getTime()) setWeekStart(ws)
-  }
-
-  // Nieuw event vanaf de kop: het eerstvolgende halve uur op de gekozen dag.
+  // Nieuw event vanaf de FAB: het eerstvolgende halve uur op de gekozen dag.
   const openNew = () => {
     const start = new Date(selected)
     const ref = isTodaySel ? now : new Date(selected.getFullYear(), selected.getMonth(), selected.getDate(), 9, 0)
@@ -161,9 +158,6 @@ export default function MobileAgenda() {
             </button>
             <button type="button" className="m-ag__navbtn" onClick={goToday} aria-label="Vandaag" title="Vandaag">
               <MIcon name="cal" size={16} />
-            </button>
-            <button type="button" className="m-ag__navbtn" onClick={openNew} aria-label="Nieuw event" title="Nieuw event">
-              <MIcon name="plus" size={16} />
             </button>
           </div>
         </div>
@@ -226,37 +220,29 @@ export default function MobileAgenda() {
               onPickEvent={e => setSheet({ mode: 'detail', event: e })}
               onPickSlot={draft => setSheet({ mode: 'create', draft })}
             />
-            {isTodaySel && tomorrowEvents.length > 0 && (
-              <button type="button" className="m-ag__morgen" onClick={jumpToTomorrow}>
-                <div className="m-ag__morgen-head">
-                  <span className="m-ag__morgen-lbl">Morgen</span>
-                  <span className="m-ag__morgen-date">{DAYS_FULL[tomorrow.getDay()]} {tomorrow.getDate()} {MONTHS_SHORT[tomorrow.getMonth()]}</span>
-                </div>
-                <div className="m-ag__morgen-body">
-                  <span className="m-ag__morgen-cnt">{tomorrowEvents.length} {tomorrowEvents.length === 1 ? 'event' : 'events'}</span>
-                  {tomorrowEvents[0] && (
-                    <span className="m-ag__morgen-first">
-                      <span className="m-ag__morgen-time">{fmtHM(tomorrowEvents[0].start_time)}</span>
-                      <span className="m-ag__morgen-subj">{tomorrowEvents[0].subject || '(geen titel)'}</span>
-                    </span>
-                  )}
-                </div>
-                <MIcon name="chevron" size={13} />
-              </button>
-            )}
-            {isTodaySel && tomorrowEvents.length === 0 && dayEvents.length > 0 && (
+            {/* v1.203 — het "Morgen"-blok is weg (Jelle, 2026-09-15): overbodig,
+                want morgen staat één tik verderop in de weekstrip erboven. Het
+                kostte onderaan het scherm precies de ruimte waar de FAB nu staat. */}
+            {dayEvents.length > 0 && (
               <div className="m-ag__endofday">— Einde van de dag —</div>
             )}
           </>
         )}
       </div>
 
+      {/* Nieuw event: rechtsonder en zwart, zoals de FAB in Taken en Postvak.
+          Stond tot v1.202 als vierde icoontje rechtsboven, waar hij naast drie
+          navigatieknoppen verdween en met een duim nauwelijks te raken was. */}
+      <button type="button" className="m-fab" onClick={openNew} aria-label="Nieuw event">
+        <MIcon name="plus" size={24} color="#fff" stroke={2.2} />
+      </button>
+
       {sheet && (
         <MobileAgendaSheet
           mode={sheet.mode}
           event={sheet.event}
           draft={sheet.draft}
-          attendeeCount={sheet.event ? (attendeeCounts.get(sheet.event.id) || 0) : 0}
+          attendees={sheet.event ? (attendeesByEvent.get(sheet.event.id) || []) : []}
           write={write}
           onClose={() => setSheet(null)}
         />

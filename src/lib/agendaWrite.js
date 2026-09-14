@@ -91,3 +91,38 @@ export function attendeeNoticeText(n) {
     + 'wijzigingsmail van Outlook. Dat hoort zo bij een afspraak met genodigden '
     + 'en is niet uit te zetten.'
 }
+
+/**
+ * Bij AANMAKEN mét genodigden: de uitnodigingen gaan meteen de deur uit.
+ *
+ * Dit is geen keuze van ons. Microsoft zegt over `attendees_info` letterlijk dat
+ * het versturen *"can't be configured"* — er is geen concept-stand. Tot v1.202
+ * was dat de reden om het veld helemaal weg te laten; sinds er een
+ * genodigden-kiezer is, is de enige eerlijke oplossing dat het scherm het zégt
+ * vóór de klik. Een verrassing achteraf is hier een verstuurde mail.
+ */
+export function attendeeInviteText(n) {
+  if (!n) return null
+  return `Opslaan stuurt meteen ${n === 1 ? 'een uitnodiging' : `${n} uitnodigingen`} `
+    + 'vanuit Outlook. Een afspraak met genodigden kan niet als concept worden '
+    + 'aangemaakt.'
+}
+
+/**
+ * Bij WIJZIGEN van de genodigdenlijst. `before` en `after` zijn de aantallen,
+ * en het verschil bepaalt wie er post krijgt: erbij = uitnodiging, eraf =
+ * afzegging. Beide stuurt Graph zelf, en ook hier is er geen vlag voor.
+ *
+ * Bewust een aparte tekst en niet een variant van `attendeeNoticeText`: "er gaat
+ * een wijzigingsmail uit" en "die twee mensen worden afgezegd" zijn voor de
+ * lezer twee verschillende mededelingen.
+ */
+export function attendeeDiffText(before = 0, after = 0) {
+  const added = Math.max(0, after - before)
+  const removed = Math.max(0, before - after)
+  if (!added && !removed) return null
+  const parts = []
+  if (added) parts.push(`${added} ${added === 1 ? 'nieuwe genodigde krijgt' : 'nieuwe genodigden krijgen'} een uitnodiging`)
+  if (removed) parts.push(`${removed} ${removed === 1 ? 'genodigde wordt' : 'genodigden worden'} afgezegd`)
+  return `${parts.join(' en ')} zodra je opslaat. Outlook verstuurt dat zelf; er is geen knop om het uit te zetten.`
+}

@@ -49,9 +49,27 @@ export const CALENDAR_TOOLS = {
   GET_EVENT: "OUTLOOK_OUTLOOK_GET_EVENT",
 } as const;
 
+/**
+ * Adresboek-slugs. Bewust ALLEEN de lees-tool.
+ *
+ * De toolkit heeft ook CREATE_CONTACT, UPDATE_CONTACT en DELETE_CONTACT.
+ * Maestro spiegelt het adresboek om er genodigden uit te kunnen kiezen; het
+ * heeft geen enkele reden om erin te schrijven, en een slug die niet in deze
+ * tabel staat kán niet worden uitgevoerd (slot 1). Dat is dezelfde afweging als
+ * bij de send-slugs aan de mailkant.
+ *
+ * Live geverifieerd 2026-09-15 (`GET /api/v3/tools/OUTLOOK_OUTLOOK_LIST_CONTACTS`):
+ * de scope `Contacts.ReadWrite` staat al in de auth-config sinds 2026-04-24, dus
+ * hier is geen nieuwe consent-ronde voor nodig.
+ */
+export const CONTACT_TOOLS = {
+  LIST_CONTACTS: "OUTLOOK_OUTLOOK_LIST_CONTACTS",
+} as const;
+
 const ALLOWED: ReadonlySet<string> = new Set([
   ...Object.values(OUTLOOK_TOOLS),
   ...Object.values(CALENDAR_TOOLS),
+  ...Object.values(CONTACT_TOOLS),
 ]);
 
 export interface OutlookCtx {

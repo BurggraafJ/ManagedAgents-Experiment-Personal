@@ -1,24 +1,34 @@
 import { useState } from 'react'
 import { toLocalDateKey } from '../../../lib/agenda'
-import { attendeeNoticeText } from '../../../lib/agendaWrite'
+import { attendeeDiffText, attendeeInviteText, attendeeNoticeText } from '../../../lib/agendaWrite'
 import { OUTLOOK_CALENDAR_URL, openOutlook, outlookComposeUrl } from '../../../lib/agendaOutlook'
+import AgendaAttendeeField from './AgendaAttendeeField'
 
 /* AgendaEventForm — de velden van de nieuw/wijzig-stand van de popover.
  *
- * v1.195: het formulier schrijft nu écht naar Outlook (Edge Function
- * `outlook-calendar-live`). De velden zijn ongewijzigd — titel, datum, van, tot,
- * locatie — en dat is geen toeval: precies die vier zijn zonder risico naar
- * Graph te sturen. Er is geen veld voor genodigden, terugkeer, body of
- * online-meeting, en dat blijft zo:
+ * v1.195: het formulier schrijft écht naar Outlook (Edge Function
+ * `outlook-calendar-live`).
  *
- *  - genodigden bij CREATE → Graph stuurt uitnodigingen en dat is volgens
- *    Microsoft "can't be configured";
- *  - body bij UPDATE → sloopt de Teams-deelnamelink van een online meeting.
+ * v1.203 — genodigden. Tot nu toe had dit formulier bewust géén
+ * genodigden-veld: `attendees_info` meesturen betekent dat Graph de
+ * uitnodigingen verstuurt, en dat is volgens Microsoft "can't be configured".
+ * Jelle heeft gevraagd het er wél in te zetten (2026-09-15), dus de afweging is
+ * verschoven: niet verstoppen, maar zéggen wat er gebeurt — vóór de klik, met
+ * het aantal erbij. Zie `attendeeInviteText` / `attendeeDiffText`.
  *
- * De Outlook-deeplink blijft naast de opslaan-knop staan. Hij is de tweede
- * route, en de enige route voor alles wat hierboven niet kan. */
+ * Wat er nog steeds NIET in zit:
+ *  - body/omschrijving bij UPDATE → sloopt de Teams-deelnamelink;
+ *  - terugkeerpatroon en een tweede agenda → die kan Composio niet.
+ * Daarvoor blijft de Outlook-deeplink naast de knop staan. */
 function hhmm(d) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/** De bestaande genodigden als bewerkbare lijst (zonder de organisator zelf). */
+function attendeesToChips(list) {
+  return (list || [])
+    .filter(a => a?.email && !a.is_organizer)
+    .map(a => ({ email: String(a.email).toLowerCase(), name: a.name || null, type: a.attendee_type || 'required' }))
 }
 
 function initialValues({ mode, event, draft }) {
@@ -52,12 +62,14 @@ function toDate(dateStr, timeStr) {
 }
 
 export default function AgendaEventForm({
-  mode, event, draft, attendeeCount = 0, write, onCancel, onSaved,
+  mode, event, draft, attendees = [], write, onCancel, onSaved,
 }) {
   const [v, setV] = useState(() => initialValues({ mode, event, draft }))
+  const [guests, setGuests] = useState(() => attendeesToChips(attendees))
   const set = (key) => (e) => setV(prev => ({ ...prev, [key]: e.target.value }))
   const isCreate = mode === 'create'
   const busy = write?.busy
+  const before = attendeesToChips(attendees).length
 
   const openInOutlook = () => {
     if (!isCreate) return openOutlook(OUTLOOK_CALENDAR_URL)
@@ -73,7 +85,10 @@ export default function AgendaEventForm({
   // ISO-string. Graph wil een naïeve tijd plus een aparte zone; een
   // `toISOString()` zou de zone dubbel meesturen en de afspraak twee uur
   // verschuiven. De omzetting gebeurt op één plek, in `_shared/outlook-calendar.ts`.
-  const fields = { subject: v.subject, date: v.date, start: v.start, end: v.end, location: v.location }
+  const fields = {
+    subject: v.subject, date: v.date, start: v.start, end: v.end, location: v.location,
+    attendees: guests,
+  }
   const invalid = !v.date || !v.start || !v.end || v.end <= v.start
 
   const onSave = async () => {
@@ -84,10 +99,15 @@ export default function AgendaEventForm({
     if (res) onSaved?.()
   }
 
-  // Alleen bij wijzigen: Outlook stuurt dan een update-mail en daar is geen
-  // parameter voor (Graph heeft er geen). Niet verstoppen — Jelle hoort het te
-  // weten vóór hij klikt, niet erna.
-  const notice = !isCreate ? attendeeNoticeText(attendeeCount) : null
+  // Drie mededelingen die elkaar uitsluiten, in volgorde van wat er de deur
+  // uitgaat. Ze staan er vóór de klik, niet erna: het gaat om verstuurde post.
+  //
+  //  1. aanmaken mét genodigden → uitnodigingen
+  //  2. wijzigen én de lijst is veranderd → uitnodigingen en/of afzeggingen
+  //  3. wijzigen met een ongewijzigde lijst → de gewone wijzigingsmail
+  const notice = isCreate
+    ? attendeeInviteText(guests.length)
+    : (attendeeDiffText(before, guests.length) || attendeeNoticeText(guests.length))
 
   return (
     <>
@@ -98,7 +118,12 @@ export default function AgendaEventForm({
         </div>
       </div>
 
-      <div className="ag-pop__body">
+      {/* `lang="nl-NL"` voor spellingcontrole en voorleessoftware. Let op wat het
+          NIET doet: Chrome leidt de weergave van `input[type=date|time]` af uit
+          de browsertaal en niet uit dit attribuut. Een Amerikaans "09/14/2026"
+          in een screenshot is dus een eigenschap van de headless browser, niet
+          van dit formulier — daarom staat `--lang=nl-NL` in capture.sh. */}
+      <div className="ag-pop__body" lang="nl-NL">
         <label className="ag-pop__field">
           <span>Titel</span>
           <input
@@ -109,6 +134,12 @@ export default function AgendaEventForm({
             autoFocus
           />
         </label>
+        {/* Datum op een eigen regel, Van en Tot samen. Datum, Van en Tot op ÉÉN
+            regel is geprobeerd (v1.203-concept) en weer teruggedraaid: drie
+            native kiezers naast elkaar passen in 380 px alleen als de tijd
+            24-uurs is. Een browser met een en-US-locale rendert "11:00 AM" plus
+            klokicoon en kapt dan het derde veld af. Eén bespaarde regel is dat
+            niet waard — en het is nu dezelfde indeling als op de telefoon. */}
         <label className="ag-pop__field">
           <span>Datum</span>
           <input type="date" value={v.date} onChange={set('date')} />
@@ -133,23 +164,36 @@ export default function AgendaEventForm({
           />
         </label>
 
+        <AgendaAttendeeField value={guests} onChange={setGuests} disabled={busy} />
+
         {invalid && (
           <p className="ag-pop__note ag-pop__note--warn">
             De eindtijd moet ná de begintijd liggen.
           </p>
         )}
         {notice && <p className="ag-pop__note ag-pop__note--warn">{notice}</p>}
-        <p className="ag-pop__note">
-          {isCreate
-            ? 'Opslaan zet de afspraak meteen in je Outlook-agenda — zonder genodigden. '
-              + 'Wil je mensen uitnodigen, gebruik dan "Openen in Outlook".'
-            : 'Opslaan past de afspraak aan in Outlook. Genodigden, categorieën en '
-              + 'de Teams-link blijven staan.'}
-        </p>
+        {!notice && (
+          <p className="ag-pop__note">
+            {isCreate
+              ? 'Opslaan zet de afspraak meteen in je Outlook-agenda. Zonder genodigden gaat er geen bericht de deur uit.'
+              : 'Opslaan past de afspraak aan in Outlook. Categorieën en de Teams-link blijven staan.'}
+          </p>
+        )}
       </div>
 
+      {/* Opslaan is sinds v1.195 de échte actie; "Openen in Outlook" is de
+          uitwijkroute voor wat hier niet kan (terugkeer, tweede agenda). De
+          hiërarchie stond andersom — primair zwart, uitwijk als tekstknop. */}
       <div className="ag-pop__actions">
-        <button type="button" className="ag-btn ag-btn--xs" onClick={onCancel} disabled={busy}>
+        <button
+          type="button"
+          className="ag-btn ag-btn--xs ag-pop__link"
+          onClick={openInOutlook}
+          title={isCreate ? 'Openen in Outlook met deze velden voorgevuld' : 'Outlook blijft bron-van-waarheid'}
+        >
+          Outlook ↗
+        </button>
+        <button type="button" className="ag-btn ag-btn--xs ag-pop__spacer" onClick={onCancel} disabled={busy}>
           Annuleren
         </button>
         <button
@@ -159,14 +203,6 @@ export default function AgendaEventForm({
           disabled={busy || invalid}
         >
           {busy ? 'Bezig…' : 'Opslaan'}
-        </button>
-        <button
-          type="button"
-          className="ag-btn ag-btn--xs ag-pop__spacer"
-          onClick={openInOutlook}
-          title={isCreate ? 'Openen in Outlook met deze velden voorgevuld' : 'Outlook blijft bron-van-waarheid'}
-        >
-          {isCreate ? 'Openen in Outlook ↗' : 'Outlook ↗'}
         </button>
       </div>
     </>

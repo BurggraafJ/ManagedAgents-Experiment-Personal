@@ -82,6 +82,42 @@ export function graphUtcToIso(dt: unknown): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+export interface AttendeeInput {
+  email: string;
+  name?: string | null;
+  /** 'required' | 'optional' | 'resource'. Onbekende waarden → 'required'. */
+  type?: string | null;
+}
+
+const ATTENDEE_TYPES = new Set(["required", "optional", "resource"]);
+/** Hoeveel genodigden één afspraak mag hebben. Ruim boven elk normaal gebruik. */
+const ATTENDEE_CAP = 100;
+
+/**
+ * Wat er uit een formulier komt is gebruikersinvoer: opschonen vóór het naar
+ * Graph gaat. Ontdubbelt op adres (kleine letters), gooit alles zonder `@` weg
+ * en kapt af op `ATTENDEE_CAP`.
+ */
+export function cleanAttendees(input: unknown): AttendeeInput[] {
+  const list = Array.isArray(input) ? input : [];
+  const out: AttendeeInput[] = [];
+  const seen = new Set<string>();
+  for (const raw of list) {
+    const a = (raw ?? {}) as Record<string, unknown>;
+    const email = String(a.email ?? "").trim().toLowerCase();
+    if (!email.includes("@") || email.length > 320 || seen.has(email)) continue;
+    seen.add(email);
+    const type = String(a.type ?? "required");
+    out.push({
+      email,
+      name: typeof a.name === "string" && a.name.trim() ? a.name.trim().slice(0, 200) : null,
+      type: ATTENDEE_TYPES.has(type) ? type : "required",
+    });
+    if (out.length >= ATTENDEE_CAP) break;
+  }
+  return out;
+}
+
 export interface CalendarEventFields {
   subject?: string | null;
   /** "YYYY-MM-DD" — lokale datum uit het formulier. */
@@ -90,6 +126,20 @@ export interface CalendarEventFields {
   start?: string | null;
   end?: string | null;
   location?: string | null;
+  /**
+   * Genodigden. Let op het verschil tussen de drie waarden:
+   *
+   *   `undefined` / weglaten — de caller zegt niets over genodigden. Bij een
+   *                            UPDATE blijft de bestaande lijst dan staan
+   *                            (teruggelezen en meegestuurd — val 1).
+   *   `[]`                   — de caller zegt expliciet "niemand". Bij een
+   *                            UPDATE haalt dat iedereen eraf.
+   *   een lijst              — precies deze mensen, de rest eraf.
+   *
+   * Dat onderscheid is niet cosmetisch: het is het verschil tussen "ik heb dit
+   * veld niet aangeraakt" en "ik heb alle kruisjes aangeklikt".
+   */
+  attendees?: AttendeeInput[] | null;
 }
 
 /** De Graph-payload van één event, zoals GET_EVENT hem teruggeeft. */
@@ -100,11 +150,18 @@ export async function getEvent(ctx: OutlookCtx, eventId: string): Promise<GraphE
 }
 
 /**
- * Nieuw event. Bewust zónder `attendees_info`: zodra die meegaat stuurt Graph
- * uitnodigingen, en Microsoft zegt daarover letterlijk dat het *"can't be
- * configured"*. Er is dus geen "maak hem alvast aan maar nodig nog niemand
- * uit"-stand, en het formulier heeft ook geen genodigden-veld. Wie genodigden
- * wil, gaat via de Outlook-deeplink die naast de knop blijft staan.
+ * Nieuw event — sinds v1.203 mét genodigden.
+ *
+ * ⚠ **`attendees_info` meesturen betekent: de uitnodigingen gaan de deur uit.**
+ * Microsoft zegt daarover letterlijk dat dat *"can't be configured"* — er is
+ * geen "maak hem alvast aan maar nodig nog niemand uit"-stand. Tot v1.202 was
+ * dat de reden om het veld helemaal weg te laten. Sinds Jelle om een
+ * genodigden-kiezer vroeg (2026-09-15) is het juist de bedoeling, en dan is de
+ * enige eerlijke oplossing dat het scherm dat vóór de klik zegt — zie
+ * `attendeeInviteText()` in `src/lib/agendaWrite.js`.
+ *
+ * De lijst gaat alleen mee als hij niet leeg is: bij CREATE valt er niets te
+ * wissen, dus weglaten en `[]` sturen zijn hetzelfde.
  */
 export async function createEvent(
   ctx: OutlookCtx,
@@ -114,6 +171,7 @@ export async function createEvent(
   const startDt = naiveLocal(f.date, f.start);
   const endDt = naiveLocal(f.date, f.end);
   if (endDt <= startDt) throw new Error("end_before_start");
+  const guests = cleanAttendees(f.attendees ?? []);
 
   const res = await execOutlookTool(ctx, CALENDAR_TOOLS.CREATE_EVENT, {
     subject: String(f.subject ?? "").trim() || "(geen titel)",
@@ -127,6 +185,15 @@ export async function createEvent(
     time_zone: CAL_TZ,
     location: String(f.location ?? ""),
     show_as: "busy",
+    ...(guests.length > 0
+      ? {
+        attendees_info: guests.map((a) => ({
+          email: a.email,
+          name: a.name ?? "",
+          type: a.type ?? "required",
+        })),
+      }
+      : {}),
   });
   const created = respData(res);
   const graphId = String(created.id ?? "");
@@ -161,17 +228,29 @@ export function buildUpdateArgs(
     location: {
       displayName: f.location != null ? String(f.location) : String(loc?.displayName ?? ""),
     },
-    attendees: beforeAtt.map((a) => {
-      const ea = a.emailAddress as { address?: string; name?: string } | undefined;
-      return {
-        emailAddress: { address: String(ea?.address ?? ""), name: String(ea?.name ?? "") },
-        // Composio's schema noemt alleen 'required' en 'optional', maar Graph
-        // kent ook 'resource' (een vergaderruimte). Doorgeven wat er stond is
-        // het enige dat níét muteert; valt Composio erover, dan faalt de update
-        // luid — en dat is beter dan een zaal die stil van de afspraak valt.
-        type: String(a.type ?? "required"),
-      };
-    }).filter((a) => a.emailAddress.address),
+    // Drie gevallen, en het verschil telt — zie `CalendarEventFields.attendees`.
+    //
+    //   f.attendees == null  → de caller raakte het veld niet aan. Teruggeven
+    //                          wat er stond, want weglaten WIST (val 1).
+    //   f.attendees = [...]  → precies deze mensen; de rest gaat eraf.
+    //
+    // Bij de teruggelezen lijst wordt `type` doorgegeven zoals hij was:
+    // Composio's schema noemt alleen 'required' en 'optional', maar Graph kent
+    // ook 'resource' (een vergaderruimte). Doorgeven wat er stond is het enige
+    // dat níét muteert; valt Composio erover, dan faalt de update luid — en dat
+    // is beter dan een zaal die stil van de afspraak valt.
+    attendees: f.attendees != null
+      ? cleanAttendees(f.attendees).map((a) => ({
+        emailAddress: { address: a.email, name: a.name ?? "" },
+        type: a.type ?? "required",
+      }))
+      : beforeAtt.map((a) => {
+        const ea = a.emailAddress as { address?: string; name?: string } | undefined;
+        return {
+          emailAddress: { address: String(ea?.address ?? ""), name: String(ea?.name ?? "") },
+          type: String(a.type ?? "required"),
+        };
+      }).filter((a) => a.emailAddress.address),
     categories: Array.isArray(before.categories) ? before.categories : [],
     show_as: String(before.showAs ?? "busy"),
   };
@@ -193,12 +272,17 @@ export async function updateEvent(
   ctx: OutlookCtx,
   eventId: string,
   f: CalendarEventFields,
-): Promise<{ event: GraphEvent; attendeeCount: number }> {
+): Promise<{ event: GraphEvent; attendeeCount: number; attendeeCountBefore: number }> {
   const before = await getEvent(ctx, eventId);
   await execOutlookTool(ctx, CALENDAR_TOOLS.UPDATE_EVENT, buildUpdateArgs(eventId, before, f));
   const after = await getEvent(ctx, eventId);
   const att = Array.isArray(after.attendees) ? after.attendees.length : 0;
-  return { event: after, attendeeCount: att };
+  // Ook het aantal ervóór, want wie de laatste genodigde eraf haalt eindigt op
+  // nul terwijl er wél post is uitgegaan (Graph stuurt die afzegging zelf, en
+  // UPDATE heeft er geen onderdrukkingsparameter voor). Alleen naar de eindstand
+  // kijken zou dan een stille toast opleveren bij de meest ingrijpende actie.
+  const attBefore = Array.isArray(before.attendees) ? before.attendees.length : 0;
+  return { event: after, attendeeCount: att, attendeeCountBefore: attBefore };
 }
 
 /**

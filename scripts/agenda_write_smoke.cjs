@@ -57,6 +57,9 @@ const TOOLS = {
   DELETE: 'OUTLOOK_OUTLOOK_DELETE_EVENT',
   GET: 'OUTLOOK_OUTLOOK_GET_EVENT',
   LIST_MESSAGES: 'OUTLOOK_OUTLOOK_LIST_MESSAGES',
+  // v1.203 — de bron van de genodigden-kiezer. Alleen lezen; CREATE/UPDATE/
+  // DELETE_CONTACT staan bewust niet in de allowlist van _shared/outlook-exec.ts.
+  LIST_CONTACTS: 'OUTLOOK_OUTLOOK_LIST_CONTACTS',
 };
 
 const TZ = 'Europe/Amsterdam';
@@ -296,6 +299,58 @@ async function runComposio(ctx) {
       `${bodyAfter.length} tekens`);
   }
 
+  // ── C10 — DE GENODIGDENLIJST (v1.203). Tot v1.202 stuurde de helper nooit
+  // genodigden mee: `attendees_info` bij CREATE betekent dat Graph de
+  // uitnodigingen verstuurt, en dat is volgens Microsoft "can't be configured".
+  // Sinds Jelle om een genodigden-kiezer vroeg (2026-09-15) is dat juist de
+  // bedoeling, en dan moeten deze drie standen gemeten zijn en niet beredeneerd:
+  //
+  //   C10a  create MÉT attendees_info        → de genodigde staat erin
+  //   C10b  update met `attendees: []`       → iedereen eraf ("alle kruisjes")
+  //   C10c  update met `attendees: [x]`      → precies x, en niemand anders
+  //   C10d  update ZONDER attendees-veld     → de lijst blijft staan
+  //
+  // C10b/C10c/C10d zijn samen het verschil tussen "niet aangeraakt" en
+  // "expliciet leeggemaakt" — precies het onderscheid dat `CalendarEventFields`
+  // in _shared/outlook-calendar.ts maakt. Wie dat verschil laat vallen, wist
+  // stilletjes een genodigdenlijst bij elke titelwijziging.
+  //
+  // ⚠ De genodigde is de EIGEN mailbox. Een echte uitnodiging naar een vreemde
+  // is precies wat deze test niet mag veroorzaken; nu landt hij in het eigen
+  // postvak en nergens anders.
+  const self = ctx.email.toLowerCase();
+  const c10 = await makeEvent(ctx, {
+    subject: `${MARK} c10-genodigden`,
+    start_datetime: naive(DST_ON, '15:00'),
+    end_datetime: naive(DST_ON, '15:30'),
+    attendees_info: [{ email: self, name: 'Smoke-genodigde', type: 'required' }],
+  });
+  const g10a = await exec(ctx, TOOLS.GET, { user_id: 'me', event_id: c10.id });
+  assert('C10a', 'create MÉT attendees_info zet de genodigde er echt in',
+    attEmails(g10a.attendees).includes(self), attEmails(g10a.attendees).join(', ') || '(leeg)');
+
+  await exec(ctx, TOOLS.UPDATE, buildUpdateArgs(c10.id, g10a, { attendees: [] }));
+  const g10b = await exec(ctx, TOOLS.GET, { user_id: 'me', event_id: c10.id });
+  assert('C10b', 'update met een LEGE attendees-lijst haalt iedereen eraf',
+    attEmails(g10b.attendees).length === 0, `${attEmails(g10b.attendees).length} genodigden`);
+
+  await exec(ctx, TOOLS.UPDATE, buildUpdateArgs(c10.id, g10b, {
+    attendees: [{ email: self, name: 'Smoke-genodigde', type: 'required' }],
+  }));
+  const g10c = await exec(ctx, TOOLS.GET, { user_id: 'me', event_id: c10.id });
+  assert('C10c', 'update met een expliciete lijst zet precies die genodigden',
+    attEmails(g10c.attendees).length === 1 && attEmails(g10c.attendees)[0] === self,
+    attEmails(g10c.attendees).join(', ') || '(leeg)');
+
+  // De positieve controle op het onderscheid: een titelwijziging zonder
+  // attendees-veld mag de lijst NIET wissen. Dit is C4h, nu op de code-vorm van
+  // v1.203 (waar `attendees` een optioneel veld is geworden).
+  await exec(ctx, TOOLS.UPDATE, buildUpdateArgs(c10.id, g10c, { subject: `${MARK} c10-hernoemd` }));
+  const g10d = await exec(ctx, TOOLS.GET, { user_id: 'me', event_id: c10.id });
+  assert('C10d', 'update ZONDER attendees-veld laat de bestaande lijst staan',
+    attEmails(g10d.attendees).length === 1 && String(g10d.subject ?? '').endsWith('c10-hernoemd'),
+    `${attEmails(g10d.attendees).length} genodigden · "${g10d.subject}"`);
+
   // ── C6 — doet `send_notifications: false` wat het belooft?
   // Graph kent geen body op DELETE /me/events/{id} en zegt zelf dat het
   // verwijderen van een meeting een afzegging stuurt. Composio biedt tóch een
@@ -342,6 +397,27 @@ async function runComposio(ctx) {
   assert('C9', 'een vreemde user_id levert geen toegang (dus de pin op \'me\' is het slot)',
     leak === null, leak ?? 'geweigerd');
 
+  // ── C11 — het ADRESBOEK (v1.203). De genodigden-kiezer stelt namen voor uit
+  // `outlook_contacts`, en die tabel wordt gevuld met deze ene tool. Faalt hij
+  // of verandert zijn vorm, dan krijgt Jelle geen foutmelding maar een kiezer
+  // die niets voorstelt — het stilste soort kapot. Vandaar een assertie op de
+  // VORM (een lijst met adressen) en niet op een aantal: een adresboek mag
+  // groeien en krimpen.
+  let book = [];
+  try {
+    const rc = await exec(ctx, TOOLS.LIST_CONTACTS, { user_id: 'me', top: 500 });
+    book = Array.isArray(rc?.value) ? rc.value : [];
+  } catch (e) { note(`C11 LIST_CONTACTS faalde: ${e.message.slice(0, 110)}`); }
+  // Let op de VORM: een genodigde is `{ emailAddress: { address } }`, een
+  // contact is `{ emailAddresses: [{ name, address }] }` — het adres staat er
+  // één niveau hoger. `attEmails` hierboven leest de genodigden-vorm en gaf op
+  // contacten netjes negen keer niets terug (eerste run C11, 2026-09-15).
+  const bookAddrs = book.flatMap((c) => (Array.isArray(c?.emailAddresses) ? c.emailAddresses : [])
+    .map((e) => String(e?.address ?? '').toLowerCase()).filter(Boolean));
+  assert('C11', 'LIST_CONTACTS levert contacten mét e-mailadres (de bron van de kiezer)',
+    book.length > 0 && bookAddrs.length > 0,
+    `${book.length} contacten · ${bookAddrs.length} adressen`);
+
   // C8 (allowlist) is geen Composio-assertie: de edge-functie neemt helemaal
   // geen slug van de caller aan — hij mapt `action` op een vaste constante.
   // Dat is sterker dan een allowlist en wordt in --edge als E7 getoetst.
@@ -367,13 +443,22 @@ function buildUpdateArgs(eventId, before, changes) {
     // Wist bij weglaten → altijd expliciet, met de oude waarde als niemand hem wijzigde.
     subject: changes.subject ?? String(before.subject ?? ''),
     location: { displayName: changes.location ?? String(before.location?.displayName ?? '') },
-    attendees: (Array.isArray(before.attendees) ? before.attendees : []).map((a) => ({
-      emailAddress: {
-        address: String(a?.emailAddress?.address ?? ''),
-        name: String(a?.emailAddress?.name ?? ''),
-      },
-      type: String(a?.type ?? 'required'),
-    })).filter((a) => a.emailAddress.address),
+    // v1.203 — drie gevallen, en het verschil telt (C10b/C10c/C10d):
+    //   changes.attendees weggelaten → de teruggelezen lijst, want weglaten WIST
+    //   changes.attendees = []       → expliciet leeg: iedereen eraf
+    //   changes.attendees = [...]    → precies deze mensen
+    attendees: changes.attendees != null
+      ? changes.attendees.map((a) => ({
+        emailAddress: { address: String(a.email ?? '').toLowerCase(), name: String(a.name ?? '') },
+        type: String(a.type ?? 'required'),
+      })).filter((a) => a.emailAddress.address)
+      : (Array.isArray(before.attendees) ? before.attendees : []).map((a) => ({
+        emailAddress: {
+          address: String(a?.emailAddress?.address ?? ''),
+          name: String(a?.emailAddress?.name ?? ''),
+        },
+        type: String(a?.type ?? 'required'),
+      })).filter((a) => a.emailAddress.address),
     categories: Array.isArray(before.categories) ? before.categories : [],
     show_as: String(before.showAs ?? 'busy'),
   };

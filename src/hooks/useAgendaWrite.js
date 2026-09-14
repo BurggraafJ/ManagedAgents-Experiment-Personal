@@ -79,14 +79,30 @@ function messageFor(body) {
 }
 
 /**
- * Bij een wijziging van een afspraak mét genodigden stuurt Outlook een
- * update-mail. Dat staat vóór de klik al in het scherm; hier bevestigen we het,
- * zodat de toast niet doet alsof er niets is gebeurd.
+ * Wat er de deur uit is gegaan. Dat staat vóór de klik al in het scherm; hier
+ * bevestigen we het, zodat de toast niet doet alsof er niets is gebeurd.
+ *
+ * Drie gevallen, en ze verschillen genoeg om ze uit elkaar te houden:
+ *
+ *   aanmaken mét genodigden  → uitnodigingen
+ *   wijzigen, lijst kleiner  → ook afzeggingen (en dan kán `attendee_count` nul
+ *                              zijn terwijl er wél post is verstuurd — vandaar
+ *                              dat de edge-functie óók `attendee_count_before`
+ *                              teruggeeft)
+ *   wijzigen, lijst gelijk   → de gewone wijzigingsmail
  */
 function detailFor(data) {
-  if (data?.attendees_notified) {
+  if (!data) return undefined
+  if (data.attendees_invited) {
     const n = data.attendee_count || 0
-    return `Outlook stuurt een wijzigingsmail naar ${n} ${n === 1 ? 'genodigde' : 'genodigden'}.`
+    return `Outlook heeft ${n === 1 ? 'een uitnodiging' : `${n} uitnodigingen`} verstuurd.`
+  }
+  if (data.attendees_notified) {
+    const after = data.attendee_count || 0
+    const before = data.attendee_count_before ?? after
+    if (after > before) return `Outlook nodigt ${after - before} ${after - before === 1 ? 'iemand' : 'mensen'} extra uit; de rest krijgt een wijzigingsmail.`
+    if (after < before) return `Outlook zegt ${before - after} ${before - after === 1 ? 'genodigde' : 'genodigden'} af; de rest krijgt een wijzigingsmail.`
+    return `Outlook stuurt een wijzigingsmail naar ${after} ${after === 1 ? 'genodigde' : 'genodigden'}.`
   }
   return undefined
 }

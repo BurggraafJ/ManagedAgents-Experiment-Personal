@@ -9,6 +9,7 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
 import { getCfg as getSharedCfg } from "../_shared/mail-account.ts";
+import { syncOutlookContacts } from "../_shared/outlook-contacts.ts";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
 const SKILL_VERSION = "edge-fn-mail-backfill-v1.4";
@@ -183,6 +184,50 @@ async function claimBucket(supabase: SupabaseClient): Promise<BucketRow | null> 
   };
 }
 
+// ── Adresboek-bijvangst (v1.203) ────────────────────────────────────────────
+// Jelle's vraag: "bij mail-koppelen / backfill — contactpersonen leegtrekken en
+// opslaan". `connectors-outlook` doet de eerste ronde bij het koppelen; dit is
+// het onderhoud daarna.
+//
+// Bewust NIET in de bucket-lus. Die breekt af zodra er geen buckets meer
+// openstaan ("no pending buckets — backfill complete"), en dat is de normale
+// toestand: het adresboek zou dan precies zo lang bijgewerkt worden als de
+// historie nog niet binnen is. Dit draait dus per RUN, over alle actieve
+// mailboxen, met `contacts_synced_at` als rem — de cron tikt elke minuut, een
+// adresboek verandert niet elke minuut.
+//
+// Net als elders hier: bijvangst. Faalt het, dan is dat een warning en niet het
+// einde van een backfill-run.
+const CONTACTS_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+async function refreshContacts(
+  supabase: SupabaseClient, apiKey: string, warn: (m: string) => void,
+): Promise<Array<{ mailbox: string; fetched: number; removed: number }>> {
+  const cutoff = new Date(Date.now() - CONTACTS_MAX_AGE_MS).toISOString();
+  const { data } = await supabase.from("mail_accounts")
+    .select("id, user_id, mailbox_email, composio_user_id, composio_connection_id, contacts_synced_at")
+    .eq("enabled", true).eq("paused", false)
+    .or(`contacts_synced_at.is.null,contacts_synced_at.lt.${cutoff}`)
+    .limit(5);
+  const done: Array<{ mailbox: string; fetched: number; removed: number }> = [];
+  for (const a of (Array.isArray(data) ? data : [])) {
+    if (!a.composio_connection_id || !a.user_id) continue;
+    const res = await syncOutlookContacts(
+      supabase,
+      { apiKey, userId: a.composio_user_id ?? "user-jelle", connectionId: a.composio_connection_id },
+      a.user_id,
+      a.mailbox_email ?? null,
+    );
+    // De klok gaat ook bij een mislukte ronde vooruit, anders probeert élke
+    // minuut-tick het opnieuw bij een tool die structureel weigert.
+    await supabase.from("mail_accounts")
+      .update({ contacts_synced_at: new Date().toISOString() }).eq("id", a.id);
+    if (res.ok) done.push({ mailbox: a.mailbox_email ?? "?", fetched: res.fetched, removed: res.soft_deleted });
+    else warn(`contacts ${a.mailbox_email ?? a.id}: ${res.reason}`);
+  }
+  return done;
+}
+
 function addMonthIso(bucketDate: string, n: number): string {
   const d = new Date(bucketDate + "T00:00:00Z");
   d.setUTCMonth(d.getUTCMonth() + n);
@@ -260,6 +305,7 @@ Deno.serve(async (req) => {
     triggered_by: triggeredBy, triggered_at: startedAt,
     buckets_processed: [] as Array<{ bucket: string; msgs: number; pages: number; status: string }>,
     total_upserted: 0, warnings: [] as string[],
+    contacts_synced: [] as Array<{ mailbox: string; fetched: number; removed: number }>,
   };
   const { data: runIns, error: runErr } = await supabase.from("agent_runs").insert({
     agent_name: "mail-backfill", run_type: "edge_function", status: "running",
@@ -270,6 +316,18 @@ Deno.serve(async (req) => {
 
   try {
     const apiKey = await composioApiKey(supabase);
+
+    // Adresboek eerst: één goedkope call per mailbox, hooguit vier keer per dag,
+    // en hij moet ook draaien als er géén buckets meer openstaan (zie
+    // `refreshContacts`). Vóór de lus, zodat het wall-time-budget van de
+    // buckets hem niet kan opeten.
+    try {
+      stats.contacts_synced = await refreshContacts(
+        supabase, apiKey, (m) => stats.warnings.push(m),
+      );
+    } catch (e) {
+      stats.warnings.push(`contacts: ${stringifyErr(e).slice(0, 200)}`);
+    }
 
     // Alias-adressen zijn globaal; de mailbox zelf komt per bucket erbij.
     // NIET op own_domains matchen — dan zou elke collega op hetzelfde domein

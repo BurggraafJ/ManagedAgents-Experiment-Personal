@@ -41,6 +41,54 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 import { handleConnector, type ConnectorRow } from '../_shared/connector-composio.ts';
+import { getCfg } from '../_shared/mail-account.ts';
+import { syncOutlookContacts } from '../_shared/outlook-contacts.ts';
+
+/**
+ * Koppelen = adresboek ophalen (v1.203).
+ *
+ * Jelle's vraag bij de genodigden-kiezer was: "bij mail-koppelen /
+ * backfill — contactpersonen leegtrekken en opslaan". Dit is de eerste helft
+ * daarvan; `mail-backfill` houdt het daarna bij.
+ *
+ * Twee dingen om in de gaten te houden:
+ *
+ *  1. `afterConnected` draait bij ELKE status-call, en de Connectors-pagina
+ *     pollt die. Zonder rem zou elke paginabezoek een Composio-call kosten.
+ *     Vandaar `contacts_synced_at` op `mail_accounts` en een venster van 6 uur —
+ *     een adresboek verandert niet per minuut.
+ *  2. Dit is BIJVANGST. Een mislukte contact-ronde mag nooit een geldige
+ *     koppeling als kapot laten tonen; `syncOutlookContacts` gooit daarom niet
+ *     en de uitkomst gaat hooguit in de log.
+ */
+const CONTACTS_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+async function seedContacts(
+  supabase: SupabaseClient, userId: string, row: ConnectorRow, mailbox: string,
+): Promise<void> {
+  if (!row.composio_connection_id) return;
+  const { data: acct } = await supabase.from('mail_accounts')
+    .select('id, contacts_synced_at')
+    .eq('user_id', userId).ilike('mailbox_email', mailbox).maybeSingle();
+  if (!acct) return;
+  const last = acct.contacts_synced_at ? Date.parse(acct.contacts_synced_at) : 0;
+  if (Number.isFinite(last) && Date.now() - last < CONTACTS_MAX_AGE_MS) return;
+
+  const apiKey = await getCfg(supabase, 'global', 'composio_api_key');
+  if (!apiKey) return;
+  const res = await syncOutlookContacts(
+    supabase,
+    { apiKey, userId: row.composio_user_id, connectionId: row.composio_connection_id },
+    userId,
+    mailbox,
+  );
+  // De klok gaat ook bij een mislukte ronde vooruit: anders probeert elke
+  // status-call het opnieuw en betaalt een pollende pagina voor een tool die
+  // structureel weigert.
+  await supabase.from('mail_accounts')
+    .update({ contacts_synced_at: new Date().toISOString() }).eq('id', acct.id);
+  if (!res.ok) console.warn('outlook contacts seed failed:', res.reason);
+}
 
 /**
  * Zorgt dat er een spiegel bestaat voor deze gebruiker + mailbox.
@@ -76,11 +124,13 @@ async function ensureMirror(
         composio_connection_id: row.composio_connection_id,
         last_error: null, last_error_at: null,
       }).eq('id', existing.id);
+      await seedContacts(supabase, userId, row, mailbox);
       return 'adopted';
     }
     // Scope, connectie en paused blijven van de eigenaar van die rij. Een
     // gepauzeerde mailbox weer aanzetten is een expliciete beheer-actie, geen
     // neveneffect van op "Koppelen" klikken.
+    if (!existing.paused) await seedContacts(supabase, userId, row, mailbox);
     return existing.paused ? 'paused' : 'existing';
   }
 
@@ -96,6 +146,7 @@ async function ensureMirror(
     scope: 'personal',
     folder_names: null,   // null = mail-sync-etl-v2 ontdekt zelf alle folders
   });
+  await seedContacts(supabase, userId, row, mailbox);
   return 'created';
 }
 

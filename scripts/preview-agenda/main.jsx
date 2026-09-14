@@ -49,6 +49,10 @@ const CASES = {
   wijzig: { mode: 'edit', subject: 'Demo Van Dijk Advocaten' },
   verwijder: { mode: 'delete', subject: 'Intern: sprintplanning' },
   geblokkeerd: { mode: 'detail', subject: 'Partneroverleg Jira' },
+  // v1.203 — het genodigden-veld met het suggestie-menu open. Zie `typeahead()`
+  // onderaan: een statische shot heeft geen toetsaanslagen, dus die zet de
+  // zoekterm er na het renderen zelf in.
+  genodigden: { mode: 'create', subject: null, typeahead: 'ru' },
 }
 
 function popoverProps(kind) {
@@ -78,7 +82,21 @@ function Desktop({ pop }) {
       >
         <AgendaView onNavigate={() => {}} />
       </AppShell>
-      {props && <AgendaEventPopover {...props} />}
+      {/* ⚠ Deze wrapper is niet cosmetisch. Álle knop-styling staat in
+          agenda.css onder `.ag-app .ag-btn`, en in de echte app hangt de
+          popover BINNEN `<div className="ag-app">` (AgendaView.jsx). Stond hij
+          hier los, dan verloor hij die regels en toonde elke shot een Opslaan
+          die grijs is terwijl hij in productie zwart is — een preview die de
+          knop-hiërarchie verkeerd weergeeft. Gevonden bij het nalopen van de
+          v1.202-shots (2026-09-15). */}
+      {props && (
+        // `display: contents` — de wrapper doet mee in de selector-keten maar
+        // niet in de layout, zodat `.ag-app`'s eigen flex/padding de popover
+        // niet verschuift.
+        <div className="ag-app ag-app--lucht" style={{ display: 'contents' }}>
+          <AgendaEventPopover {...props} />
+        </div>
+      )}
     </div>
   )
 }
@@ -93,7 +111,7 @@ function Mobile({ pop }) {
       {props && (
         <MobileAgendaSheet
           mode={props.mode} event={props.event} draft={props.draft}
-          attendeeCount={props.attendees.length} write={write} onClose={() => {}}
+          attendees={props.attendees} write={write} onClose={() => {}}
         />
       )}
     </div>
@@ -106,3 +124,26 @@ createRoot(document.getElementById('root')).render(
     {platform === 'mobile' ? <Mobile pop={pop} /> : <Desktop pop={pop} />}
   </MemoryRouter>
 )
+
+/**
+ * Een statische shot heeft geen toetsaanslagen, en het suggestie-menu van het
+ * genodigden-veld opent pas ná twee getypte tekens. Deze functie doet dat
+ * na-het-renderen: de waarde via de native setter (anders ziet React de
+ * wijziging niet) plus een `input`-event, en daarna focus zodat het menu
+ * openklapt.
+ *
+ * Bewust hier en niet in het component: productiecode krijgt geen preview-haak.
+ */
+function typeahead(term) {
+  const tick = (tries) => {
+    const el = document.querySelector('.ag-att__input')
+    if (!el) { if (tries > 0) setTimeout(() => tick(tries - 1), 60); return }
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    setter.call(el, term)
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+    el.focus()
+  }
+  tick(20)
+}
+const CASE = CASES[pop]
+if (CASE?.typeahead) typeahead(CASE.typeahead)
