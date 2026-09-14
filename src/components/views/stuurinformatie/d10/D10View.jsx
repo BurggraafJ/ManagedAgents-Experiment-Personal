@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useD10Verlies } from '../../../../hooks/useD10Verlies'
-import BordShell, { BordKop } from '../../../ui/BordShell'
+import BordShell, { BordKop, BordFilter } from '../../../ui/BordShell'
 import DataStatusBar from '../../../ui/DataStatusBar'
 import D10Antwoord, { D10Kernzin, D10Subregel } from './D10Antwoord'
 import D10Ontleding from './D10Ontleding'
 import D10Detail from './D10Detail'
+import { PERIODES } from './d10sneden'
 import { getal, datumKort } from '../format'
 import './d10-bord.css'
 
@@ -39,6 +40,11 @@ import './d10-bord.css'
  *
  * Van 6.000 px naar één scherm. Dat is geen woordregel maar de layoutregel van
  * `BordShell`: de werkrij is `minmax(0, 1fr)` en kan dus niet meegroeien.
+ *
+ * Sinds v1.187 (clean herbouw, skill v0.9.1): paginafilter **periode** in de
+ * zevende shell-slot (D10 is het eerste bord dat hem nodig heeft), snede `wie`
+ * zonder balken (G3), C7 Reeksnaast en C9 Verdeling als gedeelde primitieven,
+ * en telegram in zone 2 met de definities in de tooltip (regel 21).
  */
 export default function D10View() {
   const {
@@ -48,7 +54,17 @@ export default function D10View() {
 
   const nav = useNavigate()
   const [snede, setSnede] = useState('wie')
+  const [periode, setPeriode] = useState('m13')
   const [gekozen, setGekozen] = useState(null)
+
+  // Het filter vernauwt de populatie van het hele bord (F1). Een snede die de
+  // nieuwe stand niet kan waarmaken staat uit; wie erop stond, valt terug op
+  // de standaardsnede in plaats van op een leeg blok.
+  const kiesPeriode = (id) => {
+    setPeriode(id)
+    setGekozen(null)
+    if (id === 'maand' && (snede === 'waarom' || snede === 'wanneer')) setSnede('wie')
+  }
 
   // Alles wat de sneden nodig hebben in één object: master en detail lezen
   // dezelfde data en kunnen dus niet uiteenlopen.
@@ -83,44 +99,41 @@ export default function D10View() {
     ]
   }, [meta])
 
+  // Achter `▸ Wat ontbreekt (n)`: elke regel ≤ 25 woorden (regel 21), met de
+  // reden erbij — een lege plek zonder reden is geen voorbehoud maar een storing.
   const meldingen = useMemo(() => {
     if (!meta) return []
     const uit = []
 
     if (meta.a_met_reden === 0 && meta.a_totaal > 0) {
       uit.push(
-        `${getal(meta.a_totaal)} van de ${getal(meta.a_totaal)} verloren sales-deals heeft geen ` +
-        'verliesreden in HubSpot. Het "waarom" achter prospectverlies is daarmee niet te meten — ' +
-        'de snede waarom toont dat als gat, niet als reden.'
+        `Verliesreden in HubSpot: 0 van ${getal(meta.a_totaal)} verloren sales-deals. ` +
+        'Het waarom achter prospectverlies is niet te meten; de snede waarom toont dat als gat.'
       )
     }
     uit.push(
-      `Segment op kantoorgrootte is niet te maken: ${getal(meta.companies_met_omvang)} van ` +
-      `${getal(meta.companies_zichtbaar)} companies draagt totale_omvang. Dezelfde lege plek staat ` +
-      'op het pipelinebord — één veld, drie borden.'
+      `Segment op kantoorgrootte niet te maken: totale_omvang op ${getal(meta.companies_met_omvang)} van ` +
+      `${getal(meta.companies_zichtbaar)} companies. Zelfde lege plek als op D1 — één veld, drie borden.`
     )
     uit.push(
-      'Early-warning op dalend gebruik is niet te maken: gebruiksdata is in dit project nergens ' +
-      'ontsloten. De lijst blijft als lege plek staan; dat is het argument voor de koppeling.'
+      'Early-warning op dalend gebruik niet te maken: gebruiksdata is nergens ontsloten. ' +
+      'De lege plek blijft staan als argument voor de koppeling.'
     )
     if (meta.dossiers_ontbrekend > 0) {
       uit.push(
-        `${getal(meta.dossiers_ontbrekend)} van de ${getal(meta.beeindigd)} beëindigde klantdeals heeft ` +
-        `nog geen dossier — de churn-agent draaide voor het laatst op ${datumKort(meta.laatste_run)}. ` +
-        'Die records staan in de snede waarom onder "nog geen dossier", niet onder een reden.'
+        `${getal(meta.dossiers_ontbrekend)} van ${getal(meta.beeindigd)} beëindigde klantdeals zonder dossier; ` +
+        `churn-agent draaide voor het laatst ${datumKort(meta.laatste_run)}. Zichtbaar in de snede waarom als "nog geen dossier".`
       )
     }
     if (meta.grensgevallen > 0) {
       uit.push(
-        `${getal(meta.grensgevallen)} van de ${getal(meta.bc_totaal)} klantverliezen liggen binnen ` +
-        `${getal(meta.grensmarge_dagen)} dagen van de B/C-grens van ${getal(meta.duurgrens_dagen)} dagen. ` +
-        'Die grens is een duurregel, geen statusveld: een verlengde proef wordt nergens vastgelegd.'
+        `${getal(meta.grensgevallen)} van ${getal(meta.bc_totaal)} klantverliezen binnen ${getal(meta.grensmarge_dagen)} dagen ` +
+        `van de B/C-grens (${getal(meta.duurgrens_dagen)} dagen, dash_parameters). Een duurregel, geen statusveld.`
       )
     }
     if (meta.bc_zonder_plafond > 0) {
       uit.push(
-        `${getal(meta.bc_zonder_plafond)} beëindigd contract mist de contractomvang — het plafond van ` +
-        'de verloren waarde dekt dat record niet.'
+        `${getal(meta.bc_zonder_plafond)} beëindigd contract zonder contractomvang — het plafond van de verloren waarde dekt dat record niet.`
       )
     }
     return uit
@@ -209,11 +222,23 @@ export default function D10View() {
     <BordShell
       className="bs--d10"
       kop={kop1}
-      antwoord={<D10Antwoord kop={kop} meta={meta} />}
+      filter={
+        /* Eén paginafilter (F5: stuurbord, periode — alleen omdat hier meer dan
+           één periode betekenis heeft). De stand geldt voor de verliezen; de
+           CS-lijsten zijn de stand van vandaag en staan buiten het venster. */
+        <BordFilter
+          label="periode"
+          opties={PERIODES}
+          actief={periode}
+          onKies={kiesPeriode}
+          scope="verliezen · de CS-lijsten zijn de stand van vandaag"
+        />
+      }
+      antwoord={<D10Antwoord kop={kop} meta={meta} periode={periode} />}
       kernzin={
         <>
-          <D10Kernzin kop={kop} />
-          <D10Subregel kop={kop} meta={meta} onD1={() => nav('/pipeline')} />
+          <D10Kernzin kop={kop} periode={periode} />
+          <D10Subregel kop={kop} meta={meta} periode={periode} onD1={() => nav('/pipeline')} />
         </>
       }
       master={
@@ -221,6 +246,7 @@ export default function D10View() {
           data={data}
           meta={meta}
           snede={snede}
+          periode={periode}
           onSnede={(id) => { setSnede(id); setGekozen(null) }}
           gekozen={gekozen}
           onKies={setGekozen}
@@ -230,6 +256,7 @@ export default function D10View() {
         <D10Detail
           data={data}
           snede={snede}
+          periode={periode}
           gekozen={gekozen}
           onDossier={(r) => nav(`/klantverlies/${r.deal_id}`)}
         />
@@ -245,14 +272,13 @@ export default function D10View() {
           zin={zin}
           voetnoot={
             <>
-              Bron: HubSpot-mirror (<code>hubspot_deals</code>) via de metric-laag <code>v_d10_*</code> ·
-              fase-indeling uit <code>dim_stage_fase</code> · de B/C-duurgrens ({getal(meta?.duurgrens_dagen)} dagen)
-              en zijn marge ({getal(meta?.grensmarge_dagen)} dagen) uit <code>dash_parameters</code> ·
-              AI-categorieën uit <code>churn_customers</code> (churn-analytics-agent, laatste run{' '}
-              {datumKort(meta?.laatste_run) || 'onbekend'}). Contractwaarde komt uit HubSpot en is{' '}
-              <b>niet gefactureerd</b>: AFAS is niet gekoppeld. A, B en C worden nooit opgeteld —
-              alleen C is churn.
-              {refreshedAt && <> Scherm ververst {refreshedAt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}, daarna elke 5 minuten.</>}
+              Bron: HubSpot-mirror (<code>hubspot_deals</code>) via <code>v_d10_*</code> · fasen uit{' '}
+              <code>dim_stage_fase</code> · B/C-duurgrens {getal(meta?.duurgrens_dagen)} dagen, marge{' '}
+              {getal(meta?.grensmarge_dagen)} uit <code>dash_parameters</code> · AI-categorieën uit{' '}
+              <code>churn_customers</code> (laatste run {datumKort(meta?.laatste_run) || 'onbekend'}) ·
+              contractwaarde uit HubSpot, <b>niet gefactureerd</b> (AFAS niet gekoppeld) · A, B en C nooit
+              opgeteld — alleen C is churn.
+              {refreshedAt && <> Ververst {refreshedAt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}, daarna elke 5 minuten.</>}
             </>
           }
         />

@@ -1,0 +1,74 @@
+/* ==========================================================
+   C9 · Spreiding met mediaan — `verdeling`.
+
+   Skill dashboarding v0.9.1, chart-catalogus §C9 + maatcontract:
+   chart-hoogte diagnose 160 px (één reeks). Puntenrij onder
+   n = 30, histogram met vaste bucketbreedte erboven. Mediaan
+   als verticale streep in ink; punten en buckets voorbij de norm
+   in orange; de norm (L1) gestippeld in ink met haar herkomst.
+   Geen grid — de mediaanstreep is de enige verticale lijn.
+
+   Eigen --c9-* tokenblok met vaste terugval (G6).
+   ========================================================== */
+.c9 {
+  --c9-ink:       var(--bs-ink, #121212);
+  --c9-punt:      var(--bs-n400, #a6a6a6);
+  --c9-buiten:    var(--bs-orange, #dc6f3f);
+  --c9-tekst:     var(--bs-n500, #737373);
+  --c9-tekst-mid: var(--bs-n600, #575757);
+  --c9-lijn:      var(--bs-border-soft, #efece5);
+  --c9-lijn-as:   var(--bs-border, #e7e5df);
+  --c9-paper:     var(--bs-paper, #fff);
+  --c9-mono:      var(--bs-mono, "Geist", ui-monospace, Menlo, monospace);
+  --c9-font:      var(--bs-font, "Instrument Sans", system-ui, sans-serif);
+
+  display: block; margin: 0; padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--c9-lijn);
+  font-family: var(--c9-font); font-size: 12px; color: var(--c9-ink);
+}
+
+/* L5 in woorden: geen beeld onder acht waarnemingen. */
+.c9--l5 { display: flex; flex-direction: column; gap: 2px; padding: 10px 16px; font-size: 11.5px; color: var(--c9-tekst); }
+
+/* Plot: 96 px, met 22 px kop erboven voor de labels van norm en mediaan. */
+.c9__plot { position: relative; height: 96px; margin: 22px 8px 0; border-bottom: 1px solid var(--c9-lijn-as); }
+
+.c9__punten { position: absolute; inset: 0; }
+.c9__punt {
+  position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 9999px;
+  background: var(--c9-punt); opacity: .85;
+}
+.c9__punt.is-buiten { background: var(--c9-buiten); }
+
+.c9__buckets { position: absolute; inset: 0; }
+.c9__bucket { position: absolute; bottom: 0; height: 100%; padding: 0 1px; display: flex; align-items: flex-end; }
+.c9__bucket i { display: block; width: 100%; min-height: 2px; border-radius: 2px 2px 0 0; background: var(--c9-punt); }
+.c9__bucket.is-buiten i { background: var(--c9-buiten); }
+
+/* Mediaan: de enige verticale lijn, met het label erboven. */
+.c9__mediaan { position: absolute; top: -4px; bottom: 0; width: 2px; margin-left: -1px; background: var(--c9-ink); }
+.c9__mediaan-label {
+  position: absolute; bottom: 100%; left: 4px; margin-bottom: 2px; white-space: nowrap;
+  font: 500 10.5px var(--c9-mono); letter-spacing: .04em; color: var(--c9-ink);
+}
+/* L1 · norm: gestippeld, in ink, met de herkomst in het label. */
+.c9__norm { position: absolute; top: -4px; bottom: 0; width: 0; border-left: 1px dashed var(--c9-ink); opacity: .7; }
+.c9__norm-label {
+  position: absolute; bottom: 100%; right: 4px; margin-bottom: 2px; white-space: nowrap;
+  font: 400 10px var(--c9-mono); letter-spacing: .04em; color: var(--c9-tekst-mid);
+}
+
+/* As: 3–5 ticks met label, nul-basis, de eenheid rechts. */
+.c9__as { position: relative; height: 18px; margin: 0 8px; }
+.c9__tick {
+  position: absolute; top: 3px; transform: translateX(-50%);
+  font: 400 10px var(--c9-mono); color: var(--c9-tekst);
+}
+.c9__tick::before { content: ""; position: absolute; left: 50%; top: -4px; width: 1px; height: 3px; background: var(--c9-lijn-as); }
+/* De laatste tick draagt de eenheid en hangt links van zijn streep, zodat hij
+   niet buiten de plot valt. */
+.c9__tick--laatste { transform: translateX(-100%); }
+.c9__tick--laatste::before { left: 100%; }
+
+.c9__onderschrift { display: block; margin-top: 6px; font-size: 11.5px; color: var(--c9-tekst); }
+.c9__onderschrift b { font-weight: 500; color: var(--c9-tekst-mid); }

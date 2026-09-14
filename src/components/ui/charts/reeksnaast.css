@@ -1,0 +1,93 @@
+/* ==========================================================
+   C7 · Parallelle reeksen — `reeks-naast`.
+
+   Skill dashboarding v0.9.1, chart-catalogus §C7 + maatcontract:
+   8 px hoog, radius 4, vulling minimaal 2 px. Label vóór de baan.
+   Eén gedeelde schaal over alle reeksen en rijen (G2). L4 op de
+   lopende periode als arcering, L3 als markering op de rij.
+
+   Kleur per soort, gelijk op elk bord waar die soort voorkomt:
+   A n400 · B orange · C orange-deep (catalogus §C7 Kleur).
+
+   Eigen --c7-* tokenblok met vaste terugval (G6). Promotie van
+   `.d10-reeks` (6 px, bord-lokaal, v1.182–1.186).
+   ========================================================== */
+.c7 {
+  --c7-ink:        var(--bs-ink, #121212);
+  --c7-baan:       var(--bs-paper-3, #f5f4f0);
+  --c7-n400:       var(--bs-n400, #a6a6a6);
+  --c7-orange:     var(--bs-orange, #dc6f3f);
+  --c7-deep:       var(--bs-orange-deep, #8b4628);
+  --c7-gekozen:    var(--bs-orange-subtle, #f9e5dd);
+  --c7-tekst:      var(--bs-n500, #737373);
+  --c7-tekst-mid:  var(--bs-n600, #575757);
+  --c7-lijn:       var(--bs-border-soft, #efece5);
+  --c7-paper-2:    var(--bs-paper-2, #fafaf8);
+  --c7-warn-ink:   var(--bs-warn-ink, #8a4d0c);
+  --c7-mono:       var(--bs-mono, "Geist", ui-monospace, Menlo, monospace);
+  --c7-font:       var(--bs-font, "Instrument Sans", system-ui, sans-serif);
+
+  --c7-hoogte: 8px; --c7-radius: 4px;
+
+  display: flex; flex-direction: column; min-width: 0;
+  font-family: var(--c7-font); font-size: 14px; line-height: 1.5; color: var(--c7-ink);
+}
+
+.c7__rij {
+  position: relative; width: 100%;
+  display: grid; grid-template-columns: minmax(0, 1fr) 14px; align-items: center; gap: 12px;
+  padding: 8px 16px;
+  border: 0; border-bottom: 1px solid var(--c7-lijn);
+  background: none; text-align: left; font: inherit; color: inherit;
+}
+button.c7__rij { cursor: pointer; }
+button.c7__rij:hover:not(.is-gekozen) { background: var(--c7-paper-2); }
+.c7__rij:last-child { border-bottom: 0; }
+.c7__rij.is-gekozen { background: var(--c7-gekozen); }
+.c7__rij.is-gekozen::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c7-deep);
+}
+.c7__cel { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.c7__naam { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--c7-ink); }
+.c7__rij.is-gekozen .c7__naam { font-weight: 600; }
+.c7__sub { font-size: 11px; color: var(--c7-tekst); }
+/* L3: de markering staat op de rij, het verhaal in de tooltip. */
+.c7__markering { font: 500 10.5px var(--c7-mono); letter-spacing: .04em; color: var(--c7-warn-ink); }
+.c7__caret { text-align: right; font-size: 10px; color: var(--c7-n400); }
+.c7__rij.is-gekozen .c7__caret { color: var(--c7-deep); }
+
+/* De reeksen náást elkaar; elke reeks krijgt een derde. */
+.c7__reeksen { display: flex; gap: 14px; margin-top: 2px; }
+.c7__reeks { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+/* Vaste breedte voor het label vóór de baan, anders schuift elke baan een paar
+   pixels op zodra een maand van 0 naar 27 gaat. */
+.c7__label {
+  width: 34px; flex-shrink: 0; white-space: nowrap;
+  font: 500 10.5px var(--c7-mono); letter-spacing: .04em; color: var(--c7-tekst-mid);
+}
+.c7__label.is-nul { color: var(--c7-n400); }
+.c7__baan {
+  flex: 1; min-width: 0; height: var(--c7-hoogte); border-radius: var(--c7-radius);
+  background: var(--c7-baan); overflow: hidden;
+}
+.c7__baan i { display: block; height: 100%; min-width: 2px; border-radius: var(--c7-radius); }
+.c7__reeks--n400   .c7__baan i { background: var(--c7-n400); }
+.c7__reeks--orange .c7__baan i { background: var(--c7-orange); }
+.c7__reeks--deep   .c7__baan i { background: var(--c7-deep); }
+
+/* L4 · lopende periode: arcering over de baan en een lichte staaf. De tijd is
+   onaf, ongeacht de waarde — daarom over de hele baan, niet alleen de staaf. */
+.c7__rij.is-huidig .c7__baan {
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, rgba(15, 15, 15, .06) 3px 4px);
+}
+.c7__rij.is-huidig .c7__baan i { opacity: .55; }
+
+/* Smal (container < 560): twee reeksen, de derde achter een tap. */
+.c7__toon {
+  align-self: flex-start; margin: 6px 16px 0;
+  padding: 0; border: 0; background: none; cursor: pointer;
+  font: 500 11px var(--c7-font); color: var(--c7-deep);
+}
+.c7__toon:hover { text-decoration: underline; }
+.c7--smal .c7__reeksen { flex-direction: column; gap: 4px; }
+.c7--smal .c7__label { width: 40px; }
