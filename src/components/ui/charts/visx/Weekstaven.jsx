@@ -32,7 +32,9 @@ export default function Weekstaven({
   const top = netteTop(Math.max(doel || 0, ...slots.map(s => Number(s.waarde) || 0)))
   const x = scaleBand({ domain: slots.map(s => s.key), range: [padL, padL + pw], paddingInner: 0.38, paddingOuter: 0.19 })
   const y = scaleLinear({ domain: [0, top], range: [padT + ph, padT] })
-  const bw = Math.min(26, x.bandwidth())
+  // 26 px in de grid; in de focus-split (kaart > 500 px) mogen ze naar 44 —
+  // dezelfde reeks, alleen op maat van de ruimte die ze krijgen.
+  const bw = Math.min(breedte > 500 ? 44 : 26, x.bandwidth())
   const slot = pw / Math.max(1, slots.length)
   const ticks = [0, top / 2, top]
   const eersteGepland = slots.findIndex(s => s.soort === 'gepland')

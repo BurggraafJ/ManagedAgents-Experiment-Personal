@@ -36,7 +36,11 @@ shoot() { # view · viewport · doelnaam
   # 20 kB telt als mislukt.
   for poging in 1 2 3; do
     rm -rf "$DIST.chrome-prof-$1"
+    # --force-prefers-reduced-motion: de focus-split animeert de gridkolommen
+    # (v1.210); met virtuele tijd landt een shot anders halverwege de transitie
+    # en meet useMaat een tussenbreedte. Reduced motion = direct de eindstand.
     "$CHROME" --headless=old --disable-gpu --no-sandbox --disable-dev-shm-usage \
+      --force-prefers-reduced-motion \
       --hide-scrollbars --virtual-time-budget=4000 --window-size="$2" \
       --force-device-scale-factor=2 --user-data-dir="$DIST.chrome-prof-$1" \
       --screenshot="$doel" \
@@ -48,16 +52,23 @@ shoot() { # view · viewport · doelnaam
 
 # Het bord op BordShell scrollt niet: één venster van 1440 × 900 ís het bord.
 # Bewust sequentieel: drie headless Chromes tegelijk leverden lege shots.
-shoot desktop         1440,900  desktop
-shoot licenties       1440,900  desktop-licenties
-shoot detail-fase3    1440,900  desktop-detail-fase3
-shoot kanaal          1440,900  desktop-kanaal
-shoot week            1440,900  desktop-week
-shoot hover           1440,900  desktop-hover
-shoot shell           1440,900  shell
-shoot shell-licenties 1440,900  shell-licenties
-shoot shell-detail    1440,900  shell-detail-fase3
-shoot shell-sync      1440,900  shell-sync
-shoot shell-monthly   1440,1100 shell-monthly
-shoot mobile          390,2400  mobile
-shoot mobile-detail   390,2400  mobile-detail
+shoot desktop            1440,900  desktop
+shoot licenties          1440,900  desktop-licenties
+shoot focus-fase3        1440,900  desktop-focus-fase3
+shoot focus-week         1440,900  desktop-focus-week
+shoot focus-kanaal       1440,900  desktop-focus-kanaal
+shoot focus-wissel       1440,900  desktop-focus-wissel
+shoot focus-terug        1440,900  desktop-focus-terug
+shoot focus-esc          1440,900  desktop-focus-esc
+shoot focus-tweede-klik  1440,900  desktop-focus-tweede-klik
+shoot focus-hover        1440,900  desktop-focus-hover
+shoot hover              1440,900  desktop-hover
+shoot shell              1440,900  shell
+shoot shell-licenties    1440,900  shell-licenties
+shoot shell-focus-fase3  1440,900  shell-focus-fase3
+shoot shell-focus-week   1440,900  shell-focus-week
+shoot shell-sync         1440,900  shell-sync
+shoot shell-monthly      1440,1100 shell-monthly
+shoot mobile             390,2400  mobile
+shoot mobile-focus       390,1200  mobile-focus
+shoot mobile-focus-terug 390,2400  mobile-focus-terug

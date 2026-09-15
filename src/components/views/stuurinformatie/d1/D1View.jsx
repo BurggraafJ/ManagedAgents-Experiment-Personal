@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useD1Pipeline } from '../../../../hooks/useD1Pipeline'
 import BordShell, { BordKop, BordTabs, BordToggle } from '../../../ui/BordShell'
@@ -28,6 +28,12 @@ import './live/d1live.css'
  *   • hover = één zin + de getallen van de snede; klik = de records in de sink
  *   • de pagina scrollt niet (BordShell); onder 1000 px stapelen de kaarten
  *
+ * Focus-split (v1.210, Jelle 2026-09-15): mét een selectie wordt het bord een
+ * 50/50 — alleen de gekozen kaart links, de sink breed rechts. `is-focus` op de
+ * shell stuurt de kolommen (d1live.css); Esc, `◂ Overzicht` en de tweede klik
+ * maken de selectie leeg. Op een telefoon is er geen naast-elkaar: de sink vult
+ * het scherm en draagt zelf de terugknop (D1Detail).
+ *
  * Dit bord rekent niet. Elk getal komt uit de `v_d1_*`-laag (migratie
  * 20260915130000); de kaarten kiezen alleen hoe het getoond wordt.
  */
@@ -39,6 +45,23 @@ export default function D1View() {
   const [periode, setPeriode] = useState('half')
   const [modus, setModus] = useState('deals')
   const [gekozen, setGekozen] = useState(null)
+  const focus = !!gekozen
+
+  // Esc = terug naar de grid. Op window en niet op de kaart: het toetsenbord-
+  // focus ligt na een klik op een <rect>, en die is weg zodra de grid weg is.
+  useEffect(() => {
+    if (!focus) return undefined
+    const onKey = e => { if (e.key === 'Escape') setGekozen(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [focus])
+
+  // Mobiel: de sink komt in plaats van de kaarten en begint bóven, niet waar
+  // je net Kanaal stond te lezen.
+  useEffect(() => {
+    if (!focus || typeof window === 'undefined' || !window.matchMedia('(max-width: 1000px)').matches) return
+    document.querySelector('.bs--d1-live')?.scrollIntoView({ block: 'start' })
+  }, [focus])
 
   const bronnen = useMemo(() => {
     if (!meta) return []
@@ -158,12 +181,14 @@ export default function D1View() {
     )
   }
 
+  const terug = () => setGekozen(null)
+
   return (
     <BordShell
-      className="bs--d1 bs--d1-live"
+      className={`bs--d1 bs--d1-live${focus ? ' is-focus' : ''}`}
       kop={kop}
-      master={<D1Live data={data} modus={modus} periode={periode} gekozen={gekozen} onKies={setGekozen} />}
-      detail={<D1Detail gekozen={gekozen} deals={data.deals} aanvoerDeals={data.aanvoerDeals} bewegingDeals={data.bewegingDeals} modus={modus} meta={meta} />}
+      master={<D1Live data={data} modus={modus} periode={periode} gekozen={gekozen} onKies={setGekozen} onTerug={terug} />}
+      detail={<D1Detail gekozen={gekozen} deals={data.deals} aanvoerDeals={data.aanvoerDeals} bewegingDeals={data.bewegingDeals} modus={modus} meta={meta} focus={focus} onTerug={terug} />}
     />
   )
 }

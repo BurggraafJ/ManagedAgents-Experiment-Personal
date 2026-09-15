@@ -54,6 +54,8 @@ function Doe({ stappen, children }) {
       // React's delegatie, voor <rect> en <path> net zo goed als voor <button>.
       if (el) {
         if ((stap.actie || 'click') === 'focus') el.focus()
+        // 'toets': een KeyboardEvent op window — zo test de shot Esc (focus-split).
+        else if (stap.actie === 'toets') window.dispatchEvent(new KeyboardEvent('keydown', { key: stap.key, bubbles: true }))
         else el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
         i += 1
       }
@@ -67,28 +69,41 @@ const knop = tekst => () => Array.from(document.querySelectorAll('button')).find
 const aria = prefix => () => Array.from(document.querySelectorAll('[aria-label]')).find(el => el.getAttribute('aria-label').startsWith(prefix))
 const legenda = tekst => () => Array.from(document.querySelectorAll('.dl-klegenda__rij')).find(el => el.textContent.includes(tekst))
 const sync = () => document.querySelector('.dsb__sync')
+const terug = () => document.querySelector('.dl-focus .dl-terug') || document.querySelector('.dl-detail__terug')
+const altijd = () => document.body
 
 const views = {
   // Zoals je het bord binnenkomt: Deals, lege sink.
   desktop: <Desktop />,
   // Toggle Licenties: units wisselen, Waarde-kaart erbij.
   licenties: <Doe stappen={[{ vind: knop('Licenties') }]}><Desktop /></Doe>,
-  // Fase 3 in Tijd in fase geklikt → sink `Fase 3 · aging` (Design detail-fase3).
-  'detail-fase3': <Doe stappen={[{ vind: aria('Fase 3') }]}><Desktop /></Doe>,
-  // Legenda-rij Onbekend van de donut → hygiënelijst.
-  kanaal: <Doe stappen={[{ vind: legenda('Onbekend') }]}><Desktop /></Doe>,
-  // Week 36 in Kennismakingen (3 gehouden) → sink met de kennismakingen.
-  week: <Doe stappen={[{ vind: aria('36 ·') }]}><Desktop /></Doe>,
+  // Fase 3 in Tijd in fase geklikt → focus-split: die kaart alleen links, sink `Fase 3 · aging` breed rechts.
+  'focus-fase3': <Doe stappen={[{ vind: aria('Fase 3') }]}><Desktop /></Doe>,
+  // Week 36 in Kennismakingen (3 gehouden) → focus-split met de kennismakingen.
+  'focus-week': <Doe stappen={[{ vind: aria('36 ·') }]}><Desktop /></Doe>,
+  // Legenda-rij Onbekend van de donut → focus-split Kanaal met de hygiënelijst.
+  'focus-kanaal': <Doe stappen={[{ vind: legenda('Onbekend') }]}><Desktop /></Doe>,
+  // Andere snede op dezelfde kaart: Fase 3 → Fase 1. De kaart blijft in focus, alleen de sink wisselt.
+  'focus-wissel': <Doe stappen={[{ vind: aria('Fase 3') }, { vind: aria('Fase 1') }]}><Desktop /></Doe>,
+  // De drie wegen terug — elk moet de idle grid teruggeven (identiek aan `desktop`).
+  'focus-terug': <Doe stappen={[{ vind: aria('Fase 3') }, { vind: terug }]}><Desktop /></Doe>,
+  'focus-esc': <Doe stappen={[{ vind: aria('Fase 3') }, { vind: altijd, actie: 'toets', key: 'Escape' }]}><Desktop /></Doe>,
+  'focus-tweede-klik': <Doe stappen={[{ vind: aria('Fase 3') }, { vind: aria('Fase 3') }]}><Desktop /></Doe>,
   // Hover-tooltip: focus op de W36-staaf toont dezelfde tip als de muis.
   hover: <Doe stappen={[{ vind: aria('36 ·'), actie: 'focus' }]}><Desktop /></Doe>,
+  // Hover blijft óók in focus: Fase 3 geklikt, dan de Fase 1-rij gefocust → tip op de ene kaart.
+  'focus-hover': <Doe stappen={[{ vind: aria('Fase 3') }, { vind: aria('Fase 1'), actie: 'focus' }]}><Desktop /></Doe>,
   // Door de echte desktop-chrome (sidebar + topbalk), Deals en Licenties.
   shell: <InShell title="Pipeline & forecast" activeView="pipeline"><D1View /></InShell>,
   'shell-licenties': <InShell title="Pipeline & forecast" activeView="pipeline"><Doe stappen={[{ vind: knop('Licenties') }]}><D1View /></Doe></InShell>,
-  'shell-detail': <InShell title="Pipeline & forecast" activeView="pipeline"><Doe stappen={[{ vind: aria('Fase 3') }]}><D1View /></Doe></InShell>,
+  'shell-focus-fase3': <InShell title="Pipeline & forecast" activeView="pipeline"><Doe stappen={[{ vind: aria('Fase 3') }]}><D1View /></Doe></InShell>,
+  'shell-focus-week': <InShell title="Pipeline & forecast" activeView="pipeline"><Doe stappen={[{ vind: aria('36 ·') }]}><D1View /></Doe></InShell>,
   'shell-sync': <InShell title="Pipeline & forecast" activeView="pipeline"><Doe stappen={[{ vind: sync }]}><D1View /></Doe></InShell>,
   'shell-monthly': <InShell title="Pipeline · Monthly" activeView="pipeline_kwartaal" back="Pipeline" crumb="Pipeline / Monthly"><D1Kwartaal /></InShell>,
   mobile: <Mobile />,
-  'mobile-detail': <Mobile><Doe stappen={[{ vind: aria('Fase 3') }]}><D1View /></Doe></Mobile>,
+  // Mobiel: geen naast-elkaar — de sink vult het scherm, met `◂ Overzicht` in de kop.
+  'mobile-focus': <Mobile><Doe stappen={[{ vind: aria('Fase 3') }]}><D1View /></Doe></Mobile>,
+  'mobile-focus-terug': <Mobile><Doe stappen={[{ vind: aria('Fase 3') }, { vind: terug }]}><D1View /></Doe></Mobile>,
 }
 
 // ?meet=1 — budgetten gemeten in plaats van geschat (bouwproces.md stap 8).
