@@ -2,9 +2,9 @@
 // =============================================================================
 // multi_user_acl_eval.cjs — de poort voor multi-user toegang        (v1.190)
 // =============================================================================
-// Elf asserties uit RESEARCH-MULTI-USER.md §6.1. Twee kwamen er in M2 bij:
-// M9 (de positieve controle op een override — het bewijs dat een vinkje werkt)
-// en M10 (de per-user-tak op de Postvak-RPC's, die langs de RLS heen loopt). Draai hem vóór én ná elke
+// Dertien asserties. M2 bracht M9/M10; SECURITY PR-A brengt M11 (doorkijk over
+// de juiste persoon — S1) en M12 (het vinkje `levert_vandaag` dekt wat er echt
+// wordt afgedwongen — S4). Draai hem vóór én ná elke
 // wijziging aan RLS, een view, een RPC-grant of een edge function.
 //
 //   SBT=<management_token> node scripts/multi_user_acl_eval.cjs
@@ -224,6 +224,75 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
   assert('M8', 'geen storage-policy die alleen op bucket_id test', m8Fout.length === 0,
     m8Fout.length ? m8Fout.map(b => b.naam).join(', ').slice(0, 28) : `0 van ${buckets.length} policies`, '0');
 
+  // ── M12 · `levert_vandaag` liegt niet (SECURITY PR-A / S4) ────────────────
+  //
+  // S4 zet negen vinkjes op true. Een vinkje is een belofte aan de owner: "dit
+  // recht doet vandaag iets". De kolom is handwerk en loopt dus uit de pas met
+  // de handhaving zodra iemand een policy verplaatst of een capability toevoegt
+  // — en dan liegt het Uitnodigen-scherm, want `rechten_zonder_dekking` in
+  // invite_readiness() leest exact deze kolom.
+  //
+  // Vier regels, allevier read-only en allevier aantoonbaar rood te krijgen
+  // (gemeten 2026-09-15 met een verzonnen rijenset: 1/1/1/1 waar de echte tabel
+  // 0/0/0/0 geeft — geheugen `grep-is-ugrep`: een poort die je niet één keer
+  // rood hebt gezien bewaakt niets):
+  //
+  //   a. tegenspraak       — levert_vandaag=true terwijl afdwingen_in leeg is of
+  //                          met 'nog niet' begint. De kolom spreekt zichzelf tegen.
+  //   b. claim_zonder_policy — afdwingen_in noemt capability_gate, maar geen
+  //                          pg_policy zet die poort op die key.
+  //   c. claim_zonder_guard  — afdwingen_in noemt assert_capability, maar geen
+  //                          functiebron roept hem aan met die key.
+  //   d. afgedwongen_zonder_vinkje — omgekeerd: de poort staat er wél (policy of
+  //                          guard) en het vinkje staat uit. Dan ónderschat het
+  //                          scherm wat de persoon krijgt.
+  //
+  // ⚠ Postgres bewaart een policy-expressie mét cast: `capability_gate('x'::text)`.
+  // Matchen op `capability_gate('x')` geeft stil nul treffers op élke key en
+  // daarmee vals groen op (d) en vals rood op (b). Daarom matcht het patroon op
+  // het prefix `capability_gate('x'` — dat dekt beide vormen. In `prosrc` staat
+  // de ruwe broncode, dus daar is de cast er niet; hetzelfde prefix dekt ook dat.
+  //
+  // BEWUST NIET gedekt: de edge-tak. RESEARCH §7.1 noemt die erbij, maar een
+  // edge-poort heet `requirePaidUse()` en draagt de capability-key niet in zijn
+  // naam. Dat koppelen vraagt een handlijst (key → functie), en dat is precies de
+  // tweede kopie van dezelfde regel waar `acl_poort_config` vanaf wilde. Zolang
+  // die lijst niet uit de code afleidbaar is, dekt M12 alleen wat de database
+  // zelf kan bewijzen — policy en RPC-guard. `modellen.gebruiken` valt daarmee
+  // onder (a): de tegenspraak-regel houdt hem eerlijk, de vindplaats niet.
+  const m12 = (await sql(`
+    with bron as (
+      select coalesce(pr.prosrc,'') as src from pg_proc pr
+        join pg_namespace n on n.oid = pr.pronamespace and n.nspname = 'public'
+    ),
+    beleid as (
+      select coalesce(p.qual,'')||' '||coalesce(p.with_check,'') as expr
+        from pg_policies p where p.schemaname = 'public'
+    ),
+    echt as (
+      select c.key, c.levert_vandaag, coalesce(c.afdwingen_in,'') as afdwingen_in,
+             exists (select 1 from beleid b where b.expr like '%capability_gate('''||c.key||'''%') as in_policy,
+             exists (select 1 from bron s where s.src like '%assert_capability('''||c.key||'''%') as in_guard
+        from public.capabilities c
+    )
+    select
+      (select count(*)::int from echt
+        where levert_vandaag and (afdwingen_in = '' or afdwingen_in like 'nog niet%')) as tegenspraak,
+      (select count(*)::int from echt
+        where levert_vandaag and afdwingen_in like '%capability_gate%' and not in_policy) as claim_zonder_policy,
+      (select count(*)::int from echt
+        where levert_vandaag and afdwingen_in like '%assert_capability%' and not in_guard) as claim_zonder_guard,
+      (select count(*)::int from echt
+        where not levert_vandaag and (in_policy or in_guard)) as afgedwongen_zonder_vinkje,
+      (select count(*)::int from echt where levert_vandaag) as vinkjes,
+      (select count(*)::int from echt) as totaal`))[0];
+  assert('M12', 'levert_vandaag dekt wat er echt wordt afgedwongen',
+    m12.tegenspraak === 0 && m12.claim_zonder_policy === 0
+      && m12.claim_zonder_guard === 0 && m12.afgedwongen_zonder_vinkje === 0,
+    `tegenspraak=${m12.tegenspraak} claim=${m12.claim_zonder_policy}/${m12.claim_zonder_guard} `
+      + `stil_afgedwongen=${m12.afgedwongen_zonder_vinkje} (${m12.vinkjes}/${m12.totaal} aan)`,
+    '0 0 0 0');
+
   // ── Personas ──────────────────────────────────────────────────────────────
   const keys = await mgmt('/api-keys?reveal=true');
   const serviceKey = keys.find(k => k.name === 'service_role')?.api_key;
@@ -365,6 +434,46 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
         `member=${alsMember.data} owner=${alsOwner.data} onbekend=${onbekend.data}`,
         'false true false');
     }
+
+    // ── M11 · de doorkijk gaat over de juiste persoon (SECURITY PR-A / S1) ──
+    //
+    // has_capability(p_key, p_user) negeert p_user op het browserpad (anti-
+    // impersonatie). Dat is goed voor handhaving; fout voor de doorkijk.
+    // user_capabilities_overview + invite_readiness moeten via has_capability_for
+    // de *persoon* tellen, niet de aanroeper. Deze assertie kan alleen rood
+    // worden door die bug: owner-JWT → overview(member) moet gelijk zijn aan
+    // de interne meting voor die member, en kleiner dan die van de owner.
+    const intern = (await sqlRw(`
+      select
+        (select count(*)::int from public.capabilities c
+          where public.has_capability(c.key, '${member.user_id}'::uuid)) as member_intern,
+        (select count(*)::int from public.capabilities c
+          where public.has_capability(c.key, '${owner.user_id}'::uuid)) as owner_intern`))[0];
+    const overview = await callRpc(o.jwt, anonKey, 'user_capabilities_overview', { p_user: member.user_id });
+    const overviewActief = Array.isArray(overview.data)
+      ? overview.data.filter((r) => r.actief === true).length
+      : -1;
+    const readiness = await callRpc(o.jwt, anonKey, 'invite_readiness', { p_user_id: member.user_id });
+    const readinessActief = readiness.data?.persoon?.rechten_actief ?? -1;
+    // Extra: has_capability via browser mag NIET de member tonen (anti-impersonatie blijft).
+    const browserHc = await callRpc(o.jwt, anonKey, 'has_capability', {
+      p_key: 'secrets.beheren', p_user: member.user_id,
+    });
+    const forHc = await callRpc(o.jwt, anonKey, 'has_capability_for', {
+      p_key: 'secrets.beheren', p_user: member.user_id,
+    });
+    assert('M11', 'doorkijk gaat over de juiste persoon (niet de aanroeper)',
+      overview.status === 200
+        && readiness.status === 200
+        && intern.member_intern > 0
+        && intern.owner_intern > intern.member_intern
+        && overviewActief === intern.member_intern
+        && readinessActief === intern.member_intern
+        && overviewActief !== intern.owner_intern
+        && browserHc.data === true   // owner vraagt → owner-caps (anti-impersonatie)
+        && forHc.data === false,     // doorkijk → member heeft secrets.beheren niet
+      `overview=${overviewActief} invite=${readinessActief} intern_m=${intern.member_intern} intern_o=${intern.owner_intern} hc_browser=${browserHc.data} hc_for=${forHc.data}`,
+      `overview=invite=intern_m (< intern_o) · hc_browser=true hc_for=false`);
   } finally {
     await sqlRw(`delete from public.user_capabilities where note = '${TESTMERK}';`);
     await opruimen();
