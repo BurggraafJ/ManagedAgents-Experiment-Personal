@@ -380,6 +380,9 @@ END $function$;
 COMMENT ON FUNCTION public.rag_eval_finish_if_done(uuid) IS 'Spoor 01 — markeert items met een resultaatrij done, geeft na 3 verloren hops een expliciete FAIL hop_lost, en rondt de run af zodra niets meer open staat: aggregaten, cost_usd_total (incl. judge_cost_usd), p50/p95 (chat-lane), status done, gates = rag_eval_compare(run, compare_to). Retourneert true als de run af is.';
 
 -- ── 7. Update v_agent_eval_runs — toon spend-kolommen ───────────────────────
+-- CREATE OR REPLACE VIEW kan kolommen niet herordenen/hernoemen → drop eerst.
+DROP VIEW IF EXISTS public.v_agent_eval_runs;
+
 CREATE OR REPLACE VIEW public.v_agent_eval_runs
 WITH (security_invoker = on) AS
 SELECT r.id,
