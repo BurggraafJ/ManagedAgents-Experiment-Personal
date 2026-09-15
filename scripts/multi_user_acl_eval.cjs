@@ -2,9 +2,10 @@
 // =============================================================================
 // multi_user_acl_eval.cjs — de poort voor multi-user toegang        (v1.190)
 // =============================================================================
-// Dertien asserties. M2 bracht M9/M10; SECURITY PR-A brengt M11 (doorkijk over
+// Veertien asserties. M2 bracht M9/M10; SECURITY PR-A brengt M11 (doorkijk over
 // de juiste persoon — S1) en M12 (het vinkje `levert_vandaag` dekt wat er echt
-// wordt afgedwongen — S4). Draai hem vóór én ná elke
+// wordt afgedwongen — S4); SECURITY PR-B brengt M13 (shared catalogi +
+// persoonlijke task_projects — S2). Draai hem vóór én ná elke
 // wijziging aan RLS, een view, een RPC-grant of een edge function.
 //
 //   SBT=<management_token> node scripts/multi_user_acl_eval.cjs
@@ -474,7 +475,55 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
         && forHc.data === false,     // doorkijk → member heeft secrets.beheren niet
       `overview=${overviewActief} invite=${readinessActief} intern_m=${intern.member_intern} intern_o=${intern.owner_intern} hc_browser=${browserHc.data} hc_for=${forHc.data}`,
       `overview=invite=intern_m (< intern_o) · hc_browser=true hc_for=false`);
+
+    // ── M13 · member leest preset-catalogi; task_projects is persoonlijk ─────
+    //
+    // Drie opzoektabellen blijven kantoor-gedeeld (capability_gate). task_projects
+    // is sinds Jelle 2026-09-15 persoonlijk per user: member mag NIET alle 9
+    // owner-projecten zien. Positieve controle: we planten één eigen project,
+    // meten dat de member precies dat ziet, en dat de owner méér ziet (alles).
+    // kb_documents blijft bewust owner-only (niet in de gedeelde lijst).
+    const SHARED_CATALOGS = [
+      ['autodraft_actions', 'postvak'],
+      ['kb_categories', 'kennisbank'],
+      ['cities_lookup', 'agenda'],
+    ];
+    const m13leeg = [];
+    const m13ok = [];
+    for (const [rel, _cap] of SHARED_CATALOGS) {
+      const r = await count(m.jwt, anonKey, rel);
+      if (!(r.status === 200 && r.n > 0)) m13leeg.push(`${rel}=${r.status === 200 ? r.n : 'HTTP ' + r.status}`);
+      else m13ok.push(`${rel}=${r.n}`);
+    }
+
+    const TEST_PROJ_NAME = 'acl-eval M13 persoonlijk';
+    await sqlRw(`delete from public.task_projects where name = '${TEST_PROJ_NAME}'`);
+    await sqlRw(`insert into public.task_projects (name, status, sort_order, user_id)
+                 values ('${TEST_PROJ_NAME}', 'active', 9999, '${m.userId}'::uuid)`);
+    const tpMember = await count(m.jwt, anonKey, 'task_projects');
+    const tpOwner  = await count(o.jwt, anonKey, 'task_projects');
+    // Member ziet alleen eigen (1 testproject); owner ziet backfill (9) + test (≥10).
+    // Als de kantoor-gedeelde capability_gate ooit terugkomt, ziet de member 10
+    // en valt precies deze assertie om.
+    const tpOk = tpMember.status === 200 && tpMember.n === 1
+      && tpOwner.status === 200 && tpOwner.n >= 10
+      && tpMember.n < tpOwner.n;
+    if (!tpOk) m13leeg.push(`task_projects member=${tpMember.status === 200 ? tpMember.n : 'HTTP ' + tpMember.status} owner=${tpOwner.status === 200 ? tpOwner.n : 'HTTP ' + tpOwner.status}`);
+    else m13ok.push(`task_projects member=${tpMember.n} owner=${tpOwner.n}`);
+
+    // Negatief: kb_documents en HubSpot blijven dicht (S3 out of scope).
+    const kbDocs = await count(m.jwt, anonKey, 'kb_documents');
+    const hs = await count(m.jwt, anonKey, 'hubspot_deals');
+    const m13dicht = (kbDocs.status === 200 && kbDocs.n === 0) && (hs.status === 200 && hs.n === 0);
+    assert('M13', 'shared catalogi open; task_projects persoonlijk; CRM/kb_docs dicht',
+      m13leeg.length === 0 && m13dicht,
+      m13leeg.length
+        ? m13leeg.join(' ').slice(0, 60)
+        : `${m13ok.join(' ')} · kb_docs=${kbDocs.n} hs=${hs.n}`,
+      '3 shared > 0 · task_projects member=1 < owner · kb_docs=0 hs=0');
+
   } finally {
+    await sqlRw(`delete from public.task_projects where name = 'acl-eval M13 persoonlijk'`);
     await sqlRw(`delete from public.user_capabilities where note = '${TESTMERK}';`);
     await opruimen();
     const rest = await sql(`select count(*)::int as n from public.user_session_mfa where user_agent = '${TESTMERK}'`);
