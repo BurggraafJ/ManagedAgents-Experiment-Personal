@@ -81,7 +81,7 @@ export function useAgenda() {
     // "7 min geleden" tonen terwijl productie permanent "geen sync" zei. Een
     // mock die een veld verzint verbergt precies de bug die je wilde zien.
     syncState: { last_delta_sync_at: new Date(Date.now() - 7 * 60000).toISOString(), status: 'ok' },
-    loading: false, error: null, refresh: () => {},
+    loading: false, error: null, refresh: () => {}, refreshCalendar: () => {},
   }
 }
 

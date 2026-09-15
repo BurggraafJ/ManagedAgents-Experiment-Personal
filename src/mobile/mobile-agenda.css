@@ -275,3 +275,49 @@
   cursor: pointer;
 }
 .m-agsheet__outlook:active { color: var(--m-ink); }
+
+/* ── Teams-schakelaar (v1.216) — de mobiele tegenhanger van .ag-pop__toggle. */
+.m-agsheet__toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--m-border);
+  border-radius: 10px;
+  background: var(--m-paper);
+  cursor: pointer;
+}
+.m-agsheet__toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.m-agsheet__toggle-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px; height: 24px;
+  border-radius: 9999px;
+  background: var(--m-n300, #d9d7d0);
+  transition: background .15s ease;
+}
+.m-agsheet__toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 20px; height: 20px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .18);
+  transition: transform .15s ease;
+}
+.m-agsheet__toggle input:checked + .m-agsheet__toggle-track { background: var(--m-ink); }
+.m-agsheet__toggle input:checked + .m-agsheet__toggle-track::after { transform: translateX(16px); }
+.m-agsheet__toggle input:disabled ~ * { opacity: .5; }
+.m-agsheet__toggle-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.m-agsheet__toggle-text strong { font: 500 14px var(--m-sans); color: var(--m-ink); }
+.m-agsheet__toggle-text em { font: 400 12px var(--m-sans); font-style: normal; color: var(--m-n500); }
+
+/* De gevulde variant van de waarschuwknop: in de annuleer-stand ís annuleren
+   de hoofdactie (met bericht, of zonder genodigden gewoon "Annuleren"). */
+.m-admbtn--warn.m-admbtn--warn-solid {
+  background: var(--m-warn-ink);
+  border-color: var(--m-warn-ink);
+  color: #fff;
+}
+.m-agsheet__acties + .m-agsheet__outlook { margin-top: 10px; }

@@ -48,9 +48,11 @@
 .m-mailsheet__acts .m-iconbtn.is-on { color: var(--m-orange); }
 
 /* ── Mapkiezer ─────────────────────────────────────────────────────────────
-   58 mappen, zes niveaus. De inspringing toont de boom; het zoekveld is hoe je
-   er komt. Vier niveaus diep is de inspringing afgekapt (`data-depth` max 3) —
-   daarna eet hij de naam op en dat helpt niemand. */
+   58 mappen, zes niveaus. v1.217: de boom begint dicht — alleen hoofdmappen,
+   een chevron ervoor vouwt uit en wat je openklapt blijft open. De inspringing
+   toont de diepte; het zoekveld is nog altijd de snelste weg. Vier niveaus
+   diep is de inspringing afgekapt (`data-depth` max 3) — daarna eet hij de
+   naam op en dat helpt niemand. */
 .m-folders { max-height: 78vh; }
 .m-folders__body { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 .m-folders__head { display: flex; flex-direction: column; gap: 2px; }
@@ -60,13 +62,26 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.m-folders__quick { display: flex; gap: 8px; }
-.m-folders__q {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
-  height: 42px; border-radius: 12px; cursor: pointer;
-  border: 1px solid var(--m-border-soft); background: var(--m-paper2);
-  font: 600 13.5px var(--m-sans); color: var(--m-ink);
+/* Top 3 meest gebruikt (v1.217). Drie tegels naast elkaar, icoon boven naam:
+   "Verwijderde items" past op 400 px niet drie keer náást een icoon, wél
+   eronder. Koud heten ze "Snelkeuze" (Archief + Verwijderde items); zodra er
+   geteld is "Meest gebruikt". */
+.m-folders__quickwrap { display: flex; flex-direction: column; gap: 6px; }
+.m-folders__eyebrow {
+  font: 600 10.5px var(--m-sans); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--m-n500);
 }
+.m-folders__quick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.m-folders__quick[data-n="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.m-folders__quick[data-n="1"] { grid-template-columns: minmax(0, 1fr); }
+.m-folders__q {
+  min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  height: 56px; padding: 0 8px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--m-border-soft); background: var(--m-paper2);
+  font: 600 12px var(--m-sans); color: var(--m-ink);
+}
+.m-folders__q > svg { color: var(--m-n500); flex-shrink: 0; }
+.m-folders__q > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .m-folders__q:disabled { opacity: .5; }
 
 .m-folders__search {
@@ -88,16 +103,33 @@
   flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
   margin: 0 -4px; padding: 0 4px;
 }
+/* Eén rij = chevron (uitvouwen) + de map zelf (kiezen). Twee knoppen, twee
+   doelen; de chevron is 32 px zodat een duim hem raakt zonder de map te
+   kiezen. Bladeren zonder submappen krijgen dezelfde 32 px als lege ruimte,
+   anders springen de namen per rij. */
+.m-folders__row { display: flex; align-items: stretch; }
+.m-folders__row[data-depth="1"] { padding-left: 16px; }
+.m-folders__row[data-depth="2"] { padding-left: 32px; }
+.m-folders__row[data-depth="3"] { padding-left: 48px; }
+.m-folders__row + .m-folders__row,
+.m-folders__node + .m-folders__node,
+.m-folders__node .m-folders__node { border-top: 1px solid var(--m-border-soft); }
+.m-folders__tgl {
+  flex-shrink: 0; width: 32px; border: 0; background: transparent; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--m-n400); -webkit-tap-highlight-color: transparent;
+}
+.m-folders__tgl > svg { transition: transform .18s ease; }
+.m-folders__row.is-open .m-folders__tgl > svg { transform: rotate(90deg); }
+.m-folders__row.is-open > .m-folders__item .m-folders__name { color: var(--m-ink); }
+.m-folders__tgl--none { cursor: default; }
+.m-folders__row--flat .m-folders__item { padding-left: 10px; }
 .m-folders__item {
-  width: 100%; display: flex; align-items: center; gap: 10px;
-  padding: 11px 10px; border: 0; border-radius: 10px; cursor: pointer;
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  padding: 11px 10px 11px 0; border: 0; border-radius: 10px; cursor: pointer;
   background: transparent; text-align: left; color: var(--m-n500);
 }
 .m-folders__item:disabled { opacity: .45; }
-.m-folders__item[data-depth="1"] { padding-left: 24px; }
-.m-folders__item[data-depth="2"] { padding-left: 38px; }
-.m-folders__item[data-depth="3"] { padding-left: 52px; }
-.m-folders__item + .m-folders__item { border-top: 1px solid var(--m-border-soft); border-radius: 0; }
 .m-folders__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .m-folders__name {
   font: 600 14.5px var(--m-sans); color: var(--m-ink);

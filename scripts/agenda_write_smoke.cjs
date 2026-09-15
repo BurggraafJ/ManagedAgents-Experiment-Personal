@@ -356,6 +356,14 @@ async function runComposio(ctx) {
   // verwijderen van een meeting een afzegging stuurt. Composio biedt tóch een
   // vlag aan — wat die aan hun kant doet is niet te lezen, dus meten we het.
   // Genodigde is de eigen mailbox, dus eventuele post landt nergens anders.
+  //
+  // ⚠ Wat dit bewijst is smaller dan het label (gemeten 2026-09-15, v1.216):
+  // met de eigen mailbox als enige genodigde zet Exchange óók de UITNODIGING
+  // van CREATE niet in inbox/Verzonden/Verwijderd. "0 afzeggingen" is dus wat
+  // deze fixture altijd geeft, ongeacht de vlag. Zie C6b hieronder. Een echte
+  // meting van de vlag vraagt een tweede mailbox als genodigde; die is er niet
+  // in mail_accounts. Wat wél vaststaat: Composio documenteert de vlag als
+  // "sends cancellation notifications to event attendees upon deletion".
   const c6 = await makeEvent(ctx, {
     subject: `${MARK} c6-afzegging`,
     start_datetime: naive(DST_ON, '16:00'),
@@ -380,6 +388,44 @@ async function runComposio(ctx) {
     hasAttendee6
       ? `${nieuw.length} nieuw in Verzonden, ${afzegging.length} afzegging${afzegging.length ? ': ' + afzegging.map((m) => m.subject).join(' | ') : ''}`
       : 'ONBESLIST: het event had geen genodigde (Graph dedupliceert de organisator)');
+
+  // ── C6b — en doet `send_notifications: true` het omgekeerde? (v1.216)
+  // De positieve controle op "Met bericht": C6 alleen bewijst dat de vlag
+  // stilte kán afdwingen, niet dat de andere stand ook echt post oplevert. Als
+  // dit niet meetbaar is (Composio negeert de vlag, Graph stuurt niks naar de
+  // organisator-zelf), dan is "Met bericht" in het scherm een lege belofte en
+  // moet dat in de PR staan. Genodigde is opnieuw de eigen mailbox.
+  if (hasAttendee6) {
+    const c6b = await makeEvent(ctx, {
+      subject: `${MARK} c6b-afzegging-met-bericht`,
+      start_datetime: naive(DST_ON, '16:45'),
+      end_datetime: naive(DST_ON, '17:15'),
+      attendees_info: [{ email: ctx.email, name: 'Smoke zelf', type: 'required' }],
+    });
+    const sentBefore6b = await listSent(ctx);
+    await exec(ctx, TOOLS.DELETE, { user_id: 'me', event_id: c6b.id, send_notifications: true });
+    drop(c6b.id);
+    await new Promise((r) => setTimeout(r, 25000));
+    const sentAfter6b = await listSent(ctx);
+    const nieuw6b = sentAfter6b.filter((m) => !sentBefore6b.some((b) => b.id === m.id));
+    const afzegging6b = nieuw6b.filter((m) => /geannuleerd|canceled|cancelled|afgezegd/i.test(String(m.subject ?? ''))
+      || String(m.subject ?? '').includes('c6b-afzegging-met-bericht'));
+    if (afzegging6b.length > 0) {
+      assert('C6b', 'verwijderen met send_notifications:true stuurt wél een afzegging ("Met bericht")',
+        true, afzegging6b.map((m) => m.subject).join(' | '));
+    } else {
+      // Gemeten 2026-09-15: 0 in Verzonden. Met de eigen mailbox als enige
+      // genodigde stuurt Exchange de organisator geen afzegging aan zichzelf,
+      // dus deze fixture KAN de positieve kant niet bewijzen; er is maar één
+      // mailbox in mail_accounts om mee te testen. Daarom een notitie en geen
+      // rood: rood zou hier "de fixture is te klein" betekenen, niet "de vlag
+      // werkt niet". Composio documenteert de vlag als "sends cancellation
+      // notifications to event attendees" en C6 bewijst dat `false` hem
+      // onderdrukt. De echte positieve controle is één "Met bericht" op een
+      // testafspraak met een collega als genodigde — zie de PR van v1.216.
+      note('C6b ONBESLIST: 0 afzeggingen in Verzonden — eigen mailbox als enige genodigde krijgt geen bericht van zichzelf');
+    }
+  }
 
   // ── C7 — verwijdert DELETE echt?
   const gone = await exec(ctx, TOOLS.GET, { user_id: 'me', event_id: c6.id }).then(() => 'gevonden').catch(() => null);
@@ -631,19 +677,40 @@ async function runEdge() {
       fake.status === 409 && fake.body?.reason === 'event_not_in_mirror',
       `${fake.status} ${fake.body?.reason ?? ''}`);
 
-    // E9 — verwijderen mét genodigden. Het testevent is van deze run en heeft
-    // alleen de eigen mailbox als genodigde, dus als het hek zou falen sneuvelt
-    // er niets van iemand anders. Ná de weigering moet het event er nog zijn.
+    // E9 — annuleren mét genodigden (v1.216). Tot v1.215 was dit een hek
+    // (`has_attendees`); sinds Jelle's "zoals Outlook: met of zonder bericht"
+    // is het een VERPLICHTE keuze. Het testevent is van deze run en heeft
+    // alleen de eigen mailbox als genodigde, dus als er iets misgaat sneuvelt
+    // er niets van iemand anders.
+    //
+    //   E9a  zonder `notify_attendees` → 409 notify_choice_required
+    //   E9b  en het event staat er dan nog
+    //   E9c  mét `notify_attendees: false` → 200, cancelled, geen bericht
+    //
+    // De "met bericht"-kant wordt niet door de edge-functie heen gemeten (dat
+    // zou een echte afzegging in het eigen postvak zetten bij élke run); C6b in
+    // de Composio-modus is daar de positieve controle voor.
     const withAtt = await makeAttendeeEvent();
     if (withAtt) {
       const refused = await call(jwt, { action: 'delete_event', graph_id: withAtt });
-      assert('E9a', 'verwijderen mét genodigden wordt geweigerd (geen afzegging)',
-        refused.status === 409 && refused.body?.reason === 'has_attendees',
+      assert('E9a', 'annuleren mét genodigden zónder keuze wordt geweigerd (notify_choice_required)',
+        refused.status === 409 && refused.body?.reason === 'notify_choice_required',
         `${refused.status} ${refused.body?.reason ?? ''}`);
       const still = await sql(
         `select is_deleted from public.calendar_events where graph_id = ${lit(withAtt)}`);
       assert('E9b', 'en het event staat er ná de weigering nog',
         still[0]?.is_deleted === false, JSON.stringify(still[0] ?? {}));
+      const quiet = await call(jwt, { action: 'delete_event', graph_id: withAtt, notify_attendees: false });
+      assert('E9c', 'annuleren mét genodigden en notify_attendees:false slaagt, zonder bericht',
+        quiet.status === 200 && quiet.body?.ok === true && quiet.body?.cancelled === true
+          && quiet.body?.attendees_notified === false && (quiet.body?.attendee_count ?? 0) > 0,
+        `${quiet.status} ${JSON.stringify(quiet.body ?? {})}`);
+      if (quiet.status === 200) {
+        // Het event is nu weg uit Outlook; de finally hoeft alleen nog de
+        // spiegelrij op te ruimen (die staat op is_deleted=true).
+        try { await sql(`delete from public.calendar_events where graph_id = ${lit(withAtt)}`, false); } catch { /* finally vangt de rest */ }
+        attendeeEventId = null;
+      }
     }
 
     // E10–E12 — de overige takken, op echte rijen uit de spiegel. Bij elk: 409
@@ -715,9 +782,10 @@ async function runEdge() {
           where subject like ${lit(MARK + '%')}`, false);
       } catch (e) { console.error(`  spiegelrijen NIET opgeruimd: ${e.message.slice(0, 120)}`); }
     }
-    // Het E9-fixture kan de edge-functie per definitie niet opruimen (dat is
-    // precies wat hij weigert), dus hier: uit Outlook zónder afzegging, en de
-    // spiegelrij die deze test zelf heeft gezet er weer uit.
+    // Het E9-fixture: als E9c niet tot een delete kwam staat het event nog in
+    // Outlook — hier uit Outlook zónder afzegging, en de spiegelrij die deze
+    // test zelf heeft gezet er weer uit. (Ná een geslaagde E9c is
+    // `attendeeEventId` al null.)
     if (attendeeEventId && attendeeCtx && !KEEP) {
       try {
         await exec(attendeeCtx, TOOLS.DELETE, {

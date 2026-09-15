@@ -16,9 +16,11 @@ import { fromNameOf, subjectOf, bodyPreviewOf, receivedAtOf } from '../../lib/po
 // Maestro-sortering (Outlook ziet er niets van), Verplaats en Verwijder raken
 // de mailbox.
 //
-// Het ⋯-knopje rechts opent **dezelfde strook** — niet een tweede menu met een
-// eigen lijst die uit de pas kan lopen. Eén strook, twee manieren erin: met een
-// gebaar voor wie het kent, met een knop voor wie het niet kent.
+// v1.217: **het ⋯-knopje rechts is weg.** Het opende dezelfde strook als de
+// veeg — een tweede ingang voor wie het gebaar niet kende. Jelle (2026-09-15):
+// niet nodig, de veeg ís de ingang. Wat het opleverde: een rustiger rij, en de
+// rechterkolom is nu alleen nog de ongelezen-stip. Desktop (`Pv2Row`) houdt
+// zijn ⋯, want daar is geen veeg.
 //
 // Bewust géén volledige-veeg-snelkoppeling (doorvegen = meteen uitvoeren): de
 // actie die het verst rechts staat is Verwijderen, en die wil je niet per
@@ -152,12 +154,6 @@ export default function MobilePostvakRow({
                 ouder geeft `unread` mee zodat een mail die je zojuist opende
                 meteen dooft, ook al staat de spiegel nog op ongelezen. */}
             <span className={`m-pvrow__dot ${unread ? '' : 'is-empty'}`} />
-            {!readOnly && (
-              <button type="button" className={`m-pvrow__more ${dx > 0 ? 'is-on' : ''}`} aria-label="Acties"
-                      onClick={e => { e.stopPropagation(); onSwipe && onSwipe(dx > 0 ? null : mail.mail_id) }}>
-                <MIcon name="more" size={16} />
-              </button>
-            )}
           </div>
         </div>
       </div>

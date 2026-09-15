@@ -125,7 +125,7 @@ export function buildRows(caps) {
 const GROEP_META = {
   'Werk': {
     open: true,
-    reden: 'Wat iedereen gebruikt. Administratie en Kennisbank zijn nog in aanbouw — die wil je zien.',
+    reden: 'Wat iedereen gebruikt. Kennisbank is nog in aanbouw — die wil je zien. Administratie is owner-only tot de CRM-spiegel (PR-E).',
   },
   'Dashboards': {
     open: false,
