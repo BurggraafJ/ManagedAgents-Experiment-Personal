@@ -2,9 +2,8 @@
 // =============================================================================
 // multi_user_acl_eval.cjs — de poort voor multi-user toegang        (v1.190)
 // =============================================================================
-// Elf asserties uit RESEARCH-MULTI-USER.md §6.1. Twee kwamen er in M2 bij:
-// M9 (de positieve controle op een override — het bewijs dat een vinkje werkt)
-// en M10 (de per-user-tak op de Postvak-RPC's, die langs de RLS heen loopt). Draai hem vóór én ná elke
+// Twaalf asserties. M2 bracht M9/M10; SECURITY PR-A brengt M11 (doorkijk over de
+// juiste persoon — S1). Draai hem vóór én ná elke
 // wijziging aan RLS, een view, een RPC-grant of een edge function.
 //
 //   SBT=<management_token> node scripts/multi_user_acl_eval.cjs
@@ -365,6 +364,46 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
         `member=${alsMember.data} owner=${alsOwner.data} onbekend=${onbekend.data}`,
         'false true false');
     }
+
+    // ── M11 · de doorkijk gaat over de juiste persoon (SECURITY PR-A / S1) ──
+    //
+    // has_capability(p_key, p_user) negeert p_user op het browserpad (anti-
+    // impersonatie). Dat is goed voor handhaving; fout voor de doorkijk.
+    // user_capabilities_overview + invite_readiness moeten via has_capability_for
+    // de *persoon* tellen, niet de aanroeper. Deze assertie kan alleen rood
+    // worden door die bug: owner-JWT → overview(member) moet gelijk zijn aan
+    // de interne meting voor die member, en kleiner dan die van de owner.
+    const intern = (await sqlRw(`
+      select
+        (select count(*)::int from public.capabilities c
+          where public.has_capability(c.key, '${member.user_id}'::uuid)) as member_intern,
+        (select count(*)::int from public.capabilities c
+          where public.has_capability(c.key, '${owner.user_id}'::uuid)) as owner_intern`))[0];
+    const overview = await callRpc(o.jwt, anonKey, 'user_capabilities_overview', { p_user: member.user_id });
+    const overviewActief = Array.isArray(overview.data)
+      ? overview.data.filter((r) => r.actief === true).length
+      : -1;
+    const readiness = await callRpc(o.jwt, anonKey, 'invite_readiness', { p_user_id: member.user_id });
+    const readinessActief = readiness.data?.persoon?.rechten_actief ?? -1;
+    // Extra: has_capability via browser mag NIET de member tonen (anti-impersonatie blijft).
+    const browserHc = await callRpc(o.jwt, anonKey, 'has_capability', {
+      p_key: 'secrets.beheren', p_user: member.user_id,
+    });
+    const forHc = await callRpc(o.jwt, anonKey, 'has_capability_for', {
+      p_key: 'secrets.beheren', p_user: member.user_id,
+    });
+    assert('M11', 'doorkijk gaat over de juiste persoon (niet de aanroeper)',
+      overview.status === 200
+        && readiness.status === 200
+        && intern.member_intern > 0
+        && intern.owner_intern > intern.member_intern
+        && overviewActief === intern.member_intern
+        && readinessActief === intern.member_intern
+        && overviewActief !== intern.owner_intern
+        && browserHc.data === true   // owner vraagt → owner-caps (anti-impersonatie)
+        && forHc.data === false,     // doorkijk → member heeft secrets.beheren niet
+      `overview=${overviewActief} invite=${readinessActief} intern_m=${intern.member_intern} intern_o=${intern.owner_intern} hc_browser=${browserHc.data} hc_for=${forHc.data}`,
+      `overview=invite=intern_m (< intern_o) · hc_browser=true hc_for=false`);
   } finally {
     await sqlRw(`delete from public.user_capabilities where note = '${TESTMERK}';`);
     await opruimen();
