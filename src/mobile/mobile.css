@@ -926,17 +926,12 @@ button.m-tkrow__main { cursor: pointer; }
   color: var(--m-n600); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
 }
 
-/* Rechterkolom van een rij: ongelezen-stip boven, ⋯ eronder. De stip houdt
-   zijn plek als hij leeg is, anders springt het ⋯ per rij een paar px. */
+/* Rechterkolom van een rij: alleen de ongelezen-stip. De ⋯ die eronder stond
+   is in v1.217 weg (de veeg is de enige ingang tot de acties); de stip houdt
+   zijn plek als hij leeg is, zodat de tijd rechts per rij niet verspringt. */
 .m-pvrow__side { display: flex; flex-direction: column; align-items: center; gap: 10px; flex-shrink: 0; padding-top: 4px; }
 .m-pvrow__side .m-pvrow__dot { margin-top: 0; }
 .m-pvrow__dot.is-empty { background: transparent; }
-.m-pvrow__more {
-  width: 28px; height: 28px; border: 0; border-radius: 9999px; background: transparent;
-  color: var(--m-n400); display: inline-flex; align-items: center; justify-content: center;
-  cursor: pointer; -webkit-tap-highlight-color: transparent;
-}
-.m-pvrow__more.is-on { background: var(--m-press); color: var(--m-ink); }
 
 /* Veegstrook. Drie knoppen van 76 px liggen stil onder de rij; de rij zelf
    schuift eroverheen weg. Alleen de rij beweegt — dat is één transform en
@@ -1034,13 +1029,43 @@ button.m-tkrow__main { cursor: pointer; }
   flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
   padding: calc(6px + env(safe-area-inset-top)) 8px 6px; border-bottom: 1px solid var(--m-border-soft);
 }
+/* v1.217: een harde veeg omhoog sluit het vel (useSwipeUpDismiss). Bij het
+   besluit glijdt hij in één keer weg — niet meebewegen tijdens de veeg, dat
+   zou over de scroll heen liggen. */
+.m-mailsheet.is-leaving { animation: m-mailsheet-leave .18s ease-in forwards; pointer-events: none; }
+@keyframes m-mailsheet-leave { to { transform: translateY(-14%); opacity: 0; } }
 .m-mailsheet__crumb { font: 500 12px var(--m-sans); color: var(--m-n500); }
 .m-mailsheet__body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 14px 18px calc(24px + env(safe-area-inset-bottom)); }
 .m-mailsheet__subject { font: 600 19px/1.3 var(--m-accent); letter-spacing: -.01em; margin: 0 0 14px; color: var(--m-ink); }
 .m-mailsheet__from { display: flex; align-items: center; gap: 10px; padding: 10px 0 12px; border-top: 1px solid var(--m-border-soft); border-bottom: 1px solid var(--m-border-soft); }
+/* v1.217: de afzender-rij is een knop — tik erop en de volledige headers
+   (Van / Aan / Cc / Datum) vouwen eronder open; nog een tik en ze zijn weer
+   weg. Standaard compact: bij de laatste mail hoef je dat allemaal niet te
+   zien, pas als je op iemand tikt wil je weten wie er nog meer in zat. */
+.m-mailsheet__from--btn {
+  width: 100%; border: 0; background: transparent; text-align: left; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; font: inherit; color: inherit;
+}
+.m-mailsheet__from--btn[aria-expanded="true"] { border-bottom-color: transparent; }
 .m-mailsheet__fromtxt { flex: 1; min-width: 0; }
 .m-mailsheet__fromname { font: 600 13.5px var(--m-sans); color: var(--m-ink); }
 .m-mailsheet__frommail { font: 500 11.5px var(--m-mono); color: var(--m-n500); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-mailsheet__fromhint {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 3px; max-width: 42%;
+  font: 500 11.5px var(--m-sans); color: var(--m-n400);
+}
+.m-mailsheet__fromhint > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-mailsheet__fromhint > svg { flex-shrink: 0; transform: rotate(90deg); transition: transform .18s ease; }
+.m-mailsheet__from--btn[aria-expanded="true"] .m-mailsheet__fromhint > svg { transform: rotate(-90deg); }
+.m-mailsheet__hdrs {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 6px 10px; margin: 0;
+  padding: 2px 0 12px; border-bottom: 1px solid var(--m-border-soft);
+  animation: m-fade .16s ease;
+}
+.m-mailsheet__hdrs dt { font: 600 10.5px/1.6 var(--m-sans); letter-spacing: .06em; text-transform: uppercase; color: var(--m-n400); }
+.m-mailsheet__hdrs dd { margin: 0; min-width: 0; font: 400 12.5px/1.5 var(--m-sans); color: var(--m-ink); overflow-wrap: anywhere; }
+.m-mailsheet__hdrs dd + dd { margin-top: 2px; }
+.m-mailsheet__hdrs em { font: 500 11px var(--m-mono); font-style: normal; color: var(--m-n500); }
 .m-mailsheet__mail { padding: 14px 0; font: 400 14px/1.65 var(--m-sans); color: var(--m-ink); overflow-wrap: break-word; max-width: 100%; overflow-x: hidden; }
 .m-mailsheet__mail p { margin: 0 0 10px; }
 .m-mailsheet__mail p:last-child { margin-bottom: 0; }

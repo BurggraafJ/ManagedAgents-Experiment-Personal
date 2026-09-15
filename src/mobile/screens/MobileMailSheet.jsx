@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useMailBody } from '../../hooks/useMailBody'
+import { useSwipeUpDismiss } from '../../hooks/useSwipeUpDismiss'
 import { sanitizeHtml } from '../../lib/autodraft'
-import { fromNameOf, subjectOf } from '../../lib/postvakContract'
+import { fromNameOf, subjectOf, receivedAtOf } from '../../lib/postvakContract'
+import { recipientEmails } from '../../components/views/postvak2/pv2lib'
 import { keyboardInset } from '../../lib/keyboardInset'
 import MIcon from '../MIcon'
 
@@ -19,8 +21,34 @@ import MIcon from '../MIcon'
 // v1.205 in de Pin-tab één ding, en dat zijn in Outlook twee verschillende
 // dingen (OUTLOOK-PARITY-RESEARCH §1.2). Deze knop schrijft de echte
 // pin-property.
+//
+// v1.217 (Jelle, 2026-09-15), twee gebaren:
+//   • **Headers op tik.** Standaard staat er alleen wie het stuurde. Tik je
+//     op die persoon, dan vouwen Van / Aan / Cc / Datum eronder open; nog een
+//     tik vouwt ze weer dicht. Een dl, geen popover — je leest ze in de mail,
+//     op de plek waar ze horen, en er is niets dat "buiten" is om op te tikken.
+//     Desktop toont from → to al in elke berichtkop (`Pv2Detail`), dus daar
+//     verandert niets.
+//   • **Harde veeg omhoog = terug.** `useSwipeUpDismiss` op het hele vel:
+//     een worp van onder tot in de bovenste strook sluit hem; een leesveeg
+//     scrolt gewoon. De drempels staan in de hook, met de redenering erbij.
 
 const initials = (n) => (n || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
+
+const fullDate = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString('nl-NL', {
+    weekday: 'short', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+}
+
+const Recipients = ({ list }) => list.map((r, i) => (
+  <dd key={`${r.email}-${i}`}>
+    {r.name && r.name !== r.email ? <>{r.name} <em>{r.email}</em></> : <em>{r.email}</em>}
+  </dd>
+))
 
 // Outlook-bodies bevatten inline (cid:) afbeeldingen. Desktop haalt die
 // on-demand op via de outlook-live EF; mobiel doet dat niet, dus strippen we ze
@@ -41,7 +69,17 @@ export default function MobileMailSheet({ mail, catLabel, pinned = false, onTogg
   // Concept start ingeklapt: Jelle leest eerst de mail, tikt daarna de header
   // open om het voorstel-antwoord te zien/bewerken.
   const [draftOpen, setDraftOpen] = useState(false)
+  // Headers (Van/Aan/Cc/Datum) dicht tot je op de afzender tikt.
+  const [hdrsOpen, setHdrsOpen] = useState(false)
   const cat = catLabel.get(mail.category_key) || mail.category_key
+  const to = recipientEmails(mail.to_recipients)
+  const cc = recipientEmails(mail.cc_recipients)
+  const toHint = to.length === 0 ? '' : `Aan ${to[0].name || to[0].email}${to.length > 1 ? ` +${to.length - 1}` : ''}`
+
+  // Harde veeg omhoog sluit het vel; de body-ref vertelt de hook of er nog
+  // iets te scrollen valt (dan wint scrollen, tenzij het echt een worp is).
+  const bodyRef = useRef(null)
+  const swipe = useSwipeUpDismiss({ onDismiss: onClose, scrollRef: bodyRef })
 
   // iOS-toetsenbord: til de sheet via visualViewport + verberg de tab bar + lock
   // achtergrond. Zelfde mechaniek als de Nieuwe-taak sheet.
@@ -89,7 +127,8 @@ export default function MobileMailSheet({ mail, catLabel, pinned = false, onTogg
   return (
     <>
       <div className="m-scrim" onClick={onClose} />
-      <div className="m-mailsheet" role="dialog" aria-modal="true">
+      <div className={`m-mailsheet ${swipe.leaving ? 'is-leaving' : ''}`} role="dialog" aria-modal="true"
+           {...swipe.handleProps}>
         <div className="m-mailsheet__head">
           <button type="button" className="m-iconbtn" onClick={onClose} aria-label="Terug"><MIcon name="chevron" size={18} /></button>
           <span className="m-mailsheet__crumb">{fromNameOf(mail)}</span>
@@ -108,18 +147,42 @@ export default function MobileMailSheet({ mail, catLabel, pinned = false, onTogg
             )}
           </div>
         </div>
-        <div className="m-mailsheet__body">
+        <div className="m-mailsheet__body" ref={bodyRef}>
           <div className="m-thread__chips" style={{ marginBottom: 6 }}>
             {cat && <span className="m-catpill">{cat}</span>}
           </div>
           <h1 className="m-mailsheet__subject">{subjectOf(mail)}</h1>
-          <div className="m-mailsheet__from">
+          <button type="button" className="m-mailsheet__from m-mailsheet__from--btn"
+                  aria-expanded={hdrsOpen} aria-controls="m-mailsheet-hdrs"
+                  onClick={() => setHdrsOpen(o => !o)}>
             <div className="m-thread__avatar">{initials(fromNameOf(mail))}</div>
             <div className="m-mailsheet__fromtxt">
               <div className="m-mailsheet__fromname">{fromNameOf(mail)}</div>
               <div className="m-mailsheet__frommail">{mail.from_email || ''}</div>
             </div>
-          </div>
+            <span className="m-mailsheet__fromhint">
+              {!hdrsOpen && toHint && <span>{toHint}</span>}
+              <MIcon name="chevron" size={13} />
+            </span>
+          </button>
+          {hdrsOpen && (
+            <dl className="m-mailsheet__hdrs" id="m-mailsheet-hdrs">
+              <dt>Van</dt>
+              <div>
+                <Recipients list={[{ name: fromNameOf(mail), email: mail.from_email || '' }]} />
+              </div>
+              <dt>Aan</dt>
+              <div>{to.length ? <Recipients list={to} /> : <dd><em>—</em></dd>}</div>
+              {cc.length > 0 && (
+                <>
+                  <dt>Cc</dt>
+                  <div><Recipients list={cc} /></div>
+                </>
+              )}
+              <dt>Datum</dt>
+              <div><dd>{fullDate(receivedAtOf(mail)) || '—'}</dd></div>
+            </dl>
+          )}
 
           <div className="m-mailsheet__mail">
             {bodyHtml ? (

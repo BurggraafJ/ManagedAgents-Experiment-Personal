@@ -21,6 +21,7 @@ import { MAIL_MESSAGES, AUTODRAFT_MAILS, FOLDERS } from './mock-data.js'
 // 7 daarvan door Outlook op Overige gezet, 1 met een openstaand voorstel.
 //
 // ?view=desktop|mobile|swipe|menu|compose|taalcheck|verstuur|extern|fabmenu|mappen|mail
+//        |mappen-open|mappen-top3|mail-headers|swipeup            (v1.217)
 //        ?opt=a|b|c
 //   opt  = designoptie voor de kop (v1.202). a = wat er in de code staat,
 //          b en c zijn CSS-overlays over dezelfde DOM (chrome-opties.css).
@@ -167,12 +168,31 @@ function FabMenu() {
   return <Mobile />
 }
 
-function Mappen() {
+// v1.217: de mapkiezer onthoudt per gebruiker (localStorage-sleutel
+// `postvak.mappen.v1:<uid>`; de stub-uid staat in mock-supabase). Drie standen:
+//   mappen        koud — boom dicht, snelkeuze Archief + Verwijderde items
+//   mappen-open   één groep uitgevouwen (de tik op de chevron van Inbox)
+//   mappen-top3   met geleerde tellers → "Meest gebruikt", drie tegels
+const PREFS_KEY = 'postvak.mappen.v1:00000000-0000-4000-8000-000000000001'
+function Mappen({ stand }) {
   const [mail, setMail] = useState(null)
   useEffect(() => {
+    try {
+      localStorage.removeItem(PREFS_KEY)
+      if (stand === 'top3') {
+        localStorage.setItem(PREFS_KEY, JSON.stringify({
+          open: [], gebruik: { 'Inbox/Klanten': 7, Archive: 4, "Inbox/Todo's": 2 },
+        }))
+      }
+    } catch { /* headless zonder storage — dan de koude stand */ }
     const rows = buildInboxRows(MAIL_MESSAGES, AUTODRAFT_MAILS, { inferAudience: inferPseudoAudience })
     setMail(rows[1] || null)
-  }, [])
+    if (stand !== 'open') return undefined
+    // Ná de eerste render, als de prefs (async uid) geladen zijn: de chevron
+    // van Inbox — de eerste map met submappen — openklappen.
+    const t = setTimeout(() => document.querySelector('.m-folders__tgl[aria-expanded]')?.click(), 300)
+    return () => clearTimeout(t)
+  }, [stand])
   return (
     <div className="shell shell--m theme-maestro" style={{ height: '100vh', background: '#f5f4f0' }}>
       <main className="m-main" style={{ display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
@@ -184,13 +204,41 @@ function Mappen() {
   )
 }
 
-// De mail zelf, met de twee nieuwe kopknoppen: vastmaken en verplaatsen.
-function MailSheet() {
+// Een echte veeg, geen nagebouwde: Chrome kent `Touch`/`TouchEvent`, en React
+// luistert op de root, dus een gedispatchte reeks loopt door dezelfde handler
+// als een vinger (zie geheugen: preview-harnas, echte gebaren).
+function touch(el, type, x, y) {
+  const t = new Touch({ identifier: 1, target: el, clientX: x, clientY: y })
+  el.dispatchEvent(new TouchEvent(type, {
+    bubbles: true, cancelable: true, touches: type === 'touchend' ? [] : [t], changedTouches: [t],
+  }))
+}
+
+// De mail zelf, met vastmaken + verplaatsen in de kop. v1.217:
+//   mail          zoals hij opent — alleen de afzender, headers dicht
+//   mail-headers  na een tik op de afzender: Van / Aan / Cc / Datum open
+//   swipeup       een worp van onder naar boven → onClose → de lijst is terug
+function MailSheet({ stand }) {
   const [mail, setMail] = useState(null)
   useEffect(() => {
     const rows = buildInboxRows(MAIL_MESSAGES, AUTODRAFT_MAILS, { inferAudience: inferPseudoAudience })
     setMail(rows[0] || null)
-  }, [])
+    if (stand === 'headers') {
+      const t = setTimeout(() => document.querySelector('.m-mailsheet__from--btn')?.click(), 250)
+      return () => clearTimeout(t)
+    }
+    if (stand === 'swipeup') {
+      // 900 → 120 px in ~60 ms: ruim boven de helft van het scherm, eindigend
+      // in de bovenste strook, met een snelheid die geen leesveeg haalt.
+      const timers = [
+        setTimeout(() => { const el = document.querySelector('.m-mailsheet__body'); el && touch(el, 'touchstart', 200, 900) }, 250),
+        setTimeout(() => { const el = document.querySelector('.m-mailsheet__body'); el && touch(el, 'touchmove', 200, 500) }, 280),
+        setTimeout(() => { const el = document.querySelector('.m-mailsheet__body'); el && touch(el, 'touchend', 200, 120) }, 310),
+      ]
+      return () => timers.forEach(clearTimeout)
+    }
+    return undefined
+  }, [stand])
   return (
     <div className="shell shell--m theme-maestro" style={{ height: '100vh', background: '#f5f4f0' }}>
       <main className="m-main" style={{ display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
@@ -198,7 +246,7 @@ function MailSheet() {
       </main>
       {mail && (
         <MobileMailSheet mail={mail} catLabel={new Map()} pinned
-                         onTogglePin={() => {}} onMove={() => {}} onClose={() => {}} />
+                         onTogglePin={() => {}} onMove={() => {}} onClose={() => setMail(null)} />
       )}
     </div>
   )
@@ -211,8 +259,12 @@ const views = {
   verstuur: <Compose step="verstuur" />,
   extern: <Compose step="extern" />,
   fabmenu: <FabMenu />,
-  mappen: <Mappen />,
-  mail: <MailSheet />,
+  mappen: <Mappen stand="koud" />,
+  'mappen-open': <Mappen stand="open" />,
+  'mappen-top3': <Mappen stand="top3" />,
+  mail: <MailSheet stand="dicht" />,
+  'mail-headers': <MailSheet stand="headers" />,
+  swipeup: <MailSheet stand="swipeup" />,
 }
 
 createRoot(document.getElementById('root')).render(
