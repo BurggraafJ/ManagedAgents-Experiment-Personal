@@ -53,6 +53,7 @@ export default function D1View() {
   const {
     meta, aanvoerKop, aanvoer, perFase, dekking, forecast,
     ontleding, deals, aanvoerDeals, werkbordTellers, werkbord, blokkers,
+    kanaal, icp, beweging,
     loading, error, schemaMissing, refreshedAt, refresh,
   } = useD1Pipeline()
 
@@ -212,8 +213,8 @@ export default function D1View() {
       filters={
         <>
           <BordTabs tabs={[
-            { id: 'live', label: 'Live overzicht', actief: true },
-            { id: 'kwartaal', label: 'Kwartaal', actief: false, onClick: () => nav('/pipeline/kwartaal') },
+            { id: 'live', label: 'Live', actief: true },
+            { id: 'monthly', label: 'Monthly', actief: false, onClick: () => nav('/pipeline/kwartaal') },
           ]} />
           <BordPeriode
             opties={[
@@ -284,8 +285,13 @@ export default function D1View() {
           perFase={perFase}
           meta={meta}
           blokkers={blokkers}
+          kanaal={kanaal}
+          icp={icp}
+          beweging={beweging}
           onKiesWeek={(w) => setGekozen(w ? { week: w, naam: `Week ${w.week_label}` } : null)}
           gekozenWeek={gekozen?.week || null}
+          onKiesKanaal={(k) => setGekozen({ kanaal: k.kanaal, naam: `Kanaal · ${k.kanaal}` })}
+          onKiesIcp={(r) => setGekozen({ segment: r.segment, naam: `ICP · ${r.segment}` })}
         />
       }
       kernzin={<D1Kernzin perFase={perFase} />}

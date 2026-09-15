@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import DetailPaneel from '../../../ui/DetailPaneel'
 import WorkTable from '../../../ui/WorkTable'
 import { weekNr } from './AanvoerStrip'
+import { kanaalLabel } from './kanaalLabels'
 import { getal, euroKort, bereik, datumKort } from '../format'
 
 /**
@@ -195,6 +196,51 @@ export default function D1Detail({ deals, aanvoerDeals, forecast, werkbord, werk
           sleutel={r => `${r.lijst}-${r.deal_id}`}
           leegTekst={`Geen deals op deze lijst. “${teller?.lijst_label || 'Deze lijst'}” staat op nul — dat is een gemeten nul, geen ontbrekende meting.`}
           rijTitel={r => [r.reden, r.beslisdatum ? `beslisdatum ${datumKort(r.beslisdatum)}` : 'geen beslisdatum'].filter(Boolean).join(' · ')}
+        />
+      </DetailPaneel>
+    )
+  }
+
+  // ── Een kanaal-chip ──────────────────────────────────────────────────────
+  if (gekozen.kanaal) {
+    const rijen = (deals || []).filter(d => d.kanaal === gekozen.kanaal)
+      .sort((a, b) => (b.mrr_plafond ?? -1) - (a.mrr_plafond ?? -1))
+    const label = kanaalLabel(gekozen.kanaal)
+
+    return (
+      <DetailPaneel
+        titel={`${label} · ${getal(rijen.length)} open ${rijen.length === 1 ? 'deal' : 'deals'}`}
+        sub={<>Acquisitiekanaal <b>{label}</b> · alle open fases</>}
+        voet={<>{getal(rijen.length)} getoond · bron: hs_analytics_source. {VOET}</>}
+      >
+        <WorkTable
+          kolommen={DEAL_KOLOMMEN}
+          rijen={rijen}
+          sleutel={d => d.deal_id}
+          leegTekst={`Geen open deals met kanaal "${label}".`}
+          rijTitel={d => [d.fase_label, d.eigenaar, d.beslisdatum ? `beslisdatum ${datumKort(d.beslisdatum)}` : null].filter(Boolean).join(' · ')}
+        />
+      </DetailPaneel>
+    )
+  }
+
+  // ── Een ICP-chip ───────────────────────────────────────────────────────
+  if (gekozen.segment) {
+    const rijen = (deals || []).filter(d => d.segment_bucket === gekozen.segment)
+      .sort((a, b) => (b.mrr_plafond ?? -1) - (a.mrr_plafond ?? -1))
+
+    return (
+      <DetailPaneel
+        titel={`${gekozen.segment} · ${getal(rijen.length)} open ${rijen.length === 1 ? 'deal' : 'deals'}`}
+        sub={<>ICP-segment <b>{gekozen.segment}</b> · alle open fases</>}
+        voet={<>{getal(rijen.length)} getoond · segment op kantoorgrootte. {VOET}</>}
+      >
+        <WorkTable
+          kolommen={DEAL_KOLOMMEN}
+          rijen={rijen}
+          sleutel={d => d.deal_id}
+          leegTekst={`Geen open deals in segment "${gekozen.segment}".`}
+          rijTitel={d => [d.fase_label, d.eigenaar, d.beslisdatum ? `beslisdatum ${datumKort(d.beslisdatum)}` : null].filter(Boolean).join(' · ')}
         />
       </DetailPaneel>
     )

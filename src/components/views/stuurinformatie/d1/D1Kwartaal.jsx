@@ -61,8 +61,8 @@ export default function D1Kwartaal() {
       meta={<>per kwartaal · <b>Jelle</b> met <b>Jay</b></>}
       filters={
         <BordTabs tabs={[
-          { id: 'live', label: 'Live overzicht', actief: false, onClick: () => nav('/pipeline') },
-          { id: 'kwartaal', label: 'Kwartaal', actief: true },
+          { id: 'live', label: 'Live', actief: false, onClick: () => nav('/pipeline') },
+          { id: 'monthly', label: 'Monthly', actief: true },
         ]} />
       }
     />
