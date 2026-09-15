@@ -12,6 +12,10 @@
 --
 -- Beslissingen (Jelle-default via parent, ASK-widget overgeslagen):
 --   • task_projects = kantoor-gedeeld → capability_gate('taken')
+--     ⚠ SUPERSEDED 2026-09-15: Jelle corrigeerde naar persoonlijk per user.
+--       Zie 20260915140000_multi_user_security_prb_task_projects_personal.sql
+--       (drop capability policy + user_id + self-or-admin RLS). SQL hieronder
+--       blijft staan als toegepaste geschiedenis — niet herschrijven.
 --   • administratie/HubSpot = NIET openen (S3 out of scope)
 --   • kb_documents blijft owner-only (categorieën volstaan voor de pagina)
 --
