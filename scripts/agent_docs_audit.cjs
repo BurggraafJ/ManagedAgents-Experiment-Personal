@@ -5,8 +5,8 @@
 //   node scripts/agent_docs_audit.cjs
 //   node scripts/agent_docs_audit.cjs --range origin/main...HEAD
 //
-// Twaalf controles onder de codes DOC-1 … DOC-12. Eén tabel, één exit-code.
-// DOC-1 t/m DOC-7 hebben alleen een checkout nodig; DOC-8 t/m DOC-12 hebben de
+// Dertien controles onder de codes DOC-1 … DOC-13. Eén tabel, één exit-code.
+// DOC-1 t/m DOC-7 hebben alleen een checkout nodig; DOC-8 t/m DOC-13 hebben de
 // database nodig en worden zonder management-token **zichtbaar overgeslagen**
 // (`SKIP`), nooit stil groen. De DB-kant is los daarvan geborgd door
 // `agent_docs_staleness_check()` op cron (spoor 07 item 4), want CI heeft geen
@@ -15,7 +15,7 @@
 // ── De exit-code ─────────────────────────────────────────────────────────────
 // Alleen de BLOKKERENDE codes bepalen hem (EVAL-GATES §1, kolom "blokkerend"):
 //   blokkerend      DOC-1, DOC-1b, DOC-2 … DOC-9   → `ROOD`, exit 1
-//   niet-blokkerend DOC-10, DOC-11, DOC-12         → `WAARSCH`, exit blijft 0
+//   niet-blokkerend DOC-10, DOC-11, DOC-12, DOC-13 → `WAARSCH`, exit blijft 0
 // Die drie meten cadans en schuld (weekronde, stille cronvuring, blijvend rood
 // zonder datum). Ze horen in het rapport, maar een PR van iemand anders mag er
 // niet op stranden — dat is precies hoe een poort weer uitgaat (D07-7).
@@ -82,7 +82,7 @@ function nlNum(s) {
 const codeNum = (s) => Number(String(s).replace(/_/g, ''));
 const us = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '_'); // 30000 → 30_000
 
-// ── Database (alleen DOC-8 … DOC-12) ─────────────────────────────────────────
+// ── Database (alleen DOC-8 … DOC-13) ─────────────────────────────────────────
 async function dbq(query) {
   const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/database/query`, {
     method: 'POST',
@@ -233,7 +233,7 @@ async function dbq(query) {
     } catch (e) { row('DOC-8', 'skip', 'telling == live', `db onbereikbaar (${e.message})`); }
   }
 
-  // ── DOC-9 … DOC-12 · de databasekant ───────────────────────────────────────
+  // ── DOC-9 … DOC-13 · de databasekant ───────────────────────────────────────
   const dbChecks = [
     ['DOC-9', '0 bankitems zonder source_hash',
       "select count(*)::text from public.rag_eval_questions where bank_version is not null and source_hash is null",
@@ -321,6 +321,30 @@ async function dbq(query) {
        select (select count(*) from f where n_runs = 3)::text || ' items met 3 geldige runs'
               || coalesce(' · ' || (select string_agg(question_id, ' ' order by question_id) from f where n_fail = n_runs and n_runs = 3), '')`,
       (v, detail) => [String(v).split('/')[0] === '0', `${v} zonder geldige datum · ${detail}`]],
+    // DOC-13 · ronde gedraaid maar grotendeels niet doorgekomen.
+    // DOC-10 is groen zodra er een weekronde-rij is; bij openai_429 / 5xx op
+    // 31 % van die ronde (gemeten 2026-09-13) bleef DOC-10 stil groen terwijl
+    // de uitslag onbruikbaar was. Drempel 25 % infra-falen bij ≥ 50 resultaten:
+    // klein genoeg om de creditstoring te vangen, groot genoeg om één flaky
+    // item niet tot WAARSCH te maken. Zelfde infra-definitie als DOC-12
+    // (5xx + provider_error); budget_wall/message_required tellen níet mee.
+    ['DOC-13', 'laatste weekronde <25 % infra-falen',
+      `with latest as (select id from public.rag_eval_runs where status='done' and (label like 'weekly%' or label='cron-weekly') order by created_at desc limit 1),
+            s as (select count(*)::int n,
+                         count(*) filter (where res.assert_detail::text ~ 'rag-chat_failed status=5'
+                                             or res.assert_detail::text like '%provider_error%')::int n_infra
+                    from public.rag_eval_results res where res.run_id = (select id from latest))
+       select case when coalesce((select n from s),0) < 50 then '0'
+                   when (select n_infra from s)::float / nullif((select n from s),0) >= 0.25 then '1'
+                   else '0' end`,
+      `with latest as (select id, label, created_at from public.rag_eval_runs where status='done' and (label like 'weekly%' or label='cron-weekly') order by created_at desc limit 1),
+            s as (select count(*)::int n,
+                         count(*) filter (where res.assert_detail::text ~ 'rag-chat_failed status=5'
+                                             or res.assert_detail::text like '%provider_error%')::int n_infra
+                    from public.rag_eval_results res where res.run_id = (select id from latest))
+       select coalesce((select label || ' · ' || created_at::date::text from latest), 'geen weekronde')
+              || ' · ' || coalesce((select n_infra::text || '/' || n::text || ' infra' from s), '0/0 infra')`,
+      (v, detail) => [String(v) === '0', `${detail}`]],
   ];
   for (const [code, verwacht, q1, q2, judge] of dbChecks) {
     if (!SBT) { row(code, 'skip', verwacht, 'geen management-token'); continue; }

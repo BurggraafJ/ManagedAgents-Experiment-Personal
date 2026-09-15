@@ -18,7 +18,7 @@ en straks als kolomtoelichting in een Excel-export.
 |---|---|---|
 | `churned_in_window` | `analytics_churned_in_window` | Churn-administratie (churn_customers, zonder superseded records); venster op churned_at. |
 | `uncontacted_since` | `analytics_uncontacted_since` | Actieve Customer Base-deals (Proeftijd/Actieve deals/Eenpitters/Self-service) met company-domein; laatste contact = nieuwste in- of uitgaande mail op domein-match. |
-| `active_pilots` | `analytics_active_pilots` | Customer Base stage 'Proeftijd' plus Sales Pipeline '1-pitters in proefperiode (zonder ovk)'. |
+| `active_pilots` | `analytics_active_pilots` | Customer Base stage 'Proeftijd' alleen (ASK-JELLE 03 #1 default 2026-09-16: dode Sales-stage '1-pitters in proefperiode' verwijderd). |
 | `count_by_stage` | `analytics_count_by_stage` | Niet-gearchiveerde HubSpot-deals, gegroepeerd op pipeline en fase-label. |
 | `deals_over_amount` | `analytics_deals_over_amount` | HubSpot-deals met gevuld amount-veld (veld is in de praktijk vrijwel leeg — beperkte dekking). |
 | `customers_by_price` | `analytics_customers_by_price` | Lopende Customer Base-deals (Proeftijd/Actieve deals/Eenpitters/Self-service) met licentieprijs-per-gebruiker of vaste maandprijs gelijk aan het gevraagde bedrag (HubSpot licentie-properties, W5-mirror). |

@@ -106,7 +106,7 @@ export const TOOL_CATALOG = [
     name: "active_pilots",
     rpc: "analytics_active_pilots",
     desc: "Lopende pilots/proefperiodes (telling + lijst). Geen params.",
-    definition: "Customer Base stage 'Proeftijd' plus Sales Pipeline '1-pitters in proefperiode (zonder ovk)'.",
+    definition: "Customer Base stage 'Proeftijd' alleen (ASK-JELLE 03 #1 default 2026-09-16: dode Sales-stage '1-pitters in proefperiode' verwijderd).",
   },
   {
     name: "count_by_stage",

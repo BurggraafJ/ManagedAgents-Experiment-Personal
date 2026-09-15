@@ -169,11 +169,11 @@ de gewijzigde functionaliteit raakt (niet alleen een 200-check).
    - `node scripts/agent_eval_load.cjs --check` — exit 0 (bank op schijf == DB, 22 kern ongewijzigd, 0 placeholders)
    Ook hier: nooit terwijl een andere evalrun `running` is (de CLI weigert dan, `--force` alleen bewust).
 9. **Documentatie-poort** (elke PR, niet alleen bij chatwerk):
-   - `node scripts/agent_docs_audit.cjs` — exit 0. Twaalf controles op `docs/agent/`:
+   - `node scripts/agent_docs_audit.cjs` — exit 0. Dertien controles op `docs/agent/`:
      loopt het gegenereerde bestand achter (DOC-1), staat er JavaScript in (DOC-1b), klopt de
      `Stand:`-kop met de tekst eronder (DOC-2), en kloppen de `coverage.reason`-verzameling,
      de budgettabel, de zes tijdsgrenzen en de runnerversie met de code (DOC-3 … DOC-6).
-     DOC-7 is de padkoppeling hieronder. DOC-8 … DOC-12 hebben de database nodig en worden
+     DOC-7 is de padkoppeling hieronder. DOC-8 … DOC-13 hebben de database nodig en worden
      zonder token zichtbaar overgeslagen.
    - **Keten geraakt ⇒ regel in `docs/agent/CHANGELOG-AGENT.md`.** Raakt de PR
      `supabase/functions/{rag-chat,context-build,rag-eval-cron}/**` of een migratie met
@@ -184,10 +184,11 @@ de gewijzigde functionaliteit raakt (niet alleen een 200-check).
      `pull_request`) — anders dan `changelog.yml`, die bewust altijd groen eindigt. Staat die
      workflow er nog niet, dan is punt 9 handwerk: draai de audit zelf vóór de push. De
      `--check` van punt 8 zit in de audit als DOC-1; hem los draaien mag, hoeft niet.
-   - `WAARSCH` (DOC-10/11/12: weekcadans, stille weekvuring, blijvend rood zonder geldige
-     datum) is **niet** blokkerend en hoort in de trendpagina, niet in een rode PR. Lees bij
-     die drie altijd de **noemer** mee: `1/4` is een ander bericht dan `1/1`, en `0/0` is
-     geen groen maar een onthouding (een omgevallen ronde, of een venster zonder vuringen).
+   - `WAARSCH` (DOC-10/11/12/13: weekcadans, stille weekvuring, blijvend rood zonder geldige
+     datum, weekronde grotendeels infra-falen) is **niet** blokkerend en hoort in de
+     trendpagina, niet in een rode PR. Lees bij die vier altijd de **noemer** mee: `1/4` is
+     een ander bericht dan `1/1`, en `0/0` is geen groen maar een onthouding (een omgevallen
+     ronde, of een venster zonder vuringen).
 10. **Bug op de chatketen gerepareerd? Dan een evalitem in dezelfde PR.**
     Er staat een item in `docs/agent/vragenbank/questions/qNN*.jsonl` met `tags: ["regressie"]`,
     en in `notes` de datum en de oorzaak. Geladen met `node scripts/agent_eval_load.cjs`,

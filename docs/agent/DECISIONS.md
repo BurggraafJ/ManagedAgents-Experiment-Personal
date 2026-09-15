@@ -8,6 +8,34 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-16 — Architecture close-out: DOC-13 + HubSpot pilots-default (v1.221)
+
+**Spoor 07 DOC-13 + spoor 03 HubSpot-default #1.** `APP_VERSION` 1.220 → 1.221.
+
+**DOC-13 — ronde gedraaid maar grotendeels niet doorgekomen.** DOC-10 is groen zodra er
+een afgeronde weekronde-rij bestaat. Op 2026-09-13 was die ronde voor ~31 % onbruikbaar
+(`openai_429` / `provider_error`) terwijl DOC-10 stil groen bleef — precies het gat uit
+item-7 IMPLEMENT-NOTES §10.2/§10.8. DOC-13 (niet-blokkerend `WAARSCH`) slaat om als de
+jongste weekronde ≥ **25 %** infra-falen heeft én ≥ **50** resultaatrijen. Infra = dezelfde
+definitie als DOC-12 (`status=5xx` of `provider_error`). `budget_wall` / `message_required`
+tellen niet mee. Zit in `scripts/agent_docs_audit.cjs` én `agent_docs_staleness_check()`.
+
+**HubSpot pilots-default (ASK-JELLE 03 #1).** `analytics_active_pilots` telde ook Sales-stage
+`4841337018` ("1-pitters in proefperiode"), die niet meer bestaat en stil nul gaf. Default
+gelockt: **pilot = Customer Base Proeftijd alleen**. Geen nieuwe businessfeiten; andere
+HubSpot-defaults (licenties, amount, prijs, eigenaar-op-naam) blijven AANNAME in ASK-JELLE
+tot Jelle anders zegt — geen `agent_metrics`-tabel verzonnen vanavond.
+
+**03a Anthropic/Vault-pad.** Productstack is GPT/OpenAI-only (Jelle-lock). Anthropic-wrapper-
+productpad formeel **SUPERSEDED**; bestaande GPT-agentic route blijft. Geen Anthropic-sleutels
+toegevoegd.
+
+**06f-β.** Geannuleerd / N-A onder GPT-only: α is live; β vroeg Cohere of zware `match_chunks`-
+lexicale arm (ACL-risico) zonder overnight evalbudget. Koepel 06 → done.
+
+---
+
+
 ## 2026-09-15 — Eval cheap models + hard OpenAI spend caps (v1.214)
 
 **Spoor 01, model `claude-opus-4-6`.** `APP_VERSION` 1.213 → 1.214 (#132 nam 1.213).
