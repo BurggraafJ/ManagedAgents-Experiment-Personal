@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 // =============================================================================
-// multi_user_acl_eval.cjs — de poort voor multi-user toegang        (v1.190)
+// multi_user_acl_eval.cjs — de poort voor multi-user toegang        (v1.219)
 // =============================================================================
-// Veertien asserties. M2 bracht M9/M10; SECURITY PR-A brengt M11 (doorkijk over
+// Zeventien asserties. M2 bracht M9/M10; SECURITY PR-A brengt M11 (doorkijk over
 // de juiste persoon — S1) en M12 (het vinkje `levert_vandaag` dekt wat er echt
 // wordt afgedwongen — S4); SECURITY PR-B brengt M13 (shared catalogi +
-// persoonlijke task_projects — S2). Draai hem vóór én ná elke
+// persoonlijke task_projects — S2); SECURITY PR-C brengt M3b (de GEDEPLOYDE
+// bundel draagt de poort — S11), M12b (de edge-tak van M12, afgeleid uit die
+// bundels in plaats van uit een handlijst) en M14 (de rekenregel staat op drie
+// plekken en zegt op alle drie hetzelfde — S9). Draai hem vóór én ná elke
 // wijziging aan RLS, een view, een RPC-grant of een edge function.
 //
 //   SBT=<management_token> node scripts/multi_user_acl_eval.cjs
@@ -38,6 +41,7 @@
 const fs = require('fs');
 const path = require('path');
 const { mintUserJwt, revokeMintedSessions } = require(path.join(__dirname, 'lib', 'user-jwt.cjs'));
+const { leesBundel, inPool } = require(path.join(__dirname, 'lib', 'edge-bundle.cjs'));
 
 const REF = process.env.SUPABASE_REF || 'ezxihctobrqoklufawim';
 const SBT = process.env.SBT || (() => {
@@ -194,12 +198,12 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
     'alleen pgvector + uitzonderingen');
 
   // ── M3 · Edge Functions ───────────────────────────────────────────────────
-  let m3Fout = [];
+  let jwtOn = [];
   try {
     const efs = await mgmt('/functions');
-    const jwtOn = efs.filter(f => f.verify_jwt).map(f => f.slug);
+    jwtOn = efs.filter(f => f.verify_jwt);
     const repoDir = path.join(__dirname, '..', 'supabase', 'functions');
-    m3Fout = jwtOn.filter((slug) => {
+    const m3Fout = jwtOn.map(f => f.slug).filter((slug) => {
       if (EDGE_UITZONDERING[slug]) return false;
       const f = path.join(repoDir, slug, 'index.ts');
       if (!fs.existsSync(f)) return true;                     // niet in de repo = niet te beoordelen
@@ -216,6 +220,68 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
   } catch (e) {
     assert('M3', 'edge functions opvraagbaar', false, e.message.slice(0, 30), 'HTTP 200');
   }
+
+  // ── M3b · de GEDEPLOYDE bundel draagt de poort (SECURITY PR-C / S11) ──────
+  //
+  // M3 hierboven leest de repo. Dat bewijst dat de regel is opgeschreven, niet
+  // dat hij draait. Op 2026-09-14 stond M3 zeven uur groen terwijl productie de
+  // óngepoorte bundels serveerde: iemand had `_shared/user-gate.ts` aangevuld en
+  // de functies die hem importeren niet opnieuw gedeployd. Precies dat gat is
+  // deze assertie.
+  //
+  // Dezelfde `edge_poort`-regex, dezelfde uitzonderingslijst, andere BRON: de
+  // eszip van de Management API in plaats van `supabase/functions/<slug>/index.ts`.
+  // De twee horen bij elkaar te staan — M3 rood betekent "iemand schreef geen
+  // poort", M3b rood betekent "iemand vergat te deployen", en dat zijn twee
+  // verschillende gesprekken.
+  //
+  // ⚠ Rood bij een onbereikbare bundel, niet groen. Een 500 van de Management
+  // API of een timeout is geen bewijs dat de poort erin zit; stil doorgaan zou
+  // precies het vals groen zijn dat deze assertie moest wegnemen. Er zit één
+  // herkansing in (`edge-bundle.cjs`), en de reden staat in de uitslagregel.
+  //
+  // Bewezen rood op 2026-09-15: `connectors-confluence` (v4) en
+  // `connectors-hubspot` (v1) draaiden bundels van vóór de M2-poort, terwijl
+  // `connectors-outlook` (v7) — dezelfde `_shared/connector-composio.ts` — hem
+  // wél had. Geheugen `grep-is-ugrep`: een poort die je niet één keer rood hebt
+  // gezien bewaakt niets. Deze zag ik rood en daarna, ná de redeploy, groen.
+  const probes = (tekst) => ({
+    poort: EDGE_POORT.test(tekst),
+    // M12b hieronder: welke capability-keys worden in DEZE bundel afgedwongen?
+    // Afgeleid uit de bundel, niet uit een handlijst — dat was de reden dat M12
+    // de edge-tak oversloeg (zie de kop van M12).
+    keys: [...new Set([
+      ...[...tekst.matchAll(/require(?:Capability|PaidUse)\s*\(\s*[\w.$]+\s*,\s*['"]([\w.-]+)['"]/g)].map(m => m[1]),
+      // `requirePaidUse(req)` zonder tweede argument valt terug op de default in
+      // de helper-signatuur; die staat letterlijk in dezelfde bundel.
+      ...(/requirePaidUse\s*\(\s*[\w.$]+\s*\)/.test(tekst)
+        ? [...tekst.matchAll(/function requirePaidUse\s*\([^)]*?=\s*['"]([\w.-]+)['"]/g)].map(m => m[1])
+        : []),
+    ])],
+  });
+  probes.versie = 2;   // bij elke wijziging aan `probes` ophogen — anders leest hij oude cache
+
+  const m3bMist = [];
+  const m3bStuk = [];
+  const edgeKeys = new Set();
+  if (jwtOn.length) {
+    const uitslag = await inPool(jwtOn, 3, (f) =>
+      leesBundel({ ref: REF, token: SBT, slug: f.slug, version: f.version, probes }));
+    for (let i = 0; i < jwtOn.length; i++) {
+      const f = jwtOn[i], r = uitslag[i];
+      if (!r.ok) { m3bStuk.push(`${f.slug}:${r.reden}`); continue; }
+      for (const k of r.uit.keys) edgeKeys.add(k);
+      if (EDGE_UITZONDERING[f.slug]) continue;
+      if (!r.uit.poort) m3bMist.push(`${f.slug}@v${f.version}`);
+    }
+  } else {
+    m3bStuk.push('geen functielijst (M3 faalde)');
+  }
+  assert('M3b', 'de GEDEPLOYDE bundel draagt diezelfde poort', m3bMist.length === 0 && m3bStuk.length === 0,
+    (m3bMist.length || m3bStuk.length)
+      ? [...m3bMist.map(s => 'mist ' + s), ...m3bStuk.map(s => 'stuk ' + s)].join(' ').slice(0, 60)
+      : `0 van ${jwtOn.length} eszips zonder poort`,
+    'geen enkele bundel zonder poort, geen enkele onleesbaar');
 
   // ── M8 · storage ──────────────────────────────────────────────────────────
   const buckets = await sql(`
@@ -293,6 +359,42 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
     `tegenspraak=${m12.tegenspraak} claim=${m12.claim_zonder_policy}/${m12.claim_zonder_guard} `
       + `stil_afgedwongen=${m12.afgedwongen_zonder_vinkje} (${m12.vinkjes}/${m12.totaal} aan)`,
     '0 0 0 0');
+
+  // ── M12b · de edge-tak van M12, uit de bundel (SECURITY PR-C, optie 4) ────
+  //
+  // De kop van M12 legt uit waaróm de edge-tak daar ontbrak: een poort in een
+  // edge function heet `requirePaidUse()` en draagt de capability-key niet in
+  // zijn naam, dus koppelen vroeg een handlijst (key → functie) — precies de
+  // tweede kopie van dezelfde regel waar `acl_poort_config` vanaf wilde.
+  //
+  // M3b maakt die handlijst overbodig. De key stáát in de bundel, als letterlijk
+  // argument: `requireCapability(req, 'instellingen.eigen')`, en bij
+  // `requirePaidUse(req)` als default in de helper-signatuur die in dezelfde
+  // bundel is meegebakken. `edgeKeys` hierboven is dus een gemeten lijst, geen
+  // afspraak.
+  //
+  // Twee armen, allebei rood te krijgen:
+  //   a. stil_afgedwongen — de bundel dwingt een key af die `levert_vandaag`
+  //      op false heeft staan. Dan ónderschat het Rechten-scherm wat de persoon
+  //      krijgt (en wat hem geweigerd wordt).
+  //   b. claim_zonder_bundel — `afdwingen_in` belooft een edge-poort en géén
+  //      gedeployde bundel dwingt die key af. Dat is S11 vanaf de andere kant:
+  //      het vinkje zegt "dit werkt", de deploy zegt niets.
+  //
+  // Arm (b) slaat over zodra M3b al stuk is: zonder leesbare bundels is een lege
+  // `edgeKeys` geen bewijs, en zou hij élke edge-claim vals rood maken.
+  const caps = await sql(`select key, levert_vandaag, coalesce(afdwingen_in,'') as afdwingen_in
+                            from public.capabilities`);
+  const m12bStil = caps.filter(c => edgeKeys.has(c.key) && !c.levert_vandaag).map(c => c.key);
+  const m12bClaim = m3bStuk.length ? [] : caps
+    .filter(c => c.levert_vandaag && /\bedge\b/i.test(c.afdwingen_in) && !/^nog niet/i.test(c.afdwingen_in))
+    .filter(c => !edgeKeys.has(c.key)).map(c => c.key);
+  assert('M12b', 'de edge-poorten in de bundels kloppen met het vinkje',
+    m12bStil.length === 0 && m12bClaim.length === 0,
+    (m12bStil.length || m12bClaim.length)
+      ? `stil=${m12bStil.join(',')} claim=${m12bClaim.join(',')}`.slice(0, 60)
+      : `${edgeKeys.size} key(s) in bundels: ${[...edgeKeys].sort().join(', ')}`.slice(0, 60),
+    m3bStuk.length ? 'arm (b) over — M3b stuk' : '0 0');
 
   // ── Personas ──────────────────────────────────────────────────────────────
   const keys = await mgmt('/api-keys?reveal=true');
@@ -521,6 +623,51 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
         ? m13leeg.join(' ').slice(0, 60)
         : `${m13ok.join(' ')} · kb_docs=${kbDocs.n} hs=${hs.n}`,
       '3 shared > 0 · task_projects member=1 < owner · kb_docs=0 hs=0');
+
+    // ── M14 · dezelfde rekenregel op drie plekken (SECURITY PR-C / S9) ──────
+    //
+    // "Wie heeft dit recht?" wordt in deze repo op DRIE plaatsen uitgerekend:
+    //
+    //   1. SQL      `public.has_capability(key, user)`  — de handhaver
+    //   2. JS       `src/lib/capabilities.js` → isEffective()  — de matrix, die
+    //               32 rechten × 8 personen tekent zonder 256 RPC-calls
+    //   3. SQL      `invite_readiness().persoon.rechten_actief` — de teller die
+    //               de Uitnodigen-knop tegenhoudt
+    //
+    // Het bestand zegt het zelf in zijn kop: "een SPIEGEL van has_capability()…
+    // wijkt de SQL af, dan wijkt dit bestand af". Een spiegel die niemand
+    // nameet gaat een keer scheef staan (geheugen
+    // `doc12-definition-lives-in-three-places`: DOC-12 stond óók op drie
+    // plekken en liep in PR #90 één commit lang uit de pas).
+    //
+    // M11 houdt (1) en (3) al tegen elkaar. Deze assertie hangt (2) ernaast,
+    // door de ECHTE module te importeren — niet door de regel hier over te
+    // schrijven, want dan waren het er vier.
+    //
+    // Twee persona's, niet één: met alleen de member zou de `grantable=false`-
+    // tak ongemeten blijven (die zegt "alleen de owner"), en juist dáár wijkt
+    // een spiegel het eerst af.
+    const { isEffective } = await import(
+      require('url').pathToFileURL(path.join(__dirname, '..', 'src', 'lib', 'capabilities.js')).href);
+    const capsAll = await sql(`select key, grantable from public.capabilities order by key`);
+    const presets = await sql(`select app_role, capability from public.role_capabilities`);
+    const overrides = await sql(`select user_id::text as user_id, capability, effect from public.user_capabilities`);
+    const m14regels = [];
+    for (const [naam, persona] of [['member', member], ['owner', owner]]) {
+      const presetKeys = new Set(presets.filter(p => p.app_role === persona.app_role).map(p => p.capability));
+      const mijn = overrides.filter(o => o.user_id === persona.user_id);
+      const js = capsAll.filter(c =>
+        isEffective(c, persona.app_role, mijn.find(o => o.capability === c.key), presetKeys)).length;
+      const sqlN = (await sqlRw(`select count(*)::int as n from public.capabilities c
+                                  where public.has_capability(c.key, '${persona.user_id}'::uuid)`))[0].n;
+      const inv = await callRpc(o.jwt, anonKey, 'invite_readiness', { p_user_id: persona.user_id });
+      const invN = inv.data?.persoon?.rechten_actief ?? -1;
+      m14regels.push({ naam, js, sqlN, invN, eens: js === sqlN && sqlN === invN });
+    }
+    assert('M14', 'SQL, JS-matrix en invite_readiness rekenen hetzelfde',
+      m14regels.every(r => r.eens) && m14regels[0].js !== m14regels[1].js,
+      m14regels.map(r => `${r.naam} sql=${r.sqlN} js=${r.js} invite=${r.invN}`).join(' · '),
+      'per persona gelijk, en de twee persona\'s verschillen');
 
   } finally {
     await sqlRw(`delete from public.task_projects where name = 'acl-eval M13 persoonlijk'`);

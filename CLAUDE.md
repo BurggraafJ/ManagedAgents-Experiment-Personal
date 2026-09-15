@@ -201,12 +201,19 @@ de gewijzigde functionaliteit raakt (niet alleen een 200-check).
       bewijs ligt: `agent_eval_load.cjs` keurt de **vorm** af zonder token (en dus ook in CI),
       `DOC-12` keurt de **datum** af zodra er ná die dag nog een groene ronde op staat.
 11. **RLS, een view, een RPC-grant of een edge function aangeraakt? Dan de multi-user-poort.**
-    - `node scripts/multi_user_acl_eval.cjs` — exit 0. Negen asserties: geen view die de RLS
+    - `node scripts/multi_user_acl_eval.cjs` — exit 0. Zeventien asserties: geen view die de RLS
       omzeilt (M1), geen DEFINER-RPC zonder poort voor `authenticated` (M2), geen app-functie
       met EXECUTE voor `PUBLIC` (M2b), elke `verify_jwt`-functie met rolcheck of op de lijst
       (M3), geen storage-policy die alleen op `bucket_id` test (M8), en de drie die er het
       meest toe doen: een member ziet niets van de gedeelde wereld (M4), een member ziet wél
       zijn eigen rijen (M5), en de owner ziet ná de wijziging evenveel of meer (M6).
+    - **M3 leest de repo, M3b de GEDEPLOYDE bundel.** Dat zijn twee verschillende gesprekken:
+      M3 rood = iemand schreef geen poort, M3b rood = iemand vergat te deployen. M3b haalt per
+      `verify_jwt`-functie de eszip op (`GET …/functions/<slug>/body`) en zoekt dezelfde
+      `edge_poort`-markering. Een onbereikbare bundel is **rood**, nooit stil groen — een
+      timeout bewijst niets. M12b leidt uit diezelfde bundels af wélke capability-keys er
+      worden afgedwongen en houdt dat tegen `levert_vandaag`; M14 houdt de rekenregel in SQL,
+      in `src/lib/capabilities.js` en in `invite_readiness()` naast elkaar.
     - Zelfde regel als punt 8: **vóór én ná**, en niet tegelijk met een andere edge-zware run.
       Een ACL-poort die je alleen ná draait meet de verkeerde kant.
     - **M5/M6 schrijven kort naar prod** (een MFA-testsessie voor de twee geminte JWT's, 5 min,
@@ -214,3 +221,12 @@ de gewijzigde functionaliteit raakt (niet alleen een 200-check).
       `--skip-mfa` slaat ze over — maar dan draai je de negatieve helft van de test.
     - Nieuwe uitzondering op de lijst in het script? Dan met **reden** in dezelfde regel. Een
       lege reden is een bug, geen uitzondering.
+    - **Edge function met een capability-poort aangeraakt of opnieuw gedeployd?** Dan ook
+      `node scripts/model_usage_smoke.cjs` — exit 0. Deel A is gratis en meet dat de poort
+      wéígert (403 + de key in het antwoord, geen kale 200-check); deel B doet één echte,
+      minimale call per betaalde functie en eist een verse rij in `model_usage_log` met
+      `ok = true`. Alleen deel A nodig? `--gate-only`. Kosten deel B: centen (gemeten
+      2026-09-15: $0,0005 over vijf functies).
+    - ⚠ Tellen op het *bestáán* van een `model_usage_log`-rij is vals groen: een mislukte
+      provider-call schrijft óók een regel (`ok = false`). Tijdens een credit-storing zou die
+      telling groen worden terwijl er niets werkt.
