@@ -25,8 +25,19 @@
 //   Admin generateLink() is bewust géén optie: die genereert een link maar
 //   verstuurt niets, en er is geen eigen mailer in dit project.
 //
-// Nooit voor iemand die al ingelogd heeft: dan is de uitnodiging klaar en zou
-// de mail een ongevraagde wachtwoord-reset zijn. Die vraag geeft 409 terug.
+// Nooit voor iemand die de app al écht gebruikt heeft: dan is de uitnodiging
+// klaar en zou de mail een ongevraagde wachtwoord-reset zijn. Die vraag geeft
+// 409 'already-used' terug.
+//
+// v3 (2026-09-15): die poort las `auth.users.last_sign_in_at` en dat is geen
+// bewijs van gebruik. Onze meetscripts minten user-JWT's via generate_link +
+// verify, en GoTrue zet die kolom dan alsof er een mens inlogde. Vijf van de
+// zeven members op prod stonden daardoor op "al eens ingelogd" zonder ooit een
+// mail gehad te hebben: de knop stond aan en deze functie weigerde, met een
+// melding die zei dat het al gedaan was. Nu meet hij `user_last_active_at()`,
+// dezelfde definitie die de lijst gebruikt — een ververste sessie, een sessie
+// van een browser, of een gehaalde tweede factor. Een geminte JWT is geen
+// gebruik; uitnodigen mag tot `last_active_at` gevuld is.
 //
 // dry_run: true doet alles behalve mailen en schrijven — zo kun je de gate en
 // de routekeuze testen zonder iemand te mailen.
@@ -142,15 +153,36 @@ Deno.serve(async (req) => {
       }, 404);
     }
 
-    // 2) Al eens ingelogd = uitnodiging is af. Geen ongevraagde reset-mail.
-    if (target.last_sign_in_at) {
-      return jsonResponse({
-        error: "already-signed-in",
-        user_id: target.id,
-        email,
-        last_sign_in_at: target.last_sign_in_at,
-        message: "Deze gebruiker is al eens ingelogd. Een uitnodiging is niet meer nodig; wachtwoord vergeten doet hij zelf op het inlogscherm.",
-      }, 409);
+    // 2) De app al écht gebruikt = uitnodiging is af. Geen ongevraagde
+    //    reset-mail. Bron: `user_last_active_at()` — dezelfde drie positieve
+    //    bewijzen als de lijst in Organisatie › Gebruikers, niet
+    //    `last_sign_in_at` (zie de kop: een geminte JWT zet die kolom zonder
+    //    dat er een mens was). Faalt de meting, dan gaat er niets uit: een
+    //    poort die je overslaat zodra hij hapert bewaakt niets.
+    {
+      const { data: laatstActief, error: actiefErr } = await adminClient()
+        .rpc("user_last_active_at", { p_user_id: target.id });
+      if (actiefErr) {
+        return jsonResponse({
+          error: "activity-check-failed",
+          message: "Kon niet vaststellen of deze gebruiker de app al gebruikt heeft; er is niets verstuurd.",
+          detail: actiefErr.message,
+        }, 503);
+      }
+      if (laatstActief) {
+        const moment = String(laatstActief).slice(0, 16).replace("T", " ");
+        return jsonResponse({
+          error: "already-used",
+          code: "already-used",
+          user_id: target.id,
+          email,
+          last_active_at: laatstActief,
+          // Blijft in het antwoord staan om het verschil te kunnen uitleggen,
+          // maar is nadrukkelijk niet waar de poort op besliste.
+          last_sign_in_at: target.last_sign_in_at,
+          message: `Deze gebruiker heeft de app al gebruikt (laatste activiteit ${moment} UTC). Een uitnodiging is niet meer nodig; wachtwoord vergeten doet hij zelf op het inlogscherm.`,
+        }, 409);
+      }
     }
 
     const mode = target.email_confirmed_at ? "recovery" : "invite";
