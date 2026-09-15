@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import {
   TYPE_BADGE,
   formatTimeRange,
@@ -39,7 +40,11 @@ function mapColorKey(classified, ev) {
   }
 }
 
-export default function AgendaEventCard({ ev, classified, day, onClick, lane = 0, lanes = 1 }) {
+/* v1.216: gememoïseerd, om dezelfde reden als DayColumn — `ev`, `classified`
+ * en `day` komen uit memo's en veranderen alleen als de data verandert. */
+export default memo(AgendaEventCard)
+
+function AgendaEventCard({ ev, classified, day, onClick, lane = 0, lanes = 1 }) {
   const start = new Date(ev.start_time)
   const end   = new Date(ev.end_time)
 

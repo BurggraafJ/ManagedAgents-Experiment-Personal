@@ -50,9 +50,18 @@
 // ── Val 4: verwijderen stuurt standaard een afzeggingsmail ──────────────────
 // `send_notifications` heeft default **`true`**. Wie deze tool aanroept zoals
 // de rest van de codebase tools aanroept — alleen de verplichte velden — stuurt
-// afzeggingspost naar klanten. Besluit Jelle 2026-09-14: dat gebeurt nooit. De
-// vlag staat hier hard op `false` en is geen parameter van `deleteEvent`, zodat
-// geen enkele caller hem kan omzetten.
+// afzeggingspost naar klanten.
+//
+// Tot v1.215 stond de vlag hier hard op `false` en was hij géén parameter
+// (besluit Jelle 2026-09-14: "Maestro stuurt nooit een afzeggingsmail"). Sinds
+// v1.216 is dat besluit VERVANGEN door een expliciete keuze in het scherm, zoals
+// Outlook die ook stelt: annuleren mét of zónder bericht aan de genodigden.
+// De vlag is daarom wél een parameter geworden — maar een VERPLICHTE boolean,
+// geen optionele met een default. Een caller die hem vergeet krijgt een
+// TypeScript-fout, en `outlook-calendar-live` weigert bovendien elke delete
+// mét genodigden waarbij het verzoek de keuze niet meestuurt
+// (`notify_choice_required`). Er is dus nog steeds geen pad waarop er
+// "per ongeluk" post uitgaat; er is alleen een pad waarop dat bewust gebeurt.
 
 import { CALENDAR_TOOLS, execOutlookTool, respData } from "./outlook-exec.ts";
 import type { OutlookCtx } from "./outlook-exec.ts";
@@ -140,6 +149,11 @@ export interface CalendarEventFields {
    * veld niet aangeraakt" en "ik heb alle kruisjes aangeklikt".
    */
   attendees?: AttendeeInput[] | null;
+  /**
+   * Teams-vergadering aanmaken (alleen bij CREATE; bij UPDATE genegeerd).
+   * Standaard uit — zie `onlineMeetingArgs`.
+   */
+  onlineMeeting?: boolean | null;
 }
 
 /** De Graph-payload van één event, zoals GET_EVENT hem teruggeeft. */
@@ -185,6 +199,7 @@ export async function createEvent(
     time_zone: CAL_TZ,
     location: String(f.location ?? ""),
     show_as: "busy",
+    ...onlineMeetingArgs(f.onlineMeeting === true),
     ...(guests.length > 0
       ? {
         attendees_info: guests.map((a) => ({
@@ -286,13 +301,39 @@ export async function updateEvent(
 }
 
 /**
- * Verwijderen — altijd zonder afzeggingsmail (val 4). `send_notifications` is
- * met opzet géén parameter van deze functie: een vlag die je kunt meegeven is
- * een vlag die ooit `true` wordt.
+ * Verwijderen / annuleren (val 4).
+ *
+ * `notifyAttendees` is een verplichte boolean, geen optie met een default:
+ *
+ *   false → de afspraak verdwijnt uit de agenda, niemand krijgt post (C6 meet
+ *           dat `send_notifications:false` dat ook echt doet);
+ *   true  → Outlook stuurt de genodigden een afzegging — dezelfde mail die
+ *           "Annuleren → met bericht" in Outlook zelf oplevert. Alleen zinvol
+ *           als er genodigden zijn; zonder genodigden is het gedrag gelijk.
+ *
+ * Een eigen tekst bij de afzegging is er niet: Composio's DELETE_EVENT heeft
+ * geen `comment`-veld en Graph's `/cancel`-actie staat niet in de allowlist.
  */
-export async function deleteEvent(ctx: OutlookCtx, eventId: string): Promise<void> {
+export async function deleteEvent(
+  ctx: OutlookCtx,
+  eventId: string,
+  notifyAttendees: boolean,
+): Promise<void> {
   await execOutlookTool(ctx, CALENDAR_TOOLS.DELETE_EVENT, {
     event_id: eventId,
-    send_notifications: false,
+    send_notifications: notifyAttendees === true,
   });
+}
+
+/**
+ * Nieuw event — de Teams-vergadering. `is_online_meeting` laat Graph een
+ * Teams-deelnamelink aanmaken (C5a bewijst dat dat een `joinUrl` oplevert).
+ * Standaard UIT (Jelle, 2026-09-15): een afspraak is pas een Teams-vergadering
+ * als je dat aanzet. Alleen bij CREATE — bij UPDATE gaat dit veld nooit mee,
+ * want een bestaande Teams-link laat je staan (val 2).
+ */
+export function onlineMeetingArgs(wanted: boolean): Record<string, unknown> {
+  return wanted
+    ? { is_online_meeting: true, online_meeting_provider: "teamsForBusiness" }
+    : {};
 }

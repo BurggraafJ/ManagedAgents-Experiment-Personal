@@ -1,9 +1,11 @@
 // outlook-calendar-live — de schrijfbaan van de Agenda. Drie acties:
 //
-//   { action: 'create_event', subject, date, start, end, location?, attendees? } →
+//   { action: 'create_event', subject, date, start, end, location?, attendees?, online_meeting? } →
 //     nieuw event in de standaardagenda van de INGELOGDE gebruiker. Gaan er
 //     genodigden mee, dan stuurt Graph de uitnodigingen — dat is volgens
 //     Microsoft "can't be configured", dus het scherm zegt het vóór de klik.
+//     `online_meeting: true` maakt er een Teams-vergadering van (v1.216,
+//     standaard uit); weglaten of false = gewone afspraak.
 //
 //   { action: 'update_event', graph_id, subject, date, start, end, location?, attendees? } →
 //     bestaand event wijzigen. READ-MODIFY-WRITE, want een kale patch wist
@@ -11,8 +13,14 @@
 //     `attendees` weglaten = de bestaande lijst laten staan; `[]` meesturen =
 //     iedereen eraf. Dat onderscheid zit in `fieldsFrom` hieronder.
 //
-//   { action: 'delete_event', graph_id } →
-//     verwijderen, ALTIJD zonder afzeggingsmail.
+//   { action: 'delete_event', graph_id, notify_attendees? } →
+//     annuleren. Tot v1.215 ALTIJD zonder afzeggingsmail en geweigerd zodra er
+//     genodigden waren. Sinds v1.216 (Jelle, 2026-09-15) kiest de gebruiker,
+//     zoals in Outlook: `notify_attendees: true` = Outlook stuurt de afzegging,
+//     `false` = stil verwijderen. Mét genodigden is die keuze VERPLICHT — een
+//     verzoek zonder boolean wordt geweigerd (`notify_choice_required`), zodat
+//     een oude of onvolledige caller nooit "per ongeluk" de ene of de andere
+//     kant kiest. Zonder genodigden is het veld irrelevant.
 //
 // verify_jwt: TRUE + de capability-poort uit `_shared/user-gate.ts`. Dit
 // endpoint MUTEERT een externe agenda, dus: ingelogd (de anon-key zit in de
@@ -39,10 +47,11 @@
 //   hele dag        — die staan in de spiegel op 00:00 UTC, dus het formulier
 //                     toont 01:00/02:00 en opslaan maakt er een afspraak van
 //                     één uur van. Alleen bij wijzigen; verwijderen kan wel.
-//   genodigden      — alleen bij verwijderen: geen afzegging, dus ook geen
-//                     verwijderknop. Wijzigen mág wél (besluit Jelle
-//                     2026-09-14) — Outlook stuurt dan een update-mail en de UI
-//                     zegt dat er ook bij, vóór de klik.
+//   genodigden      — bij annuleren geen hek meer, wél een verplichte keuze
+//                     (v1.216): `notify_attendees` moet een boolean zijn zodra
+//                     het live event genodigden heeft. Wijzigen mág (besluit
+//                     Jelle 2026-09-14) — Outlook stuurt dan een update-mail en
+//                     de UI zegt dat er ook bij, vóór de klik.
 //
 // ── De spiegel loopt meteen mee ─────────────────────────────────────────────
 // `calendar_events` heeft RLS met alleen een SELECT-policy voor gebruikers en
@@ -115,11 +124,15 @@ function assertEditable(ev: GraphEvent, row: MirrorRow): void {
   if (ev.isAllDay === true || row.is_all_day === true) throw new Error('all_day_not_supported');
 }
 
-/** Verwijderen: organisator, niet terugkerend, en nul genodigden. */
-function assertDeletable(ev: GraphEvent, row: MirrorRow): void {
+/**
+ * Annuleren: organisator, niet terugkerend, en — zijn er genodigden — een
+ * expliciete keuze over het bericht. `notify` is de ruwe waarde uit het
+ * verzoek; alleen een echte boolean telt als keuze.
+ */
+function assertDeletable(ev: GraphEvent, row: MirrorRow, notify: unknown): void {
   if (ev.isOrganizer === false || row.is_organizer === false) throw new Error('not_organizer');
   if (isSeries(ev, row)) throw new Error('recurring_not_supported');
-  if (attendeeCount(ev) > 0) throw new Error('has_attendees');
+  if (attendeeCount(ev) > 0 && typeof notify !== 'boolean') throw new Error('notify_choice_required');
 }
 
 // ── Spiegel ─────────────────────────────────────────────────────────────────
@@ -216,6 +229,9 @@ function fieldsFrom(p: Record<string, unknown>): CalendarEventFields {
     // `cleanAttendees` (in outlook-calendar.ts) schoont de inhoud op — dit is
     // gebruikersinvoer en gaat rechtstreeks naar Graph.
     attendees: Array.isArray(p.attendees) ? cleanAttendees(p.attendees) : null,
+    // Alleen een letterlijke `true` telt; `"true"`, 1 of een ontbrekend veld
+    // is "geen Teams". Standaard uit is het hele punt.
+    onlineMeeting: p.online_meeting === true,
   };
 }
 
@@ -266,20 +282,31 @@ async function doDelete(
   const graphId = String(p.graph_id ?? '').trim();
   if (!graphId) throw new Error('missing_graph_id');
   const row = await ownedRow(supabase, graphId, caller);
-  assertDeletable(await getEvent(ctx, graphId), row);
+  const live = await getEvent(ctx, graphId);
+  assertDeletable(live, row, p.notify_attendees);
 
-  await deleteEvent(ctx, graphId);
+  // Zonder genodigden is er niemand om te berichten; dan gaat de vlag altijd
+  // op false, ook als de caller `true` stuurde. Mét genodigden is hij door
+  // `assertDeletable` al een boolean.
+  const n = attendeeCount(live);
+  const notify = n > 0 && p.notify_attendees === true;
+  await deleteEvent(ctx, graphId, notify);
   const { error } = await supabase.from('calendar_events')
     .update({ is_deleted: true, deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('graph_id', graphId);
   if (error) throw new Error(`mirror_delete_failed: ${error.message.slice(0, 140)}`);
-  return { ok: true, graph_id: graphId };
+  // `cancelled: true` onderscheidt dit antwoord van dat van update_event, dat
+  // óók `attendees_notified` teruggeeft maar dan een wijzigingsmail bedoelt.
+  return {
+    ok: true, graph_id: graphId, cancelled: true,
+    attendees_notified: notify, attendee_count: n,
+  };
 }
 
 /** Een geweigerd hek is een 409, geen 502: er is niets stuk, het mag niet. */
 const REFUSALS = new Set([
   'not_organizer', 'recurring_not_supported', 'all_day_not_supported',
-  'has_attendees', 'event_not_in_mirror', 'event_not_yours',
+  'notify_choice_required', 'event_not_in_mirror', 'event_not_yours',
 ]);
 const BAD_REQUEST = new Set([
   'missing_graph_id', 'missing_datetime', 'end_before_start',
