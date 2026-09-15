@@ -102,7 +102,20 @@ export function ooitGebruikt(u) {
   return Boolean(u?.last_active_at)
 }
 
+// Uit dienst (v1.222). Eén zacht veld op user_roles: NULL = actief, gezet =
+// de persoon werkt hier niet meer. Geen ban en geen delete in auth.users —
+// de historie (wie stuurde die mail, wie was deal-eigenaar) hangt aan het
+// user_id en moet blijven staan.
+//
+// ⚠ Niet te verwarren met de status 'inactive' hieronder. Die zegt "30 dagen
+// niets gedaan" en gaat vanzelf weer weg zodra iemand inlogt; deze is een
+// besluit van de owner en blijft staan tot hij hem terugdraait.
+export function isGedeactiveerd(u) {
+  return Boolean(u?.deactivated_at)
+}
+
 // statusFor — gelaagde status-detectie:
+//   0. deactivated_at gezet → 'deactivated' (Uit dienst)
 //   1. banned_until > now → 'banned'
 //   2. nooit écht gebruikt, geen uitnodiging verstuurd → 'created' (Aangemaakt)
 //   3. nooit écht gebruikt, wél uitnodiging verstuurd → 'pending' (Uitgenodigd)
@@ -116,6 +129,14 @@ export function ooitGebruikt(u) {
 // wat suggereert dat er een mail ligt te wachten. Voor een account dat met
 // createUser is klaargezet is er juist nog niets verstuurd.
 export function statusFor(u) {
+  // Uit dienst staat bóven geblokkeerd. Allebei "deze persoon komt er niet
+  // in", maar alleen dit zegt wáárom, en dat is wat de owner zoekt als hij de
+  // lijst doorloopt. Is iemand ook geblokkeerd, dan staat dat in de tooltip —
+  // twee pillen naast elkaar leest als twee losse problemen.
+  if (isGedeactiveerd(u)) {
+    const ookGeblokkeerd = !!(u?.banned_until && new Date(u.banned_until) > new Date())
+    return { kind: 'deactivated', label: 'Uit dienst', since: u.deactivated_at, ookGeblokkeerd }
+  }
   if (u?.banned_until && new Date(u.banned_until) > new Date()) {
     return { kind: 'banned', label: 'Geblokkeerd' }
   }
@@ -262,8 +283,14 @@ export async function sendInvite({ email, displayName, dryRun = false }) {
 // dus precies de gevallen waarvoor de knop hier aanstond ("al eens ingelogd",
 // 409). Sinds de migratie 20260915150000 lezen knop en poort dezelfde meting:
 // `user_last_active_at()`.
+//
+// v1.222: en niet als de persoon uit dienst is. Dat geval is hier geen theorie
+// — alle vijf de mensen die bij de invoering uit dienst gingen hadden de app
+// nog nooit écht gebruikt, dus stónd de knop bij alle vijf aan. Zonder deze
+// regel is de kortste weg in dit scherm een set-wachtwoord-mail naar iemand die
+// hier niet meer werkt.
 export function canInvite(u) {
-  return !!u && !ooitGebruikt(u) && u.app_role !== 'owner'
+  return !!u && !ooitGebruikt(u) && !isGedeactiveerd(u) && u.app_role !== 'owner'
 }
 
 export async function inviteUser(u) {
@@ -280,6 +307,40 @@ export async function saveUser({ userId, displayName, role }) {
       display_name: displayName?.trim() || null,
     }, { onConflict: 'user_id' })
   if (error) throw new Error(error.message)
+}
+
+// De drie bakken van het Gebruikers-scherm (v1.222). Eén gebruiker zit in
+// precies één bak — de volgorde hieronder ís de partitie:
+//
+//   gedeactiveerd — uit dienst. Blijft zichtbaar, maar in zijn eigen tab.
+//   uitnodiging   — bestaat wel, maar heeft de app nog nooit écht gebruikt.
+//                   Dat is één bak voor drie tussenstanden die allemaal op
+//                   dezelfde handeling wachten: aangemaakt-zonder-mail,
+//                   uitnodiging-verstuurd-nog-niet-binnen, en uitgesteld.
+//   actief        — de rest: mensen die de app daadwerkelijk gebruiken.
+//
+// `invite_deferred` krijgt geen eigen tak. Dat vlaggetje staat op accounts die
+// nog niets gebruikt hebben, dus het valt al onder ooitGebruikt; zou het ooit
+// op een actieve gebruiker blijven staan, dan hoort die bij Actief te staan en
+// niet bij een uitnodiging die allang is ingelost.
+export const USER_TABS = [
+  { id: 'actief',        label: 'Actief' },
+  { id: 'uitnodiging',   label: 'Uitnodiging' },
+  { id: 'gedeactiveerd', label: 'Gedeactiveerd' },
+]
+
+export const DEFAULT_USER_TAB = 'actief'
+
+export function bucketFor(u) {
+  if (isGedeactiveerd(u)) return 'gedeactiveerd'
+  if (!ooitGebruikt(u)) return 'uitnodiging'
+  return 'actief'
+}
+
+export function bucketCounts(users) {
+  const counts = { actief: 0, uitnodiging: 0, gedeactiveerd: 0 }
+  for (const u of users || []) counts[bucketFor(u)] += 1
+  return counts
 }
 
 // Sorteer owners eerst, dan op laatste échte activiteit (recentste eerst).
@@ -305,15 +366,21 @@ export function userStats(sorted) {
   // v1.158: twee losse tellers in plaats van één "niet geactiveerd". Wie is
   // aangemaakt en wacht nog op een uitnodiging, en wie heeft de mail gehad
   // maar is nog nooit binnen geweest?
-  const neverLoggedIn = sorted.filter(u => !ooitGebruikt(u))
-  const notInvited = neverLoggedIn.filter(u => !u.invite_sent_at).length
-  const invitedNotLoggedIn = neverLoggedIn.length - notInvited
+  // v1.222 — wie uit dienst is telt niet mee in de twee tellers die om een
+  // handeling vragen. "3 nog niet uitgenodigd" in de paginakop is een opdracht
+  // aan de owner; iemand die hier niet meer werkt hoort daar niet in te staan,
+  // net zomin als de Uitnodigen-knop bij hem aan hoort te staan (canInvite).
+  const deactivated = sorted.filter(isGedeactiveerd).length
+  const teNodigen = sorted.filter(u => !ooitGebruikt(u) && !isGedeactiveerd(u))
+  const notInvited = teNodigen.filter(u => !u.invite_sent_at).length
+  const invitedNotLoggedIn = teNodigen.length - notInvited
   const inactive30 = sorted.filter(u => {
+    if (isGedeactiveerd(u)) return false
     if (!ooitGebruikt(u)) return true
     return kalenderDagen(u.last_active_at) >= 30
   }).length
   return {
-    owners, members, total: sorted.length, live, pending, inactive30,
-    neverLoggedIn: neverLoggedIn.length, notInvited, invitedNotLoggedIn,
+    owners, members, total: sorted.length, live, pending, inactive30, deactivated,
+    neverLoggedIn: teNodigen.length, notInvited, invitedNotLoggedIn,
   }
 }

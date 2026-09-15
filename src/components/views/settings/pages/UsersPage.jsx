@@ -2,7 +2,10 @@ import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../../../lib/supabase'
 import { useUsers } from '../../../../hooks/useUsers'
-import { sortUsers, userStats, inviteUser } from '../../../../lib/users'
+import {
+  sortUsers, userStats, inviteUser,
+  USER_TABS, DEFAULT_USER_TAB, bucketFor, bucketCounts,
+} from '../../../../lib/users'
 import UserRow from './users/UserRow'
 import EditUserModal from './users/EditUserModal'
 import InviteModal from './users/InviteModal'
@@ -63,6 +66,10 @@ export default function UsersPage() {
   const [showInfo, setShowInfo] = useState(false)
   const [editing, setEditing] = useState(null)
   const [inviting, setInviting] = useState(null)
+  // v1.222 — de lijst opent op Actief. Wie uit dienst is en wie nog op een
+  // uitnodiging wacht staan er niet tussen, maar zijn één tik weg; ze worden
+  // niet verborgen voor de owner, alleen uit het werkbeeld gehaald.
+  const [tab, setTab] = useState(DEFAULT_USER_TAB)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data?.user?.id || null))
@@ -70,6 +77,8 @@ export default function UsersPage() {
 
   const sorted = useMemo(() => sortUsers(users), [users])
   const stats = useMemo(() => userStats(sorted), [sorted])
+  const counts = useMemo(() => bucketCounts(sorted), [sorted])
+  const zichtbaar = useMemo(() => sorted.filter(u => bucketFor(u) === tab), [sorted, tab])
   // Schrijven op hubspot_owner_map is owner-only (RLS). De UI volgt dat, zodat
   // een member geen control ziet die tóch zou falen.
   const isOwner = useMemo(
@@ -116,6 +125,7 @@ export default function UsersPage() {
               {stats.live > 0 && <>{' · '}<span className="is-ok">{stats.live} live</span></>}
               {stats.notInvited > 0 && <>{' · '}<span className="is-warn">{stats.notInvited} nog niet uitgenodigd</span></>}
               {stats.invitedNotLoggedIn > 0 && <>{' · '}<span className="is-warn">{stats.invitedNotLoggedIn} wacht op activatie</span></>}
+              {stats.deactivated > 0 && <>{' · '}<span className="is-muted">{stats.deactivated} uit dienst</span></>}
             </p>
           )}
         </div>
@@ -172,7 +182,43 @@ export default function UsersPage() {
         </div>
       )}
 
+      {/* Drie bakken, één tik uit elkaar. De teller staat in de tab zelf: dat
+          is het enige wat verklaart waarom Actief er zo leeg uitziet zodra de
+          meeste accounts wel bestaan maar nog nooit gebruikt zijn. */}
       {!error && sorted.length > 0 && (
+        <div className="users-tabs" role="tablist" aria-label="Filter gebruikers">
+          {USER_TABS.map(t => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.id}
+              className={`users-tab ${tab === t.id ? 'is-active' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+              <span className="users-tab__count">{counts[t.id]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!error && sorted.length > 0 && zichtbaar.length === 0 && (
+        <div className="users-empty">
+          <p className="users-empty__title">
+            {tab === 'actief' && 'Niemand gebruikt de app op dit moment'}
+            {tab === 'uitnodiging' && 'Niemand wacht op een uitnodiging'}
+            {tab === 'gedeactiveerd' && 'Niemand staat op uit dienst'}
+          </p>
+          <p className="users-empty__hint">
+            {tab === 'gedeactiveerd'
+              ? 'Wie uit dienst gaat blijft hier staan — het account wordt niet verwijderd.'
+              : 'Kijk bij de andere tabbladen; de tellers hierboven laten zien waar iedereen zit.'}
+          </p>
+        </div>
+      )}
+
+      {!error && zichtbaar.length > 0 && (
         <div className="users-card">
           <table className="users-table">
             <thead>
@@ -191,7 +237,7 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {sorted.map(u => (
+              {zichtbaar.map(u => (
                 <UserRow
                   key={u.user_id}
                   user={u}

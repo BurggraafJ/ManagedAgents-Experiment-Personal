@@ -207,6 +207,47 @@
 }
 .m-users-a__sep { color: var(--m-n300); }
 
+/* Actief · Uitnodiging · Gedeactiveerd (v1.222). Eén rij segmentkiezers in de
+   breedte van de kaarten eronder; de teller zit ín de tab, want die verklaart
+   waarom Actief bijna leeg kan zijn. Geen scroll: drie tabs passen. */
+.m-users-a__tabs {
+  display: flex;
+  gap: 4px;
+  margin: 12px 14px 2px;
+  padding: 3px;
+  background: var(--m-paper2);
+  border: 1px solid var(--m-border-soft);
+  border-radius: 12px;
+}
+.m-users-a__tab {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  font: 500 12px var(--m-sans);
+  color: var(--m-n500);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.m-users-a__tab i {
+  font: 500 10.5px var(--m-mono);
+  font-style: normal;
+  color: var(--m-n400);
+}
+.m-users-a__tab.is-active {
+  background: var(--m-paper);
+  color: var(--m-ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+}
+.m-users-a__tab.is-active i { color: var(--m-n500); }
+
 .m-users-a__group { margin: 14px 0 0; }
 .m-users-a__glabel {
   display: flex; align-items: center; gap: 7px;
@@ -290,6 +331,8 @@
 .m-users-a__st--created { color: var(--m-n500); font-weight: 600; }
 .m-users-a__st--active { color: var(--m-n500); }
 .m-users-a__st--banned { color: var(--m-error-ink2); font-weight: 600; }
+/* Uit dienst: gedempt, niet rood — een stand, geen incident (v1.222). */
+.m-users-a__st--deactivated { color: var(--m-n400); font-weight: 600; }
 
 .m-users-a__chev { display: flex; color: var(--m-n300); flex-shrink: 0; }
 

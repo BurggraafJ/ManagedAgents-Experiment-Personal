@@ -55,6 +55,8 @@ export default function UserRow({ user, isSelf, onEdit, onInvite, inviting, owne
   // pil "Vandaag actief" zegt. Zie lib/users.js.
   const uitleg = statusUitleg(user)
   const statusTitle =
+    status.kind === 'deactivated'
+      ? `Uit dienst sinds ${formatDate(status.since)}. Het account blijft bestaan — de historie hangt eraan — maar er gaat geen uitnodiging meer heen.${status.ookGeblokkeerd ? ` Dit account is daarnaast geblokkeerd t/m ${formatDate(user.banned_until)}.` : ''}` :
     status.kind === 'live'    ? `${user.active_sessions_count} sessie${user.active_sessions_count === 1 ? '' : 's'} die binnen twee uur nog een token ophaalde${user.active_sessions_count === 1 ? '' : 'n'}` :
     status.kind === 'created' ? `Account bestaat, maar er is nooit een uitnodiging verstuurd.${uitleg ? ` ${uitleg}` : ''}` :
     status.kind === 'pending' ? `Uitnodiging verstuurd, nog geen eerste gebruik.${uitleg ? ` ${uitleg}` : ''}` :

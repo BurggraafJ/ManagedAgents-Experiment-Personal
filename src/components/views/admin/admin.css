@@ -302,6 +302,9 @@
 .admin-page-head__meta b { color: var(--ink); font-weight: 600; }
 .admin-page-head__meta .is-ok   { color: #1d6b3a; font-weight: 600; }
 .admin-page-head__meta .is-warn { color: var(--warning); font-weight: 600; }
+/* v1.222 — "5 uit dienst" is een stand, geen waarschuwing. Zelfde regel, maar
+   gedempt: het hoort niet te concurreren met de tellers die om actie vragen. */
+.admin-page-head__meta .is-muted { color: var(--neutral-500, #737373); }
 .admin-page-head__meta .is-err  { color: var(--error); font-weight: 600; }
 .admin-page-head__actions {
   display: flex;
