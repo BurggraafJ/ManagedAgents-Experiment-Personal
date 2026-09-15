@@ -4,6 +4,21 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.221 — 2026-09-16 · DOC-13 + HubSpot pilots-default
+
+**DOC-13 (docs-guard)**
+- Nieuwe niet-blokkerende controle: jongste weekronde ≥ 25 % infra-falen (5xx /
+  `provider_error`) bij ≥ 50 resultaatrijen → `WAARSCH`. Voorkomt dat DOC-10
+  "cadans OK" zegt terwijl de ronde onbruikbaar is (creditstoring-patroon).
+- Zelfde SQL in `scripts/agent_docs_audit.cjs` en `agent_docs_staleness_check()`.
+
+**HubSpot `analytics_active_pilots`**
+- Alleen Customer Base stage Proeftijd; dode Sales-stage `4841337018` eruit
+  (ASK-JELLE 03 #1 default). Tool-definitie in `rag-chat/analytics.ts` gelijk.
+
+---
+
+
 ## v1.214 — 2026-09-15 · Eval cheap models + hard OpenAI spend caps
 
 **Judge `gpt-5.6-luna` → `gpt-5-nano`**
