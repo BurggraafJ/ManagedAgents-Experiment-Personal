@@ -925,6 +925,18 @@ button.m-tkrow__main { cursor: pointer; }
   width: 26px; height: 26px; border: 0; border-radius: 9999px; background: transparent;
   color: var(--m-n600); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
 }
+/* v1.223 — zacht SWR-signaal links in de kop: de lijst van de vorige sessie
+   staat er al, de verse ronde loopt. Zelfde toon als de zoek-chip, geen overlay. */
+.m-pv__swr {
+  display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px;
+  border-radius: 9999px; background: var(--m-press); font: 500 12.5px var(--m-sans); color: var(--m-n600);
+}
+.m-pv__swr-spin {
+  width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--m-border); border-top-color: var(--m-n600);
+  animation: m-pv-spin .9s linear infinite;
+}
+@keyframes m-pv-spin { to { transform: rotate(360deg); } }
 
 /* Rechterkolom van een rij: alleen de ongelezen-stip. De ⋯ die eronder stond
    is in v1.217 weg (de veeg is de enige ingang tot de acties); de stip houdt

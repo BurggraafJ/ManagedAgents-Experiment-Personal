@@ -96,7 +96,14 @@ function formatSyncTime(iso) {
 }
 
 export default function MobilePostvak() {
-  const { mails, mailMessages, categories, folders, mailSyncState, refresh, loading } = useAutoDraft()
+  const { mails, mailMessages, categories, folders, mailSyncState, refresh, loading, stale, revalidating } = useAutoDraft()
+  // v1.223 — stale-while-revalidate, zichtbaar. `loading` is sinds deze
+  // versie pas waar als er écht nog geen Outlook-rijen zijn (de poort in
+  // useAutoDraft kijkt naar mail_messages, niet meer naar autodraft_mails),
+  // dus de skeleton hieronder komt alleen nog bij een koude start. Staat de
+  // lijst van de vorige sessie er al, dan zegt dit chipje dat de verse ronde
+  // loopt — geen leeg scherm, geen skeleton over rijen die er zijn.
+  const syncing = !!(stale && revalidating)
   const { snoozedIds } = usePv2Snoozes()
   const { bucketOverrides, setBucket } = usePv2BucketOverrides()
   // Alle mutaties + de drie optimistische overlays zitten in de hook; dit
@@ -183,6 +190,11 @@ export default function MobilePostvak() {
     <div className="m-dash">
       <header className="m-pv__head">
         <div className="m-tk__head-top">
+          {syncing && (
+            <span className="m-pv__swr" role="status" aria-live="polite">
+              <span className="m-pv__swr-spin" aria-hidden />Bijwerken…
+            </span>
+          )}
           <div className="m-pv__headacts">
             <button type="button" className="m-iconbtn m-pv__more" aria-label="Menu"
                     onClick={() => setMenuOpen(true)}>
