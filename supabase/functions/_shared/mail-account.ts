@@ -144,6 +144,160 @@ export async function claimMailAccount(
   return legacy;
 }
 
+/**
+ * Hoeveel mailboxen zijn er op dit moment claimbaar?
+ *
+ * `0` betekent twee heel verschillende dingen en de caller moet ze uit elkaar
+ * kunnen houden: de registry is leeg (→ `claimMailAccount` valt terug op
+ * agent_config, één pass) of alles staat bewust uit/gepauzeerd (→ skippen).
+ * Vandaar `{ claimbaar, registry_leeg }` in plaats van één getal.
+ */
+export async function countClaimableMailAccounts(
+  supabase: SupabaseClient,
+): Promise<{ claimbaar: number; registry_leeg: boolean }> {
+  const { count: totaal } = await supabase
+    .from("mail_accounts").select("id", { count: "exact", head: true });
+  if ((totaal ?? 0) === 0) return { claimbaar: 0, registry_leeg: true };
+
+  const { count: open } = await supabase
+    .from("mail_accounts").select("id", { count: "exact", head: true })
+    .eq("enabled", true).eq("paused", false);
+  return { claimbaar: open ?? 0, registry_leeg: false };
+}
+
+/** Begrenzing van één invocatie. Beide grenzen zijn hard; de eerste die raakt wint. */
+export interface AccountLoopLimits {
+  /** Bovengrens op het aantal mailboxen in deze aanroep. Zet de cadans-formule. */
+  maxAccounts: number;
+  /** Wall-clock budget in ms. Ná deze grens claimt de lus geen nieuwe mailbox meer. */
+  maxWallMs: number;
+}
+
+/** Wat één mailbox in deze invocatie heeft gedaan — telemetrie per eigenaar. */
+export interface AccountPass {
+  account_id: string | null;
+  mailbox_email: string | null;
+  account_user_id: string;
+  account_source: "mail_accounts" | "agent_config_fallback";
+  account_scope: string;
+  ok: boolean;
+  error: string | null;
+  duration_ms: number;
+  /** Tellers van de ETL zelf (mails, folders, events). Door `handle` gevuld. */
+  detail: Record<string, unknown>;
+}
+
+export interface AccountLoopResult {
+  passes: AccountPass[];
+  /** Waarom de lus stopte. Staat in stats, zodat "te weinig tijd" zichtbaar is. */
+  stop_reason:
+    | "max_accounts"        // de bovengrens uit AccountLoopLimits
+    | "wall_budget"         // tijd op — de rest komt de volgende cron-tik
+    | "ronde_rond"          // elke claimbare mailbox is geweest
+    | "geen_claimbaar_account";  // registry heeft rijen, allemaal uit/gepauzeerd
+  claimbaar: number;
+}
+
+/**
+ * Draait `handle` over MEERDERE mailboxen in één invocatie, begrensd.
+ *
+ * ── Waarom (S5) ─────────────────────────────────────────────────────────────
+ * Tot v1.219 claimde elke ETL-aanroep precies één mailbox. De cadans deelde
+ * daarmee door het aantal mailboxen: bij zes mailboxen kwam mail elke 30 min
+ * binnen in plaats van elke 5, en de agenda elke 90 min. Dat is geen
+ * beveiligingsgat maar wel het eerste wat een tweede gebruiker merkt.
+ *
+ * De knop die hier omgaat is *alleen* het aantal mailboxen per aanroep. De
+ * cron-schema's blijven ongemoeid — één knop tegelijk, zodat een meting ná de
+ * merge over precies één oorzaak gaat.
+ *
+ * ── Wat behouden blijft ─────────────────────────────────────────────────────
+ *  • `FOR UPDATE SKIP LOCKED` en de round-robin-ordening: de lus roept dezelfde
+ *    `claim_next_mail_account(purpose)` N keer aan. Elke claim zet
+ *    `last_claim_at[purpose] = now()`, dus de volgende aanroep krijgt per
+ *    definitie de volgende mailbox. Er is geen tweede kopie van de claim-regel
+ *    in SQL — die staat op één plek en dat blijft zo.
+ *  • **Per-eigenaar-isolatie.** Eén kapotte mailbox laat de andere niet vallen:
+ *    de `handle` draait per mailbox in een eigen try/catch en de fout landt in
+ *    `finish_mail_account_claim` van díe mailbox.
+ *  • **Retries.** Een mislukte mailbox houdt zijn plek in de round-robin: de
+ *    claim is al gezet, dus hij komt gewoon weer aan de beurt.
+ *  • **Begrensde looptijd.** `maxWallMs` stopt het claimen vóór de
+ *    gateway-idle-timeout. Zelfde vorm als `mail-backfill` (5 buckets × 60 s),
+ *    die dit patroon sinds v1.4 draait.
+ *
+ * `handle` geeft `null` terug bij succes, of een korte foutregel — die gaat
+ * één-op-één naar `finish_mail_account_claim`, net als vóór deze wijziging.
+ * In `ctx.detail` mag de ETL zijn eigen tellers voor déze mailbox kwijt; die
+ * landen in de `AccountPass` en dus in `agent_runs.stats`.
+ */
+export async function forEachClaimedMailAccount(
+  supabase: SupabaseClient,
+  purpose: ClaimPurpose,
+  legacyAgentName: string,
+  limits: AccountLoopLimits,
+  handle: (
+    account: MailAccount,
+    ctx: { pass: number; detail: Record<string, unknown> },
+  ) => Promise<string | null>,
+): Promise<AccountLoopResult> {
+  const startedMs = Date.now();
+  const { claimbaar, registry_leeg } = await countClaimableMailAccounts(supabase);
+
+  // Lege registry = het één-mailbox-tijdperk: precies één pass langs de
+  // agent_config-fallback. Anders nooit méér passes dan er mailboxen zijn —
+  // dat scheelt een overbodige claim die `last_sync_started_at` zou verzetten
+  // voor een sync die niet meer gaat lopen.
+  const rondes = registry_leeg ? 1 : Math.min(limits.maxAccounts, claimbaar);
+
+  const passes: AccountPass[] = [];
+  const gezien = new Set<string>();
+  let stopReason: AccountLoopResult["stop_reason"] =
+    rondes === 0 ? "geen_claimbaar_account" : "ronde_rond";
+
+  for (let i = 0; i < rondes; i++) {
+    if (i > 0 && Date.now() - startedMs >= limits.maxWallMs) { stopReason = "wall_budget"; break; }
+
+    const account = await claimMailAccount(supabase, purpose, legacyAgentName);
+    if (!account) { stopReason = i === 0 ? "geen_claimbaar_account" : "ronde_rond"; break; }
+
+    // Vangnet: als de registry tijdens de lus krimpt (iemand pauzeert een
+    // mailbox) geeft de claim dezelfde rij terug. Twee keer dezelfde mailbox
+    // in één invocatie is geen cadans-winst maar dubbel werk.
+    const sleutel = account.account_id ?? `legacy:${account.user_id}`;
+    if (gezien.has(sleutel)) { stopReason = "ronde_rond"; break; }
+    gezien.add(sleutel);
+
+    const t0 = Date.now();
+    const detail: Record<string, unknown> = {};
+    let fout: string | null = null;
+    try {
+      fout = await handle(account, { pass: i, detail });
+    } catch (err) {
+      fout = err instanceof Error ? err.message : String(err);
+    }
+    await finishMailAccountClaim(supabase, account, fout ? fout.slice(0, 300) : null);
+
+    passes.push({
+      account_id: account.account_id,
+      mailbox_email: account.mailbox_email,
+      account_user_id: account.user_id,
+      account_source: account.from_registry ? "mail_accounts" : "agent_config_fallback",
+      account_scope: account.scope,
+      ok: fout === null,
+      error: fout,
+      duration_ms: Date.now() - t0,
+      detail,
+    });
+
+    if (i === rondes - 1 && rondes === limits.maxAccounts && claimbaar > rondes) {
+      stopReason = "max_accounts";
+    }
+  }
+
+  return { passes, stop_reason: stopReason, claimbaar };
+}
+
 /** Sluit de claim af (telemetrie + stilval-detectie per mailbox). */
 export async function finishMailAccountClaim(
   supabase: SupabaseClient,

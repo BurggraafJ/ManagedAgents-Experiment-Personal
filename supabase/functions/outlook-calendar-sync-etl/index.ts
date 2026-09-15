@@ -3,9 +3,19 @@
 // Delta = lastModifiedDateTime ge <last_delta - 5min>; full = start/dateTime ge <now - FULL_WINDOW_MONTHS>.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
-import { claimMailAccount, finishMailAccountClaim } from "../_shared/mail-account.ts";
+// v1.2 (S5, 2026-09-15): N agenda's per invocatie. Zie de constanten hieronder
+// en `_shared/mail-account.ts` → forEachClaimedMailAccount.
+import { forEachClaimedMailAccount, type AccountPass, type MailAccount } from "../_shared/mail-account.ts";
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-const SKILL_VERSION = "calendar-edge-fn-v1.0";
+const SKILL_VERSION = "calendar-edge-fn-v1.2";
+
+// ── v1.2 (S5) · de cadans-knop ───────────────────────────────────────────────
+// Cron staat op `*/15`. Eén claim per aanroep betekende bij zes mailboxen een
+// agenda-sync per persoon elke 90 minuten — voor iemand die zijn agenda in
+// Maestro wil zien is dat te veel. Formule: interval = cron_periode × ceil(A/N);
+// met N = 6 blijft het 15 minuten tot en met zes agenda's.
+const MAX_ACCOUNTS_PER_RUN = 6;
+const MAX_WALL_TIME_MS = 60_000;
 const TOOL_LIST_EVENTS = "OUTLOOK_OUTLOOK_LIST_EVENTS";
 const PAGE_SIZE = 100;
 const MAX_PAGES_PER_RUN = 30;
@@ -313,6 +323,14 @@ Deno.serve(async (req)=>{
     sync_mode: "delta",
     events_upserted: 0,
     pages: 0,
+    // v1.2 (S5): meerdere agenda's per invocatie. De account_*-velden beschrijven
+    // de láátste; `accounts[]` de hele ronde, één rij per eigenaar.
+    accounts: [] as AccountPass[],
+    accounts_claimable: 0,
+    accounts_processed: 0,
+    accounts_failed: 0,
+    max_accounts_per_run: MAX_ACCOUNTS_PER_RUN,
+    stop_reason: null as string | null,
     warnings: []
   };
   const { data: runIns, error: runErr } = await supabase.from("agent_runs").insert({
@@ -327,23 +345,13 @@ Deno.serve(async (req)=>{
     status: 500
   });
   const runId = runIns.id;
-  let account = null;
-  try {
-    // v1.1: één mailbox per invocatie, round-robin via de registry.
-    account = await claimMailAccount(supabase, "calendar", "outlook-calendar-sync-etl");
-    if (!account) {
-      stats.warnings.push("no_claimable_account");
-      await supabase.from("agent_runs").update({
-        status: "warning",
-        completed_at: new Date().toISOString(),
-        summary: "geen claimbaar mail_account",
-        stats
-      }).eq("id", runId);
-      return new Response(JSON.stringify({ ok: true, runId, skipped: true, reason: "no_claimable_account" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      });
-    }
+  // v1.2 (S5): N agenda's per invocatie. Elke agenda draait in zijn eigen
+  // try/catch binnen de driver: de fout van eigenaar A zet `calendar_sync_state`
+  // van A, en laat B gewoon doorlopen.
+  const syncEenAgenda = async (
+    account: MailAccount,
+    lus: { pass: number; detail: Record<string, unknown> }
+  ): Promise<string | null> => {
     const ownerUserId = account.user_id;
     stats.mailbox_email = account.mailbox_email;
     stats.account_user_id = ownerUserId;
@@ -358,8 +366,13 @@ Deno.serve(async (req)=>{
     const needsFull = forceFull || !state?.last_full_sync_at || new Date(state.last_full_sync_at).getTime() < Date.now() - FULL_REFRESH_HOURS * 3_600_000;
     stats.sync_mode = needsFull ? "full" : "delta";
     const { upserted, pages } = await syncEvents(supabase, ctx, stats.sync_mode, state ?? null, ownerUserId);
-    stats.events_upserted = upserted;
-    stats.pages = pages;
+    // += en niet =: bij meerdere agenda's per invocatie is de invocatie-teller
+    // een som, geen momentopname van de laatste agenda.
+    stats.events_upserted += upserted;
+    stats.pages += pages;
+    lus.detail.sync_mode = stats.sync_mode;
+    lus.detail.events_upserted = upserted;
+    lus.detail.pages = pages;
     const stateRow = {
       user_id: ownerUserId,
       last_delta_sync_at: new Date().toISOString(),
@@ -373,37 +386,82 @@ Deno.serve(async (req)=>{
       onConflict: "user_id"
     });
     if (stateErr) throw new Error(`calendar_sync_state_upsert_failed: ${stateErr.message}`);
-    const summary = `${account.mailbox_email ? account.mailbox_email + ": " : ""}${stats.sync_mode}: ${upserted} events over ${pages} page(s)`;
-    await finishMailAccountClaim(supabase, account, null);
+    return null;
+  };
+
+  try {
+    const ronde = await forEachClaimedMailAccount(supabase, "calendar", "outlook-calendar-sync-etl", {
+      maxAccounts: MAX_ACCOUNTS_PER_RUN,
+      maxWallMs: MAX_WALL_TIME_MS
+    }, async (account, lus) => {
+      try {
+        return await syncEenAgenda(account, lus);
+      } catch (err) {
+        // De foutregel van DEZE eigenaar hoort in ZIJN calendar_sync_state —
+        // vóór v1.2 stond die update in de invocatie-brede catch en zou hij bij
+        // meerdere agenda's de verkeerde rij kunnen raken.
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (account?.user_id) {
+          await supabase.from("calendar_sync_state").upsert({
+            user_id: account.user_id,
+            last_error: errMsg.slice(0, 500),
+            last_error_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: "user_id"
+          });
+        }
+        return errMsg;
+      }
+    });
+    stats.accounts = ronde.passes;
+    stats.accounts_claimable = ronde.claimbaar;
+    stats.accounts_processed = ronde.passes.length;
+    stats.accounts_failed = ronde.passes.filter((p) => !p.ok).length;
+    stats.stop_reason = ronde.stop_reason;
+
+    if (ronde.passes.length === 0) {
+      stats.warnings.push("no_claimable_account");
+      await supabase.from("agent_runs").update({
+        status: "warning",
+        completed_at: new Date().toISOString(),
+        summary: "geen claimbaar mail_account",
+        stats
+      }).eq("id", runId);
+      return new Response(JSON.stringify({ ok: true, runId, skipped: true, reason: "no_claimable_account" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    const allesStuk = stats.accounts_failed === stats.accounts_processed;
+    const mboxen = ronde.passes.map((p) => p.mailbox_email ?? p.account_user_id).join(", ");
+    const summary = `${stats.accounts_processed}/${ronde.claimbaar} agenda('s) [${mboxen}]: ` +
+      `${stats.events_upserted} events over ${stats.pages} page(s)` +
+      (ronde.stop_reason === "wall_budget" ? " — tijd op, rest volgt volgende tik" : "");
     await supabase.from("agent_runs").update({
-      status: "success",
+      status: allesStuk ? "error" : (stats.accounts_failed > 0 ? "warning" : "success"),
       completed_at: new Date().toISOString(),
       summary,
-      stats
+      stats,
+      errors: ronde.passes.filter((p) => !p.ok).map((p) => ({
+        message: `${p.mailbox_email ?? p.account_user_id}: ${p.error}`,
+        at: new Date().toISOString()
+      }))
     }).eq("id", runId);
     return new Response(JSON.stringify({
-      ok: true,
+      ok: !allesStuk,
       runId,
       stats
     }), {
-      status: 200,
+      status: allesStuk ? 500 : 200,
       headers: {
         "Content-Type": "application/json"
       }
     });
   } catch (err) {
+    // Alleen nog fouten buiten een agenda om (claim-RPC, registry-telling).
     const errMsg = err instanceof Error ? err.message : String(err);
-    await finishMailAccountClaim(supabase, account, errMsg.slice(0, 300));
-    if (account?.user_id) {
-      await supabase.from("calendar_sync_state").upsert({
-        user_id: account.user_id,
-        last_error: errMsg.slice(0, 500),
-        last_error_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: "user_id"
-      });
-    }
     await supabase.from("agent_runs").update({
       status: "error",
       completed_at: new Date().toISOString(),

@@ -21,12 +21,35 @@
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
 import {
-  claimMailAccount, finishMailAccountClaim, getCfg as getSharedCfg,
-  ownFromAddresses, type MailAccount,
+  forEachClaimedMailAccount, getCfg as getSharedCfg,
+  ownFromAddresses, type AccountPass, type MailAccount,
 } from "../_shared/mail-account.ts";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-const SKILL_VERSION = "edge-fn-v3.5-per-user-mailbox";
+const SKILL_VERSION = "edge-fn-v3.6-n-mailboxen-per-run";
+
+// ── v2.8 (S5) · de cadans-knop ───────────────────────────────────────────────
+// Tot v1.219 claimde deze functie één mailbox per aanroep. De cron staat op
+// `*/5`, dus bij A mailboxen kwam elke mailbox eens per 5·A minuten aan de
+// beurt: bij zes mailboxen elk half uur. De formule is
+//
+//     interval = cron_periode × ceil(A / N)
+//
+// met N = MAX_ACCOUNTS_PER_RUN. Met N = 6 is de cadans tot en met zes mailboxen
+// constant 5 minuten. Boven de zes loopt hij weer op — en dát is het moment om
+// de cron erbij te betrekken, niet eerder. `scripts/mail_cadence_check.cjs`
+// houdt deze constante en de formule tegen elkaar.
+//
+// MAX_WALL_TIME_MS is de tweede, hárdere grens: de driver claimt na dit budget
+// geen nieuwe mailbox meer. Zelfde vorm als `mail-backfill` (v1.4, 5 buckets ×
+// 60 s), maar het getal is hier uit de meting gehaald, niet overgeschreven:
+//
+//   p95 per mailbox = 16,2 s  (2.023 runs, 7 dagen, gemeten 2026-09-15)
+//   6 × 16,2 = 97,2 s  →  100 s budget laat alle zes in één tik passen
+//   worst case = 100 s + de langste losse run (25,8 s) = 126 s < 150 s gateway
+//   en ruim binnen de cron-periode van 300 s, dus twee runs halen elkaar niet in.
+const MAX_ACCOUNTS_PER_RUN = 6;
+const MAX_WALL_TIME_MS = 100_000;
 // v3.4 (2026-07-16): Outlook's Prioriteit/Overige-vlag (inferenceClassification,
 // 'focused'|'other') meegesynct naar mail_messages.inference_classification zodat
 // het dashboard-Postvak Jelle's drag-to-Overige in Outlook automatisch volgt.
@@ -561,10 +584,21 @@ Deno.serve(async (req) => {
     triggered_at: startedAt,
     // v2.7: per-mailbox telemetrie, zodat je in agent_runs ziet WELKE mailbox
     // stilvalt in plaats van alleen "mail-sync deed 0 mails".
+    //
+    // v2.8 (S5): sinds deze versie draaien er MEERDERE mailboxen per invocatie.
+    // De vier velden hieronder blijven bestaan en beschrijven de láátste mailbox
+    // van de run — dat houdt bestaande queries en de Health-view heel. De
+    // volledige waarheid staat in `accounts[]`, één rij per mailbox.
     mailbox_email: null as string | null,
     account_user_id: null as string | null,
     account_source: null as string | null,
     account_scope: null as string | null,
+    accounts: [] as AccountPass[],
+    accounts_claimable: 0,
+    accounts_processed: 0,
+    accounts_failed: 0,
+    max_accounts_per_run: MAX_ACCOUNTS_PER_RUN,
+    stop_reason: null as string | null,
     folders_discovered: 0,
     folders_synced: 0,
     child_folder_calls: 0,
@@ -583,30 +617,37 @@ Deno.serve(async (req) => {
   if (runErr || !runIns) return new Response(`run_record_create_failed: ${runErr?.message}`, { status: 500 });
   const runId = runIns.id as string;
 
-  let account: MailAccount | null = null;
-  try {
-    // v2.7: één mailbox per invocatie, round-robin via de registry.
-    account = await claimMailAccount(supabase, "sync", "mail-sync-etl-v2");
-    if (!account) {
-      const summary = "geen claimbaar mail_account (registry leeg/paused en geen agent_config-fallback)";
-      stats.warnings.push("no_claimable_account");
-      await supabase.from("agent_runs").update({
-        status: "warning", completed_at: new Date().toISOString(), summary, stats
-      }).eq("id", runId);
-      return new Response(JSON.stringify({ ok: true, runId, skipped: true, reason: "no_claimable_account" }),
-        { status: 200, headers: { "Content-Type": "application/json" } });
-    }
+  // v2.8 (S5) — N mailboxen per invocatie in plaats van één.
+  //
+  // De cadans deelde tot v1.219 door het aantal mailboxen: één claim per
+  // cron-tik betekent bij zes mailboxen mail elke 30 minuten in plaats van elke
+  // vijf. `forEachClaimedMailAccount` doet dezelfde claim N keer, begrensd op
+  // MAX_ACCOUNTS_PER_RUN én op een wall-clock budget. De cron-schema's blijven
+  // ongemoeid — één knop tegelijk.
+  //
+  // Elke mailbox heeft zijn eigen try/catch binnen de driver: een kapotte
+  // mailbox laat de rest van de ronde staan (per-eigenaar-isolatie) en houdt
+  // zijn plek in de round-robin, dus de volgende tik probeert hem opnieuw.
+  const syncEenMailbox = async (
+    account: MailAccount,
+    lus: { pass: number; detail: Record<string, unknown> },
+  ): Promise<string | null> => {
     const ownerUserId = account.user_id;
     stats.mailbox_email = account.mailbox_email;
     stats.account_user_id = ownerUserId;
     stats.account_source = account.from_registry ? "mail_accounts" : "agent_config_fallback";
     stats.account_scope = account.scope;
+    const warningsVoor = stats.warnings.length;
+    const upsertedVoor = stats.messages_upserted;
+    const syncedVoor = stats.folders_synced;
 
     const ctx = await buildCtx(supabase, account);
     const { folderMap, childStats } = await syncFolders(supabase, ctx, ownerUserId, stats.warnings);
-    stats.folders_discovered = folderMap.size;
-    stats.child_folder_calls = childStats.children_calls;
-    stats.child_folders_found = childStats.children_found;
+    // += en niet =: bij meerdere mailboxen per invocatie is de invocatie-teller
+    // een som, geen momentopname van de laatste mailbox.
+    stats.folders_discovered += folderMap.size;
+    stats.child_folder_calls += childStats.children_calls;
+    stats.child_folders_found += childStats.children_found;
     // Alleen de enabled folders van DEZE mailbox — anders zou een enabled
     // folder-id van een andere mailbox in deze run meegenomen worden.
     const { data: enabledStates } = await supabase.from("mail_sync_state")
@@ -652,17 +693,59 @@ Deno.serve(async (req) => {
       }
     }
 
-    const mbox = account.mailbox_email ? `${account.mailbox_email}: ` : "";
-    const summary = `${mbox}${stats.folders_discovered} folders discovered (${stats.child_folder_calls} child-calls → ${stats.child_folders_found} child-rows), ${stats.folders_synced} synced, ${stats.messages_upserted} mails upsert`;
-    const finalStatus = stats.warnings.length > 0 ? "warning" : "success";
-    await finishMailAccountClaim(supabase, account, stats.warnings.length > 0 ? stats.warnings[0].slice(0, 300) : null);
+    lus.detail.folders_discovered = folderMap.size;
+    lus.detail.folders_synced = stats.folders_synced - syncedVoor;
+    lus.detail.messages_upserted = stats.messages_upserted - upsertedVoor;
+
+    // Waarschuwingen van DEZE mailbox worden de claim-fout van DEZE mailbox —
+    // precies zoals vóór v2.8, alleen nu per mailbox in plaats van per run.
+    const eigenWarnings = stats.warnings.slice(warningsVoor);
+    return eigenWarnings.length > 0 ? eigenWarnings[0].slice(0, 300) : null;
+  };
+
+  try {
+    const ronde = await forEachClaimedMailAccount(
+      supabase, "sync", "mail-sync-etl-v2",
+      { maxAccounts: MAX_ACCOUNTS_PER_RUN, maxWallMs: MAX_WALL_TIME_MS },
+      syncEenMailbox,
+    );
+    stats.accounts = ronde.passes;
+    stats.accounts_claimable = ronde.claimbaar;
+    stats.accounts_processed = ronde.passes.length;
+    stats.accounts_failed = ronde.passes.filter((p) => !p.ok).length;
+    stats.stop_reason = ronde.stop_reason;
+
+    if (ronde.passes.length === 0) {
+      const summary = "geen claimbaar mail_account (registry leeg/paused en geen agent_config-fallback)";
+      stats.warnings.push("no_claimable_account");
+      await supabase.from("agent_runs").update({
+        status: "warning", completed_at: new Date().toISOString(), summary, stats
+      }).eq("id", runId);
+      return new Response(JSON.stringify({ ok: true, runId, skipped: true, reason: "no_claimable_account" }),
+        { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+
+    // Alles stuk = dezelfde 500 als vóór v2.8 (met één mailbox is dat exact
+    // hetzelfde gedrag). Eén van de N stuk = warning: de andere eigenaren zijn
+    // wél bediend en dat hoort geen rood alarm te zijn.
+    const allesStuk = stats.accounts_failed === stats.accounts_processed;
+    const mboxen = ronde.passes.map((p) => p.mailbox_email ?? p.account_user_id).join(", ");
+    const summary = `${stats.accounts_processed}/${ronde.claimbaar} mailbox(en) [${mboxen}], ` +
+      `${stats.folders_discovered} folders discovered (${stats.child_folder_calls} child-calls → ${stats.child_folders_found} child-rows), ` +
+      `${stats.folders_synced} synced, ${stats.messages_upserted} mails upsert` +
+      (ronde.stop_reason === "wall_budget" ? " — tijd op, rest volgt volgende tik" : "");
+    const finalStatus = allesStuk ? "error" : (stats.warnings.length > 0 ? "warning" : "success");
     await supabase.from("agent_runs").update({
-      status: finalStatus, completed_at: new Date().toISOString(), summary, stats
+      status: finalStatus, completed_at: new Date().toISOString(), summary, stats,
+      errors: ronde.passes.filter((p) => !p.ok)
+        .map((p) => ({ message: `${p.mailbox_email ?? p.account_user_id}: ${p.error}`, at: new Date().toISOString() })),
     }).eq("id", runId);
-    return new Response(JSON.stringify({ ok: true, runId, stats }), { status: 200, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ok: !allesStuk, runId, stats }),
+      { status: allesStuk ? 500 : 200, headers: { "Content-Type": "application/json" } });
   } catch (err) {
+    // Alleen nog fouten BUITEN een mailbox (claim-RPC weg, registry-telling
+    // stuk). Per-mailbox-fouten worden hierboven afgevangen.
     const errMsg = err instanceof Error ? err.message : String(err);
-    await finishMailAccountClaim(supabase, account, errMsg.slice(0, 300));
     await supabase.from("agent_runs").update({
       status: "error", completed_at: new Date().toISOString(),
       summary: errMsg.slice(0, 500), stats,
