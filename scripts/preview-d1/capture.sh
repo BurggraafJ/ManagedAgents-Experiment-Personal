@@ -58,4 +58,6 @@ shoot kwartaal          1440,1100 kwartaal
 shoot shell             1440,900  shell
 shoot shell-sync        1440,900  shell-sync         # het Sync-paneel open (v1.190)
 shoot shell-kwartaal    1440,1100 shell-kwartaal
+shoot shell-monthly     1440,1100 shell-monthly
+shoot desktop-kanaal    1440,900  desktop-kanaal   # kanaal-chip → detail sink (v1.207)
 shoot mobile            390,1500  mobile

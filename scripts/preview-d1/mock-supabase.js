@@ -208,6 +208,12 @@ const DEALS = EMMERS.flatMap(([beslisdatum, groep, n, bodem, plafond]) => {
     const nr = ++dealTeller
     // Acht van de 32 bij eigenaar B — dezelfde verhouding als ONTLEDING.
     const b = nr % 4 === 0
+    // Kanaal/ICP (v1.207): cyclisch verdeeld over de 32 open deals zodat de
+    // chips en de detail-drill dezelfde noemer delen als PER_FASE.
+    const KANALEN = ['OFFLINE', 'DIRECT_TRAFFIC', 'PAID_SEARCH', 'UNKNOWN']
+    const SEGMENTS = ['ICP1', 'ICP1', 'ICP2', 'ICP3'] // ~50/25/25
+    const kanaal = KANALEN[(nr - 1) % KANALEN.length]
+    const segment_bucket = SEGMENTS[(nr - 1) % SEGMENTS.length]
     return {
       deal_id: `d${nr}`,
       dealname: `Kantoor ${String(nr).padStart(2, '0')}`,
@@ -220,6 +226,8 @@ const DEALS = EMMERS.flatMap(([beslisdatum, groep, n, bodem, plafond]) => {
       mrr_plafond: plafonds[i],
       waardeerbaar: bodems[i] !== null,
       dagen_open: 11 + ((nr * 37) % 600),
+      kanaal,
+      segment_bucket,
       hubspot_url: '#',
     }
   })
@@ -258,10 +266,41 @@ const AANVOER_DEALS = AANVOER.flatMap(w =>
       beslisdatum: is_open ? '2026-11-09' : null,
       mrr_bodem: null,
       mrr_plafond: null,
+      kanaal: ['OFFLINE', 'DIRECT_TRAFFIC', 'PAID_SEARCH', 'UNKNOWN'][nr % 4],
+      segment_bucket: ['ICP1', 'ICP2', 'ICP3'][nr % 3],
       hubspot_url: '#',
     }
   }),
 )
+
+// ── Fase 4 (v1.207): kanaal · ICP · beweging ───────────────────────────────
+// Aggregaten die de chips en BewegingStrip voeden. Aantallen tellen op tot de
+// 32 open deals in DEALS (zelfde noemer als PER_FASE), zodat een drill op een
+// chip evenveel rijen toont als de chip claimt.
+const KANAAL = [
+  { kanaal: 'OFFLINE',        aantal: 8, aantal_gewaardeerd: 7, mrr_plafond: 18000 },
+  { kanaal: 'DIRECT_TRAFFIC', aantal: 8, aantal_gewaardeerd: 7, mrr_plafond: 16000 },
+  { kanaal: 'PAID_SEARCH',    aantal: 8, aantal_gewaardeerd: 7, mrr_plafond: 14000 },
+  { kanaal: 'UNKNOWN',        aantal: 8, aantal_gewaardeerd: 7, mrr_plafond: 12000 },
+]
+
+const ICP = [
+  { segment: 'ICP1', aantal: 16 },
+  { segment: 'ICP2', aantal: 8 },
+  { segment: 'ICP3', aantal: 8 },
+]
+
+// Zelfde twaalf weken als AANVOER (oud → nieuw). Laatste = lopende week.
+const BEWEGING = AANVOER.map((w, i) => ({
+  week_start: w.week_start,
+  week_eind: w.week_eind,
+  week_label: w.week_label,
+  is_huidige_week: w.is_huidige_week,
+  // Variatie zodat de strip zichtbaar gestapeld is; gewonnen blijft spaarzaam.
+  nieuw:    [1, 0, 2, 1, 0, 1, 2, 3, 1, 0, 2, 1][i],
+  gewonnen: [0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0][i],
+  verloren: [1, 2, 0, 1, 2, 1, 0, 1, 2, 1, 0, 1][i],
+}))
 
 function result(view) {
   switch (view) {
@@ -277,6 +316,9 @@ function result(view) {
     case 'v_d1_werkbord_tellers':   return WERKBORD_TELLERS
     case 'v_d1_werkbord':           return WERKBORD
     case 'v_d9_forecast_blokkers':  return BLOKKERS
+    case 'v_d1_kanaal':             return KANAAL
+    case 'v_d1_icp':                return ICP
+    case 'v_d1_beweging_week':      return BEWEGING
     default:                        return []
   }
 }

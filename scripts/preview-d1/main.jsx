@@ -86,6 +86,13 @@ const stripSlot = () => document.querySelectorAll('.c1__slot')[9] || null
 // erop is de derde ingang van het detailpaneel (G7, v1.188).
 const stripStaaf = () => document.querySelectorAll('.c1__slot.is-klikbaar')[10] || null
 
+// Fase-4 kanaal-chip (v1.207): eerste chip in de Kanaal-strook → detail sink.
+const kanaalChip = () => {
+  const strook = Array.from(document.querySelectorAll('.d1-chips'))
+    .find(el => (el.querySelector('.d1-chips__label')?.textContent || '') === 'Kanaal')
+  return strook?.querySelector('.d1-chip') || null
+}
+
 const views = {
   // Zoals je het bord binnenkomt: leeg detailpaneel, want het detail is een
   // vervolgvraag en er wordt nooit automatisch een regel gekozen.
@@ -122,7 +129,11 @@ const views = {
   'shell-sync': <InShell title="Pipeline & forecast" activeView="pipeline"><Klik vind={ontbreekt}><D1View /></Klik></InShell>,
   // Ingesprongen pagina: de topbalk wijst naar de ouder (`◂ Pipeline`) en de
   // kruimel draagt het spoor — zoals Dashboard.jsx het via parentFor geeft.
-  'shell-kwartaal': <InShell title="Pipeline · kwartaaldiagnose" activeView="pipeline_kwartaal" back="Pipeline" crumb="Pipeline / Kwartaaldiagnose"><D1Kwartaal /></InShell>,
+  'shell-kwartaal': <InShell title="Pipeline · Monthly" activeView="pipeline_kwartaal" back="Pipeline" crumb="Pipeline / Monthly"><D1Kwartaal /></InShell>,
+  // Alias: zelfde shot als shell-kwartaal, bestandsnaam monthly (v1.207 rename).
+  'shell-monthly': <InShell title="Pipeline · Monthly" activeView="pipeline_kwartaal" back="Pipeline" crumb="Pipeline / Monthly"><D1Kwartaal /></InShell>,
+  // Kanaal-chip drill: detailpaneel met deals van dat acquisitiekanaal.
+  'desktop-kanaal': <Klik vind={kanaalChip}><Desktop /></Klik>,
   mobile: <Mobile />,
 }
 
