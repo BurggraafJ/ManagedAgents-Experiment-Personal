@@ -189,7 +189,7 @@ async function pollUntilDone(runId) {
     const [caps] = await sql(`select
       (select (config_value #>> '{}')::numeric from agent_config where agent_name='rag-eval-cron' and config_key='spend_cap_run_eur') as cap_run,
       (select (config_value #>> '{}')::numeric from agent_config where agent_name='rag-eval-cron' and config_key='spend_cap_month_eur') as cap_month,
-      (select coalesce((value #>> '{}')::numeric, 1.0) from dash_parameters where key='model_budget_usd_per_eur') as usd_per_eur`);
+      (select coalesce(waarde, 1.0) from dash_parameters where sleutel='model_budget_usd_per_eur') as usd_per_eur`);
     const capRunEur = Number(caps?.cap_run ?? 2.5);
     const capMonthEur = Number(caps?.cap_month ?? 25);
     const usdPerEur = Number(caps?.usd_per_eur ?? 1.0) || 1.0;

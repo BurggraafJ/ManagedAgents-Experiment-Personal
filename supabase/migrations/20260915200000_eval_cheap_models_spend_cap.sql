@@ -93,8 +93,8 @@ BEGIN
   IF v_cap_month IS NULL THEN v_cap_month := 25; END IF;
 
   -- Koers
-  SELECT coalesce((value #>> '{}')::numeric, 1.0) INTO v_usd_per_eur
-    FROM dash_parameters WHERE key = 'model_budget_usd_per_eur';
+  SELECT waarde INTO v_usd_per_eur
+    FROM public.dash_parameters WHERE sleutel = 'model_budget_usd_per_eur';
   IF v_usd_per_eur IS NULL OR v_usd_per_eur <= 0 THEN v_usd_per_eur := 1.0; END IF;
 
   v_estimate_eur := p_estimate_usd / v_usd_per_eur;
@@ -232,8 +232,8 @@ BEGIN
     + v_n_retrieval * coalesce((v_rates->>'retrieval')::numeric, 0.002)
     + (v_n_chat + v_n_retrieval) * coalesce((v_rates->>'judge')::numeric, 0.00005);
 
-  SELECT coalesce((value #>> '{}')::numeric, 1.0) INTO v_usd_per_eur
-    FROM dash_parameters WHERE key = 'model_budget_usd_per_eur';
+  SELECT waarde INTO v_usd_per_eur
+    FROM public.dash_parameters WHERE sleutel = 'model_budget_usd_per_eur';
   IF v_usd_per_eur IS NULL OR v_usd_per_eur <= 0 THEN v_usd_per_eur := 1.0; END IF;
   v_estimate_eur := v_estimate_usd / v_usd_per_eur;
 
@@ -380,6 +380,9 @@ END $function$;
 COMMENT ON FUNCTION public.rag_eval_finish_if_done(uuid) IS 'Spoor 01 — markeert items met een resultaatrij done, geeft na 3 verloren hops een expliciete FAIL hop_lost, en rondt de run af zodra niets meer open staat: aggregaten, cost_usd_total (incl. judge_cost_usd), p50/p95 (chat-lane), status done, gates = rag_eval_compare(run, compare_to). Retourneert true als de run af is.';
 
 -- ── 7. Update v_agent_eval_runs — toon spend-kolommen ───────────────────────
+-- CREATE OR REPLACE VIEW kan kolommen niet herordenen/hernoemen → drop eerst.
+DROP VIEW IF EXISTS public.v_agent_eval_runs;
+
 CREATE OR REPLACE VIEW public.v_agent_eval_runs
 WITH (security_invoker = on) AS
 SELECT r.id,
