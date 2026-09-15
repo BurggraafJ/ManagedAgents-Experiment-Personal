@@ -3,12 +3,18 @@ import MIcon from '../MIcon'
 import { fromNameOf, subjectOf, bodyPreviewOf, receivedAtOf } from '../../lib/postvakContract'
 
 // =============================================================================
-// MobilePostvakRow — één mailrij met veegacties (v1.202, spoor 10)
+// MobilePostvakRow — één mailrij met veegacties (v1.205, spoor 10)
 // =============================================================================
-// Veeg naar links en er komen drie acties tevoorschijn: Uitstellen, Verplaats
-// (Prioriteit ↔ Overige) en Verwijderen. Precies dezelfde drie die desktop al
-// in zijn ⋯-menu heeft; er komt dus geen actie bij die je op de telefoon wél
-// en op de laptop niet kunt.
+// Veeg naar links en er komen drie acties tevoorschijn: **Verplaats** (naar een
+// echte Outlook-map), de bak-wissel (Prioriteit ↔ Overige) en Verwijderen.
+//
+// v1.205: **Uitstellen is weg, Verplaats staat in die plek.** Uitstellen was
+// een Maestro-verzinsel — het verborg de mail een nacht in een tabel die
+// Outlook niet kent, dus op je laptop stond hij er gewoon nog. Verplaatsen
+// gebeurt in Outlook zelf en is daarmee op alle vier je schermen waar. De twee
+// die overblijven verschillen bewust van elkaar: de bak-wissel is een
+// Maestro-sortering (Outlook ziet er niets van), Verplaats en Verwijder raken
+// de mailbox.
 //
 // Het ⋯-knopje rechts opent **dezelfde strook** — niet een tweede menu met een
 // eigen lijst die uit de pas kan lopen. Eén strook, twee manieren erin: met een
@@ -37,9 +43,9 @@ function timeAgo(iso) {
 }
 
 export default function MobilePostvakRow({
-  mail, bucket = 'prio', cat = null, readOnly = false,
+  mail, bucket = 'prio', cat = null, readOnly = false, unread = false,
   open = false, onSwipe, onOpen,
-  onDelete, onMoveBucket, onSnooze,
+  onDelete, onMoveBucket, onMoveFolder,
 }) {
   const [dx, setDx] = useState(open ? ACTIONS_W : 0)
   const [dragging, setDragging] = useState(false)
@@ -100,9 +106,9 @@ export default function MobilePostvakRow({
     <div className={`m-swipe ${dx > 0 ? 'is-open' : ''} ${dragging ? 'is-dragging' : ''}`}>
       {!readOnly && (
         <div className="m-swipe__actions" aria-hidden={dx === 0}>
-          <button type="button" className="m-swipe__act m-swipe__act--snooze" tabIndex={dx > 0 ? 0 : -1}
-                  onClick={act(onSnooze)}>
-            <MIcon name="clock" size={17} /><span>Uitstellen</span>
+          <button type="button" className="m-swipe__act m-swipe__act--folder" tabIndex={dx > 0 ? 0 : -1}
+                  onClick={act(onMoveFolder)}>
+            <MIcon name="folder" size={17} /><span>Verplaats</span>
           </button>
           <button type="button" className="m-swipe__act m-swipe__act--move" tabIndex={dx > 0 ? 0 : -1}
                   onClick={act(onMoveBucket)}>
@@ -122,6 +128,13 @@ export default function MobilePostvakRow({
           <div className="m-pvrow__main">
             <div className="m-pvrow__top">
               <span className="m-pvrow__name">{fromNameOf(mail)}</span>
+              {/* Vastgemaakt in Outlook zelf (PidTagPinTimestamp), niet de
+                  follow-up-vlag. Die twee waren tot v1.205 één ding. */}
+              {mail.is_pinned && (
+                <span className="m-pvrow__pin" title="Vastgemaakt in Outlook">
+                  <MIcon name="pinned" size={12} />
+                </span>
+              )}
               <span className="m-pvrow__time">{timeAgo(receivedAtOf(mail))}</span>
             </div>
             <div className="m-pvrow__subj">{subjectOf(mail)}</div>
@@ -135,8 +148,10 @@ export default function MobilePostvakRow({
             )}
           </div>
           <div className="m-pvrow__side">
-            {/* Ongelezen = Outlook's is_read, niet "heeft een voorstel". */}
-            {mail.is_read === false ? <span className="m-pvrow__dot" /> : <span className="m-pvrow__dot is-empty" />}
+            {/* Ongelezen = Outlook's is_read, niet "heeft een voorstel". De
+                ouder geeft `unread` mee zodat een mail die je zojuist opende
+                meteen dooft, ook al staat de spiegel nog op ongelezen. */}
+            <span className={`m-pvrow__dot ${unread ? '' : 'is-empty'}`} />
             {!readOnly && (
               <button type="button" className={`m-pvrow__more ${dx > 0 ? 'is-on' : ''}`} aria-label="Acties"
                       onClick={e => { e.stopPropagation(); onSwipe && onSwipe(dx > 0 ? null : mail.mail_id) }}>

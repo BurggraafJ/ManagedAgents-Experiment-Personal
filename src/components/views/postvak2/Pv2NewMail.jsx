@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { showToast } from '../../Toast'
 import Ic from './pv2Icons'
-import { ComposeBody, RefineBar, RefineLoading, TrackChangesBar, useTaalcheck } from './Pv2Composer'
+import { ComposeBody, RefineBar, RefineLoading, TrackChangesBar } from './Pv2Composer'
+import { useTaalcheck } from '../../../hooks/useTaalcheck'
+import { CHIP_ORDER, refineMail } from '../../../lib/composeAi'
 import { withSignature } from '../../../hooks/usePv2Outlook'
 
 /* Pv2NewMail — "Nieuw"-sheet (design: NewMailSheet). Versleepbaar glossy vel
@@ -10,16 +12,12 @@ import { withSignature } from '../../../hooks/usePv2Outlook'
  *  - chips + vrije opdracht → mail-verbeteraar (herschrijft/schrijft in
  *    Jelle's stijl o.b.v. 5 vergelijkbare verzonden mails)
  *  - Taalcheck → track changes in het schrijfvlak
- *  - "Verstuur" levert het concept op het klembord (het platform heeft
- *    bewust geen los verstuur-kanaal — zelfde contract als de verbeteraar). */
-
-const CHIP_PROMPTS = {
-  'Schrijf voor mij': 'Schrijf op basis van deze opdracht een complete, natuurlijke mail in Jelle’s stijl.',
-  'Korter': 'Maak de mail korter en directer.',
-  'Vriendelijker': 'Maak de toon vriendelijker en warmer.',
-  'Zakelijker': 'Maak de toon zakelijker en formeler.',
-  'Vraag om bevestiging': 'Sluit af met een korte, vriendelijke vraag om bevestiging.',
-}
+ *  - "Kopieer" levert het concept op het klembord, "In Outlook zetten" maakt
+ *    er een echt concept van.
+ *
+ * Versturen zit hier (nog) niet: mobiel kreeg in v1.203 een Verstuur-knop op
+ * de nieuwe `send_mail`-actie van outlook-live. Desktop mag daarop aanlijnen —
+ * bewust een aparte stap, buiten die PR gehouden. */
 
 export default function Pv2NewMail({ onClose, signature = '', onEditSignature, onCreated }) {
   const [to, setTo] = useState('')
@@ -77,21 +75,13 @@ export default function Pv2NewMail({ onClose, signature = '', onEditSignature, o
 
   async function runRefine(label) {
     if (refining || tc) return
-    const instruction = CHIP_PROMPTS[label] || label
     setRefineLabel(label)
     setRefining(true)
     try {
-      const hasBody = body.trim().length > 0
-      const { data, error } = await supabase.functions.invoke('mail-verbeteraar', {
-        body: hasBody
-          ? { original_mail: body, extra_prompt: instruction }
-          : { original_mail: instruction, extra_prompt: CHIP_PROMPTS['Schrijf voor mij'] },
-      })
-      if (error) throw new Error(error.message)
-      if (!data || !data.ok) throw new Error(data?.reason || 'mislukt')
-      setBody(data.improved_mail || '')
-      if (data.examples_used) {
-        showToast({ message: 'Maestro schreef mee', detail: `${data.examples_used} vergelijkbare verzonden mails als stijlvoorbeeld.` })
+      const { text, examplesUsed } = await refineMail({ body, label })
+      setBody(text)
+      if (examplesUsed) {
+        showToast({ message: 'Maestro schreef mee', detail: `${examplesUsed} vergelijkbare verzonden mails als stijlvoorbeeld.` })
       }
       setAiInput('')
     } catch (e) {
@@ -104,7 +94,7 @@ export default function Pv2NewMail({ onClose, signature = '', onEditSignature, o
     const txt = withSignature(body, signature).trim()
     if (!txt) { showToast({ kind: 'error', message: 'Nog geen tekst om te versturen' }); return }
     navigator.clipboard.writeText(txt).then(
-      () => showToast({ message: 'Concept gekopieerd', detail: 'Plak in een nieuw Outlook-bericht om te versturen — versturen gebeurt bewust nooit vanuit Maestro.' }),
+      () => showToast({ message: 'Concept gekopieerd', detail: 'Plak in een nieuw Outlook-bericht om te versturen.' }),
       () => showToast({ kind: 'error', message: 'Kopiëren mislukt' }),
     )
   }
@@ -164,7 +154,7 @@ export default function Pv2NewMail({ onClose, signature = '', onEditSignature, o
               </button>
               {refining && <RefineLoading verb="schrijft" label={refineLabel}/>}
               <RefineBar
-                chips={['Schrijf voor mij', 'Korter', 'Vriendelijker', 'Zakelijker', 'Vraag om bevestiging']}
+                chips={CHIP_ORDER}
                 onChip={runRefine}
                 aiInput={aiInput} setAiInput={setAiInput}
                 onSubmit={runRefine}

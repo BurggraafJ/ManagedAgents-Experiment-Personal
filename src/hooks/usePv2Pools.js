@@ -71,10 +71,23 @@ export function usePv2Pools({
     [mailMessages, mails, dismissedConvIds, customerEmails, subjectMatchesIgnore,
      awaitingReplyIndex, categoryOverrides, manualCatMap])
 
+  // De Pin-tab = de **follow-up-vlag**, en die heet hier ook zo.
+  //
+  // Tot v1.205 stond er `m.is_pinned === true || m.flag_status === 'flagged'`:
+  // twee verschillende Outlook-begrippen op één hoop. `flag_status` is de rode
+  // opvolgvlag (wat de Pin-knop in Postvak schrijft); `is_pinned` is
+  // "vastgemaakt aan de bovenkant" (PidTagPinTimestamp). Ze samenvoegen maakte
+  // de tab een verzameling waar je nooit iets uit kreeg: losmaken via de vlag
+  // haalde een gepinde mail er niet uit, en andersom ook niet.
+  //
+  // Sinds v1.205 schrijft en leest pin z'n eigen property (outlook-live
+  // `set_pin`) en is `is_pinned` een echt signaal — dus houdt deze verzameling
+  // zich bij de vlag. Vastgemaakte mails staan bovenaan de lijst zelf
+  // (`compareOutlookListOrder`), precies zoals in Outlook.
   const flaggedMailIds = useMemo(() => {
     const s = new Set()
     for (const m of (mailMessages || [])) {
-      if (m.is_pinned === true || m.flag_status === 'flagged') s.add(m.id)
+      if (m.flag_status === 'flagged') s.add(m.id)
     }
     for (const [id, entry] of flagOverrides.entries()) {
       if (entry?.val) s.add(id); else s.delete(id)

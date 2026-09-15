@@ -52,6 +52,20 @@ const PATHS = {
   key:       <><circle cx="7.5" cy="15.5" r="5.5" /><path d="m21 2-9.6 9.6" /><path d="m15.5 7.5 3 3L22 7l-3-3" /></>,
   trash:     <><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="m6 6 1 14h10l1-14" /></>,
   swap:      <><path d="m17 3 4 4-4 4" /><path d="M21 7H9" /><path d="m7 21-4-4 4-4" /><path d="M3 17h12" /></>,
+  // Postvak-compose (v1.203): hamburger i.p.v. ⋯, versturen, en de twee
+  // schrijfhulp-iconen die desktop als `sparkles` en `spell` kent.
+  menu:      <><path d="M4 7h16M4 12h16M4 17h16" /></>,
+  send:      <><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4Z" /></>,
+  sparkles:  <><path d="M12 3v6M12 15v6M3 12h6M15 12h6" /><path d="m6.5 6.5 3 3M14.5 14.5l3 3M17.5 6.5l-3 3M9.5 14.5l-3 3" /></>,
+  spell:     <><path d="m4 16 5-11 5 11" /><path d="M6 12h6" /><path d="m15 17 2.5 2.5L22 15" /></>,
+  // Postvak gelezen/verplaatsen/pin (v1.205). `pinned` is de gevulde punaise —
+  // `pin` hierboven is een kaartspeld en betekent iets anders; twee vormen voor
+  // twee betekenissen, anders leest "vastgemaakt" als "locatie".
+  lock:      <><rect x="4" y="10" width="16" height="11" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></>,
+  folder:    <><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></>,
+  pinned:    <><path d="M12 17v5" /><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6z" /></>,
+  envelope:  <><rect x="2" y="5" width="20" height="14" rx="2" /><path d="m2 8 10 6 10-6" /></>,
+  mailopen:  <><path d="M2 10 12 3l10 7v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" /><path d="m2 10 10 7 10-7" /></>,
 }
 
 export default function MIcon({ name, size = 22, color = 'currentColor', stroke = 1.7 }) {

@@ -847,7 +847,10 @@ button.m-tkrow__main { cursor: pointer; }
 /* ── Postvak v1.202: Prioriteit|Overige, overloop en veegacties ───────────
    De schakelaar is nu een bak-schakelaar (twee postvakken), niet meer
    Inbox|Verzonden. Verzonden en zoeken zitten achter de ⋯ in de kop. */
-.m-pv__headacts { display: flex; align-items: center; gap: 4px; }
+/* v1.203: de sync-knop is uit deze groep verdwenen (hij staat nu in het menu),
+   dus staat de hamburger als enig kind links in een space-between-rij. Hij hoort
+   te blijven waar de ⋯ stond — rechts. */
+.m-pv__headacts { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .m-pv__more { width: 32px; height: 32px; margin-right: -6px; color: var(--m-n600); }
 .m-pv__sub { display: flex; align-items: center; gap: 10px; height: 34px; }
 .m-pv__back {
@@ -895,11 +898,14 @@ button.m-tkrow__main { cursor: pointer; }
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
   font: 600 11px var(--m-sans); color: var(--m-on-accent); letter-spacing: -.01em;
 }
-/* Drie kleuren uit het Maestro-palet, oplopend in gewicht: amber staat voor
-   later, inkt voor verplaatsen, rood alleen voor de enige actie die iets
-   weggooit. Geen verzadigd blauw — dat komt in deze shell nergens anders voor. */
-.m-swipe__act--snooze { background: var(--m-warning); }
-.m-swipe__act--move { background: var(--m-n700); }
+/* Drie kleuren uit het Maestro-palet, oplopend in gewicht: amber voor de actie
+   die alleen in Maestro bestaat (de bak-wissel), inkt voor verplaatsen, rood
+   alleen voor de enige actie die iets weggooit. Geen verzadigd blauw — dat komt
+   in deze shell nergens anders voor.
+   v1.205: --snooze is --folder geworden (Uitstellen → Verplaats naar map) en
+   heeft de inkt overgenomen, want dat is nu de actie die Outlook raakt. */
+.m-swipe__act--folder { background: var(--m-n700); }
+.m-swipe__act--move { background: var(--m-warning); }
 .m-swipe__act--del { background: var(--m-error); }
 .m-swipe__row {
   position: relative; background: var(--m-body-bg);
@@ -931,6 +937,9 @@ button.m-tkrow__main { cursor: pointer; }
 .m-pvmenu__item span { flex: 1; min-width: 0; }
 .m-pvmenu__item.is-on { background: var(--m-press); }
 .m-pvmenu__count { flex: 0 0 auto !important; font: 600 12px var(--m-mono); color: var(--m-n500); }
+/* Sync-regel onderaan het menu (v1.203): de tijd stáát niet meer in de kop,
+   hij hangt hier aan de knop die hem ververst. */
+.m-pvmenu__sync:disabled { opacity: .55; cursor: default; }
 
 /* ── Postvak: thread-lijst ────────────────────────────────────────────── */
 .m-pv__body { flex: 1; padding: 0 0 calc(20px + env(safe-area-inset-bottom)); }
