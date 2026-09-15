@@ -2,9 +2,14 @@
 // =============================================================================
 // multi_user_acl_eval.cjs — de poort voor multi-user toegang        (v1.190)
 // =============================================================================
+<<<<<<< HEAD
 // Dertien asserties. M2 bracht M9/M10; SECURITY PR-A brengt M11 (doorkijk over
 // de juiste persoon — S1) en M12 (het vinkje `levert_vandaag` dekt wat er echt
 // wordt afgedwongen — S4). Draai hem vóór én ná elke
+=======
+// Twaalf asserties. M2 bracht M9/M10; SECURITY PR-B brengt M13 (member leest
+// de catalogi van modules in zijn preset — S2). Draai hem vóór én ná elke
+>>>>>>> dd9a64c (Multi-user SECURITY PR-B: open member-readable lookup catalogs (v1.207))
 // wijziging aan RLS, een view, een RPC-grant of een edge function.
 //
 //   SBT=<management_token> node scripts/multi_user_acl_eval.cjs
@@ -435,6 +440,7 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
         'false true false');
     }
 
+<<<<<<< HEAD
     // ── M11 · de doorkijk gaat over de juiste persoon (SECURITY PR-A / S1) ──
     //
     // has_capability(p_key, p_user) negeert p_user op het browserpad (anti-
@@ -474,6 +480,38 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
         && forHc.data === false,     // doorkijk → member heeft secrets.beheren niet
       `overview=${overviewActief} invite=${readinessActief} intern_m=${intern.member_intern} intern_o=${intern.owner_intern} hc_browser=${browserHc.data} hc_for=${forHc.data}`,
       `overview=invite=intern_m (< intern_o) · hc_browser=true hc_for=false`);
+=======
+    // ── M13 · member leest de catalogi van modules in zijn preset (PR-B / S2) ─
+    //
+    // De vier opzoektabellen stonden op is_admin_or_higher() terwijl Taken,
+    // Postvak, Kennisbank en Agenda in de member-preset zitten. Zonder deze
+    // assertie blijft M4/M5 groen terwijl de pagina's half leeg zijn — precies
+    // het gat dat SECURITY-READY research S2 vond. kb_documents blijft bewust
+    // owner-only (niet in deze lijst).
+    const CATALOGS = [
+      ['task_projects', 'taken'],
+      ['autodraft_actions', 'postvak'],
+      ['kb_categories', 'kennisbank'],
+      ['cities_lookup', 'agenda'],
+    ];
+    const m13leeg = [];
+    const m13ok = [];
+    for (const [rel, _cap] of CATALOGS) {
+      const r = await count(m.jwt, anonKey, rel);
+      if (!(r.status === 200 && r.n > 0)) m13leeg.push(`${rel}=${r.status === 200 ? r.n : 'HTTP ' + r.status}`);
+      else m13ok.push(`${rel}=${r.n}`);
+    }
+    // Negatief: kb_documents en HubSpot blijven dicht (S3 out of scope).
+    const kbDocs = await count(m.jwt, anonKey, 'kb_documents');
+    const hs = await count(m.jwt, anonKey, 'hubspot_deals');
+    const m13dicht = (kbDocs.status === 200 && kbDocs.n === 0) && (hs.status === 200 && hs.n === 0);
+    assert('M13', 'member leest preset-catalogi; CRM/kb_docs blijven dicht',
+      m13leeg.length === 0 && m13dicht,
+      m13leeg.length
+        ? m13leeg.join(' ').slice(0, 40)
+        : `${m13ok.join(' ')} · kb_docs=${kbDocs.n} hs=${hs.n}`,
+      '4 catalogi > 0 · kb_docs=0 hs=0');
+>>>>>>> dd9a64c (Multi-user SECURITY PR-B: open member-readable lookup catalogs (v1.207))
   } finally {
     await sqlRw(`delete from public.user_capabilities where note = '${TESTMERK}';`);
     await opruimen();
