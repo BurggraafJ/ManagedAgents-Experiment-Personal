@@ -1,6 +1,10 @@
 #!/usr/bin/env node
+// ⚠ DEPRECATED — gebruik agent_eval_run.cjs + rag-eval-cron v3.3 in plaats van dit script.
+// Dit script is het oude F.0-baseline-eval (reference-free) en draait niet meer in de
+// reguliere evaluatiepijplijn. Bewaard voor historische referentie.
+//
 // RAG v3 F.0 — baseline eval (reference-free). Voor elke gold-vraag: retrieval via context-build,
-// daarna een gpt-5.5 judge die antwoordt op basis van de context + faithfulness/answer-relevance/
+// daarna een judge die antwoordt op basis van de context + faithfulness/answer-relevance/
 // context-precision scoort. Output = SQL (INSERT rag_eval_runs + rag_eval_results) op stdout.
 // Run: OPENAI_KEY=... ANON=... node scripts/rag_eval_baseline.cjs  > /tmp/eval.sql
 const crypto = require("crypto");
@@ -8,7 +12,7 @@ const URL = "https://ezxihctobrqoklufawim.supabase.co/functions/v1/context-build
 const OPENAI = "https://api.openai.com/v1/chat/completions";
 const ANON = process.env.ANON;
 const KEY = process.env.OPENAI_KEY;
-const JUDGE_MODEL = "gpt-5.5";
+const JUDGE_MODEL = "gpt-5-nano";
 const CB_VERSION = process.env.CBV || "context-build-v2.3";
 const LABEL = process.env.LABEL || "baseline";
 

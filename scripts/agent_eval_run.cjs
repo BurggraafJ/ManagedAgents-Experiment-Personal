@@ -15,6 +15,7 @@
 //
 // Exit: 0 = klaar (en poorten groen als --gate) · 1 = --gate rood · 2 = gebruik/auth
 //       3 = een andere run draait (zonder --force) · 4 = run failed / invalid_persona
+//       5 = spend cap (per-run of maand) — --force omzeilt dit NIET
 //
 // --gate        exit 1 als G1 of G4 rood, de run invalid_persona is, of n_identity_unreliable > 0
 // --gate strict ook exit 1 als G2, G3, G5, G6 of G7 rood ('n/a' is niet rood)
@@ -179,6 +180,24 @@ async function pollUntilDone(runId) {
   const busy = await sql(`select id, label, started_at from public.rag_eval_runs where status = 'running' and coalesce(last_activity_at, started_at, created_at) > now() - interval '10 minutes' order by created_at desc limit 1`);
   if (busy.length && !flag('force')) { console.error(`✗ er draait al een run: ${busy[0].id} (${busy[0].label}, sinds ${busy[0].started_at}). Wacht, of --force.`); process.exit(3); }
 
+  // ── spend gate preflight ─────────────────────────────────────────────────
+  try {
+    const [month] = await sql(`select spent_usd, n_runs from public.v_rag_eval_spend_month`);
+    const spentUsd = Number(month?.spent_usd ?? 0);
+    const [rates] = await sql(`select config_value from public.agent_config where agent_name='rag-eval-cron' and config_key='cost_per_item_usd'`);
+    const r = rates?.config_value || { chat: 0.025, retrieval: 0.002, judge: 0.00005 };
+    const [caps] = await sql(`select
+      (select (config_value #>> '{}')::numeric from agent_config where agent_name='rag-eval-cron' and config_key='spend_cap_run_eur') as cap_run,
+      (select (config_value #>> '{}')::numeric from agent_config where agent_name='rag-eval-cron' and config_key='spend_cap_month_eur') as cap_month,
+      (select coalesce((value #>> '{}')::numeric, 1.0) from dash_parameters where key='model_budget_usd_per_eur') as usd_per_eur`);
+    const capRunEur = Number(caps?.cap_run ?? 2.5);
+    const capMonthEur = Number(caps?.cap_month ?? 25);
+    const usdPerEur = Number(caps?.usd_per_eur ?? 1.0) || 1.0;
+    const spentEur = spentUsd / usdPerEur;
+    console.log(`\n  spend: maand €${spentEur.toFixed(2)} van €${capMonthEur} · per-run cap €${capRunEur} · koers $1=€${(1/usdPerEur).toFixed(2)}`);
+    console.log(`  (preflight controle volgt in start_run RPC; dit is een preview)\n`);
+  } catch (e) { console.log(`  spend info: ${e.message.slice(0, 120)}\n`); }
+
   const body = { label, suite };
   if (arg('ids')) body.ids = arg('ids').split(',').map((s) => s.trim()).filter(Boolean);
   for (const k of ['only-tag', 'lane', 'category', 'persona', 'compare-to']) if (arg(k)) body[k.replace('-', '_')] = arg(k);
@@ -193,6 +212,14 @@ async function pollUntilDone(runId) {
   const txt = await r.text();
   let j = {}; try { j = JSON.parse(txt); } catch { j = { raw: txt.slice(0, 300) }; }
   if (r.status === 409) { console.error(`✗ run_already_running`); process.exit(3); }
+  if (j.error === 'openai_spend_cap' || /spend_cap/.test(j.error || '') || /spend_cap/.test(j.detail || '')) {
+    console.error(`✗ spend cap: ${j.detail || j.error}\n  Schatting boven het plafond. Zet agent_config spend_ok_token (of verlaag de suite).`);
+    process.exit(5);
+  }
+  if (j.error === 'openai_credits' || /insufficient_quota|no credits/i.test(JSON.stringify(j))) {
+    console.error(`✗ OpenAI credits op: ${JSON.stringify(j).slice(0, 200)}`);
+    process.exit(4);
+  }
   if (!r.ok || !j.run_id) { console.error(`✗ kick mislukt: HTTP ${r.status} ${JSON.stringify(j).slice(0, 300)}`); process.exit(4); }
   console.log(`  run_id=${j.run_id} · hop 1: ${j.n ?? 0} items (${j.lane || '-'}/${j.persona || '-'}) · persona_check_ok=${j.persona_check_ok ?? j.status}`);
   if (j.status === 'invalid_persona') {
