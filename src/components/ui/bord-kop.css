@@ -65,6 +65,26 @@
   .bs__balk .bs-filter__label { display: none; }
 }
 
+/* `rechts` (v1.209): de weergavestand van het bord, vóór ● Sync. */
+.bs__balk-rechts { display: flex; align-items: center; margin-left: auto; padding-right: 6px; }
+.bs__balk-rechts + .bs__kop-trust { margin-left: 0; }
+.bs-toggle {
+  display: inline-flex; gap: 2px; padding: 2px;
+  border: 1px solid var(--bs-border); border-radius: 8px; background: var(--bs-paper-3);
+}
+.bs-toggle__knop {
+  height: 22px; padding: 0 12px;
+  border: 0; border-radius: 6px; background: none;
+  font: 500 12px var(--bs-font); color: var(--bs-n600);
+  white-space: nowrap; cursor: pointer;
+}
+.bs-toggle__knop:hover:not(.is-actief) { color: var(--bs-ink); }
+.bs-toggle__knop.is-actief {
+  background: var(--bs-ink); color: #fff; font-weight: 600; cursor: default;
+  box-shadow: 0 1px 2px rgba(18,18,18,.18);
+}
+.bs-toggle__knop:focus-visible { outline: 2px solid var(--bs-border-strong); outline-offset: 1px; }
+
 /* Zone 5 in de balk: sinds v1.190 één trigger `● Sync` (DataStatusBar,
    variant kop) met het paneel eronder. Rechts uitgelijnd, vóór de acties; de
    auto-marge is wat hem óók op een tweede regel rechts houdt. */
@@ -195,6 +215,8 @@
      derde regel (gemeten op D10, 390 px, v1.191). */
   .bs__kop-trust { order: 1; margin-left: auto; }
   .bs__balk-acties { order: 1; }
+  .bs__balk-rechts { order: 1; margin-left: auto; padding-right: 0; }
+  .bs__balk-rechts + .bs__kop-trust { margin-left: 0; }
   .bs__balk-filters { order: 2; flex: 1 0 100%; flex-wrap: wrap; }
   .bs__kop-onder { flex-direction: column; align-items: flex-start; gap: 4px; }
   .bs__meta { margin-left: 0; white-space: normal; }

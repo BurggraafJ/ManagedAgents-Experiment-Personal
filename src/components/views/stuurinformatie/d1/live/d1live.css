@@ -1,0 +1,217 @@
+/* ==========================================================
+   D1 Live — Design ronde 5 (Jelle-lock 2026-09-15).
+
+   Zeven kaarten in twee rijen (Deals 3 + 3 · Licenties 4 + 3)
+   als master, de detail-sink van 300 px rechts. De kaart-
+   anatomie, de typografische ladder (label 11 px caps · sub
+   11,5 · groot getal 34 mono · as 10 mono · voet 10,5) en
+   het kleurcontract komen 1:1 uit
+   design-live/ronde-5/build-ronde-5.cjs.
+
+   Eigen --dl-* tokenblok met vaste waarden: de Maestro-tokens
+   zijn scoped op .theme-maestro en één lege var() maakt een
+   hele declaratie ongeldig (geheugen
+   `maestro-tokens-are-scoped-not-global`).
+   ========================================================== */
+.bs--d1-live {
+  --dl-ink: #2c1810; --dl-n700: #5f4d40; --dl-n500: #95836f; --dl-n400: #c3b6a6; --dl-n300: #e2d9cd; --dl-n200: #efe9e1;
+  --dl-paper: #f7f3ee; --dl-paper-3: #f1ece5; --dl-card: #ffffff; --dl-border: #e9e2d8; --dl-border-soft: #f0eae2;
+  --dl-orange: #dc6f3f; --dl-orange-deep: #8b4628; --dl-orange-subtle: #f9e5dd; --dl-orange-light: #efb08c;
+  --dl-warn-ink: #8a5a12; --dl-warn-bg: #fbf1dd; --dl-error: #b8362a;
+  --dl-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --dl-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --bs-ground: var(--dl-paper);
+  --bs-ink: var(--dl-ink);
+  gap: 12px;
+  padding: 22px 20px 14px 20px;
+}
+.bs--d1-live .bs__balk { margin: -22px -20px 0; padding: 0 20px; }
+.bs--d1-live .bs__vraag { font-family: var(--dl-sans); font-size: 16px; letter-spacing: -.01em; }
+.bs--d1-live .bs__vraag em { font-style: normal; color: var(--dl-orange); }
+.bs--d1-live .bs__kop { gap: 10px; }
+.bs--d1-live .bs__kop-onder { padding: 2px 0 0; }
+.dl-units {
+  margin-left: 8px; font: 400 10.5px var(--dl-mono); padding: 2px 7px; border-radius: 5px;
+  background: var(--dl-paper-3); color: var(--dl-n700);
+}
+
+/* ── werk: master (kaartgrid) + sink (300 px) ─────────────── */
+.bs--d1-live .bs__werk { grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; }
+.bs--d1-live .bs-paneel { border-radius: 12px; border-color: var(--dl-border); }
+
+.dl-grid { display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; min-height: 0; min-width: 0; }
+.dl-rij { display: grid; gap: 12px; min-height: 0; min-width: 0; }
+.dl-grid--deals .dl-rij--1 { grid-template-columns: 1.82fr 0.93fr 1fr; }
+.dl-grid--lic   .dl-rij--1 { grid-template-columns: 1.65fr 1.1fr 1fr 0.85fr; }
+.dl-rij--2 { grid-template-columns: 1.7fr 0.93fr 1fr; }
+
+/* ── kaart ────────────────────────────────────────────────── */
+.dl-kaart {
+  position: relative;
+  display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  padding: 14px 16px 12px;
+  background: var(--dl-card); border: 1px solid var(--dl-border); border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(44,24,16,.04), 0 6px 18px -14px rgba(44,24,16,.18);
+  font-family: var(--dl-sans); color: var(--dl-ink);
+}
+.dl-kaart__kop { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.dl-kaart__label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--dl-n500); white-space: nowrap; }
+.dl-kaart__plus {
+  margin-left: 6px; vertical-align: 1px; padding: 1px 5px; border-radius: 4px;
+  font: 500 9.5px var(--dl-mono); letter-spacing: .04em; color: var(--dl-n700); background: var(--dl-paper-3);
+}
+.dl-kaart__meta { font-size: 11px; color: var(--dl-n500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-kaart__meta b { font-weight: 500; color: var(--dl-n700); }
+.dl-kaart__sub { margin-top: 3px; font-size: 11.5px; color: var(--dl-n500); }
+.dl-kaart__lijf { flex: 1; min-height: 0; min-width: 0; margin-top: 6px; position: relative; }
+.dl-kaart__ontbreekt { font-size: 12px; color: var(--dl-n500); padding: 12px 0; }
+.dl-kaart__voet {
+  flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding-top: 8px; font-size: 10.5px; color: var(--dl-n500);
+}
+.dl-kaart__voet--extra { padding-top: 3px; }
+.dl-kaart__voettekst { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-kaart__voetblok { display: flex; flex-direction: column; gap: 2px; }
+.dl-legenda { display: flex; gap: 12px; font-size: 10.5px; color: var(--dl-n700); white-space: nowrap; }
+.dl-sw { display: inline-block; width: 9px; height: 9px; border-radius: 2.5px; margin-right: 5px; vertical-align: -1px; }
+.dl-sw--o  { background: var(--dl-orange); }
+.dl-sw--od { background: var(--dl-orange-deep); }
+.dl-sw--ol { background: var(--dl-orange-light); }
+.dl-sw--os { background: var(--dl-orange-subtle); }
+.dl-sw--g  { background: var(--dl-n400); }
+.dl-sw--pl { background: var(--dl-orange-subtle); border: 1px dashed var(--dl-orange); }
+.dl-sw--q  { background: transparent; border: 1px dashed var(--dl-n400); }
+.dl-warnline { font-size: 11.5px; color: var(--dl-error); font-weight: 500; }
+.dl-badge {
+  white-space: nowrap; font: 600 10.5px var(--dl-mono); color: var(--dl-orange-deep);
+  background: var(--dl-orange-subtle); padding: 3px 8px; border-radius: 9px;
+}
+
+/* groot getal + metric-pairs (Kennismakingen, Waarde) */
+.dl-groot { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+.dl-groot__v { font: 600 34px/1 var(--dl-mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.dl-groot--klein .dl-groot__v { font-size: 21px; }
+.dl-groot__d { font-size: 12.5px; font-weight: 600; color: var(--dl-n700); }
+.dl-groot__d.is-warn { color: var(--dl-warn-ink); }
+.dl-groot__u { font-size: 12px; color: var(--dl-n500); }
+.dl-groot__sub { flex-basis: 100%; margin-top: -2px; font: 400 11.5px var(--dl-mono); color: var(--dl-n700); }
+.dl-paren { display: flex; gap: 6px; margin-top: 10px; }
+.dl-paar { flex: 1; min-width: 0; padding: 6px 8px; border-radius: 7px; background: var(--dl-paper); border: 1px solid var(--dl-border-soft); }
+.dl-paar__k { font-size: 10px; color: var(--dl-n500); letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-paar__v { margin-top: 1px; font: 600 13px var(--dl-mono); color: var(--dl-ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dl-paar__v.is-warn { color: var(--dl-warn-ink); }
+
+/* Kanaal: donut links/boven, legenda eronder */
+.dl-kanaal { display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; min-height: 0; }
+.dl-kanaal .vx-donut { flex-shrink: 0; margin-top: 4px; }
+.dl-klegenda { display: flex; flex-direction: column; gap: 3px; width: 100%; margin-top: 2px; }
+.dl-klegenda__rij {
+  display: grid; grid-template-columns: 9px 1fr 34px 38px; column-gap: 8px; align-items: center;
+  margin: 0 -6px; padding: 1px 6px; border-radius: 6px; border: 1px solid transparent;
+  font-size: 12px; line-height: 1.4; color: var(--dl-n700); cursor: pointer;
+}
+.dl-klegenda__rij:hover { background: var(--dl-paper); }
+.dl-klegenda__rij.is-gekozen { background: var(--dl-paper); border-color: var(--dl-ink); }
+.dl-klegenda__rij:focus-visible { outline: 2px solid var(--dl-ink); outline-offset: 1px; }
+.dl-klegenda__sw { width: 9px; height: 9px; border-radius: 2.5px; display: inline-block; }
+.dl-klegenda__rij.is-gat .dl-klegenda__sw { background: repeating-linear-gradient(45deg, var(--dl-n400) 0 1.5px, transparent 1.5px 4px); border: 1px dashed var(--dl-n400); }
+.dl-klegenda__lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-klegenda__n { font: 600 12.5px var(--dl-mono); color: var(--dl-ink); text-align: right; font-variant-numeric: tabular-nums; }
+.dl-klegenda__p { font: 400 11px var(--dl-mono); color: var(--dl-n500); text-align: right; font-variant-numeric: tabular-nums; }
+.dl-klegenda__rij.is-gat .dl-klegenda__lab, .dl-klegenda__rij.is-gat .dl-klegenda__n { color: var(--dl-n500); }
+.dl-gatsep {
+  display: flex; align-items: center; gap: 8px; margin: 2px 0 -2px; white-space: nowrap;
+  font: 400 9px var(--dl-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dl-error);
+}
+.dl-gatsep::after { content: ""; flex: 1; border-top: 1px dashed var(--dl-n300); }
+
+/* Waarde (Licenties): C5-bereikstaven per fase */
+.dl-waarde { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+.dl-waarde__rij { margin: 0 -6px; padding: 4px 6px; border-radius: 8px; border: 1px solid transparent; }
+.dl-waarde__rij.is-klikbaar { cursor: pointer; }
+.dl-waarde__rij.is-klikbaar:hover { background: var(--dl-paper); }
+.dl-waarde__rij.is-gekozen { background: var(--dl-paper); border-color: var(--dl-ink); }
+.dl-waarde__rij:focus-visible { outline: 2px solid var(--dl-ink); outline-offset: 1px; }
+.dl-waarde__kop { display: flex; justify-content: space-between; align-items: baseline; }
+.dl-waarde__lab { font-size: 12px; font-weight: 600; }
+.dl-waarde__n { font: 500 11px var(--dl-mono); font-variant-numeric: tabular-nums; }
+.dl-waarde__baan { position: relative; height: 8px; margin-top: 6px; border-radius: 4px; background: var(--dl-paper-3); overflow: hidden; }
+.dl-waarde__hi, .dl-waarde__lo { position: absolute; left: 0; top: 0; height: 100%; border-radius: 4px; min-width: 2px; }
+.dl-waarde__hi { background: var(--dl-orange-subtle); }
+.dl-waarde__lo { background: var(--dl-orange-deep); }
+.dl-waarde__eur { margin-top: 5px; font: 400 10.5px var(--dl-mono); color: var(--dl-n700); }
+
+/* ── detail-sink ──────────────────────────────────────────── */
+.bs--d1-live .bs-detail__kop { padding: 14px 16px 10px; background: var(--dl-card); border-bottom-color: var(--dl-border-soft); }
+.dl-detail__kop { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.dl-detail__lab { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--dl-n500); }
+.dl-detail__sel { font: 600 11px var(--dl-mono); color: var(--dl-ink); text-align: right; }
+.dl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.dl-chips > span { font: 400 10.5px var(--dl-mono); color: var(--dl-n700); background: var(--dl-paper-3); padding: 2px 7px; border-radius: 5px; font-variant-numeric: tabular-nums; }
+.dl-chips > span.is-warn { color: var(--dl-warn-ink); background: var(--dl-warn-bg); }
+.bs--d1-live .bs-paneel__body .wt__head { padding: 4px 16px; height: auto; font: 400 9.5px var(--dl-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dl-n500); border-bottom: 1px solid var(--dl-border-soft); }
+.bs--d1-live .bs-paneel__body .wt__head span:not(:first-child) { text-align: right; }
+.bs--d1-live .bs-paneel__body .wt__head, .bs--d1-live .bs-paneel__body .wt__rij { gap: 6px; }
+.bs--d1-live .bs-paneel__body .wt__rij { height: auto; min-height: 48px; padding: 8px 16px; font-size: 12.5px; }
+.dl-cel { display: flex; flex-direction: column; min-width: 0; }
+.dl-cel__k { font-size: 12.5px; font-weight: 600; color: var(--dl-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-cel__b { font-size: 10.5px; color: var(--dl-n500); margin-top: 1px; display: flex; gap: 4px; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl-cel__leeg { color: var(--dl-n400); }
+.dl-chip { font-size: 9.5px; font-weight: 600; color: var(--dl-warn-ink); background: var(--dl-warn-bg); padding: 1px 6px; border-radius: 6px; }
+.dl-chip--ok { color: var(--dl-orange-deep); background: var(--dl-orange-subtle); }
+.dl-dagen { font-weight: 600; }
+.dl-dagen.is-lang { color: var(--dl-warn-ink); }
+.dl-hs { color: var(--dl-orange); text-decoration: none; font-size: 13px; }
+.bs--d1-live .bs-paneel__voet { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10.5px; background: var(--dl-card); }
+.dl-detail__wist { font-family: var(--dl-mono); color: var(--dl-n400); margin-left: auto; }
+.dl-detail__bron { flex-basis: 100%; color: var(--dl-n500); }
+
+/* lege sink */
+.bs--d1-live .bs-detail__leeg { flex-direction: column; }
+.dl-leeg { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.dl-leeg__ph {
+  width: 160px; height: 96px; margin-bottom: 18px; padding: 0 20px 16px;
+  display: flex; align-items: flex-end; gap: 8px;
+  border: 1.5px dashed var(--dl-n300); border-radius: 10px;
+}
+.dl-leeg__ph i { display: block; flex: 1; background: var(--dl-paper-3); border-radius: 3px 3px 0 0; }
+.dl-leeg__ph i.on { background: var(--dl-orange-subtle); border: 1px dashed var(--dl-orange); }
+.dl-leeg__t1 { font-size: 13.5px; font-weight: 600; color: var(--dl-n700); }
+.dl-leeg__t2 { margin-top: 4px; max-width: 220px; font-size: 12px; line-height: 1.5; color: var(--dl-n500); }
+
+/* ── smaller dan 1240 px: drie kaarten per rij wordt krap ── */
+@media (max-width: 1240px) {
+  .bs--d1-live .bs__werk { grid-template-columns: minmax(0, 1fr) 280px; }
+  .dl-grid--lic .dl-rij--1 { grid-template-columns: 1.4fr 1fr 1fr; }
+  .dl-grid--lic .dl-rij--1 > .dl-kaart--waarde { display: none; }
+}
+
+/* ── mobiel (< 1000 px): één kolom, volgorde uit het ontwerp ─
+   Kennismakingen · Kantoorgrootte · Landt het? · Tijd in fase ·
+   Beweging · Kanaal; de sink eronder. De pagina scrollt hier wél
+   (BordShell); elke kaart krijgt een vaste charthoogte omdat er
+   geen rijhoogte meer is om te vullen. */
+@media (max-width: 1000px) {
+  .bs--d1-live { padding: 16px 14px 24px; }
+  .bs--d1-live .bs__balk { margin: -16px -14px 0; padding: 8px 14px; }
+  .bs--d1-live .bs__vraag { font-size: 15px; line-height: 1.35; }
+  .bs--d1-live .bs__werk { grid-template-columns: 1fr; }
+  .dl-grid, .dl-rij { display: contents; }
+  .dl-grid { display: flex; flex-direction: column; gap: 12px; }
+  .dl-kaart { order: 5; }
+  .dl-kaart--kenn { order: 1; } .dl-kaart--grootte { order: 2; } .dl-kaart--landt { order: 3; }
+  .dl-kaart--aging { order: 4; } .dl-kaart--beweging { order: 5; } .dl-kaart--kanaal { order: 6; } .dl-kaart--waarde { order: 7; }
+  .dl-kaart__lijf { height: 190px; flex: none; }
+  .dl-kaart--aging .dl-kaart__lijf { height: 262px; }
+  .dl-kaart--kanaal .dl-kaart__lijf, .dl-kaart--grootte .dl-kaart__lijf, .dl-kaart--waarde .dl-kaart__lijf { height: auto; }
+  .dl-kanaal { flex-direction: row; align-items: center; gap: 14px; }
+  .dl-klegenda { flex: 1; }
+  .dl-groot__v { font-size: 30px; }
+  /* Detailrijen: de gedeelde WorkTable zakt op mobiel naar één kolom (!important);
+     hier wikkelt de rij — kantoor op de eerste regel, de cijfers in één regel eronder. */
+  .bs--d1-live .bs-paneel__body .wt__rij { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+  .bs--d1-live .bs-paneel__body .wt__rij .wt__cel:first-child { flex: 1 0 100%; }
+  .bs--d1-live .bs-paneel__body .wt__rij .wt__ext { margin-left: auto; }
+  .dl-units { display: inline-block; margin-left: 0; }
+}

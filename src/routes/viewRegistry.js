@@ -49,7 +49,9 @@ export const VIEWS = [
   // Kwartaaldiagnose (v1.181) — het diagnosebord naast D1. Bereikbaar vanaf de
   // vertrouwensregel van /pipeline, niet vanuit de nav: je opent het per
   // kwartaal, niet per week.
-  { id: 'pipeline_kwartaal', label: 'Kwartaaldiagnose', title: 'Pipeline · kwartaaldiagnose', subtitle: '', fullWidth: true, adminOnly: true, cap: 'kwartaaldiagnose' },
+  // v1.209: heet in de balk "Monthly" (skill dashboarding v1.0.0: D1-diagnose
+  // hernoemd naar Monthly). Route en capability blijven `kwartaal`.
+  { id: 'pipeline_kwartaal', label: 'Monthly', title: 'Pipeline · Monthly', subtitle: '', fullWidth: true, adminOnly: true, cap: 'kwartaaldiagnose' },
   { id: 'klantverlies',    label: 'Klantverlies',     title: 'Klantverlies · maandritme', subtitle: '', fullWidth: true, cap: 'klantverlies' },
   { id: 'klantbase',       label: 'Klantbase',        title: 'Klantbase',        subtitle: '', fullWidth: true, status: 'const', cap: 'klantbase' },
   { id: 'kennisbank',      label: 'Kennisbank',       title: 'Kennisbank',       subtitle: '', fullWidth: true, status: 'soon', cap: 'kennisbank' },

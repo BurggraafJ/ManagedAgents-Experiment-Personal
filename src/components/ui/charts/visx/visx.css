@@ -1,0 +1,105 @@
+/* ==========================================================
+   Visx-charts — gedeelde SVG-grammatica (Design ronde 4/5).
+
+   Eén typografische ladder voor élk getal op een staaf, elk
+   as-label en elke waarde: Geist Mono tabular voor cijfers,
+   Instrument Sans voor woorden. Kleurcontract: data = oranje,
+   tweede reeks / bodem = orange-deep, plafond / gepland =
+   orange-subtle, reeksen zonder eigen betekenis = neutraal
+   grijs, "onbekend" = gearceerd. Doellijn = 1 px dashed ink
+   (norm is geen data, lock 2026-09-14).
+
+   Zelf-bevattend tokenblok met vaste terugval (G6): buiten
+   `.theme-maestro` bestaan de --orange/--ink-tokens niet en
+   één lege var() maakt een hele declaratie ongeldig.
+   ========================================================== */
+.vx {
+  --vx-ink:           #2c1810;
+  --vx-n700:          #5f4d40;
+  --vx-n500:          #95836f;
+  --vx-n400:          #c3b6a6;
+  --vx-n300:          #e2d9cd;
+  --vx-n200:          #efe9e1;
+  --vx-paper:         #f7f3ee;
+  --vx-paper-3:       #f1ece5;
+  --vx-card:          #ffffff;
+  --vx-orange:        #dc6f3f;
+  --vx-orange-deep:   #8b4628;
+  --vx-orange-subtle: #f9e5dd;
+  --vx-orange-light:  #efb08c;
+  --vx-warn-ink:      #8a5a12;
+  --vx-warn-bg:       #fbf1dd;
+  --vx-error:         #b8362a;
+  --vx-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --vx-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  display: block;
+  overflow: visible;
+  font-family: var(--vx-mono);
+  font-variant-numeric: tabular-nums;
+}
+.vx text { font-family: var(--vx-mono); font-variant-numeric: tabular-nums; }
+.vx .vx-axnum  { font-size: 10px; fill: var(--vx-n500); }
+.vx .vx-axlab  { font-size: 10px; fill: var(--vx-n700); font-family: var(--vx-sans); }
+.vx .vx-axlab--sm { font-size: 8.5px; }
+.vx .vx-val    { font-size: 11px; font-weight: 500; fill: var(--vx-n700); }
+.vx .vx-val--sm{ font-size: 10.5px; }
+.vx .vx-rowlab { font-size: 11.5px; font-weight: 600; font-family: var(--vx-sans); fill: var(--vx-ink); }
+.vx .vx-rowsub { font-size: 10.5px; fill: var(--vx-n500); font-family: var(--vx-sans); }
+.vx .vx-chip   { font-size: 10px; font-weight: 600; font-family: var(--vx-sans); }
+.vx .vx-doel   { font-size: 10px; fill: var(--vx-ink); font-weight: 500; }
+.vx .vx-ink  { fill: var(--vx-ink); }
+.vx .vx-n700 { fill: var(--vx-n700); }
+.vx .vx-n500 { fill: var(--vx-n500); }
+.vx .vx-n400 { fill: var(--vx-n400); }
+.vx .vx-warn { fill: var(--vx-warn-ink); }
+.vx .vx-error{ fill: var(--vx-error); }
+
+.vx .vx-grid   { stroke: var(--vx-n200); }
+.vx .vx-as     { stroke: var(--vx-n400); }
+.vx .vx-as--ink{ stroke: var(--vx-ink); }
+.vx .vx-doellijn { stroke: var(--vx-ink); stroke-dasharray: 4 3; stroke-width: 1; }
+.vx .vx-mediaan  { stroke: var(--vx-ink); stroke-width: 2; }
+
+/* Segmenten die naar de sink schrijven: hand alleen mét onKies (G7). */
+.vx .vx-seg { transition: opacity .12s ease, filter .12s ease; }
+.vx .vx-seg.is-klikbaar { cursor: pointer; }
+.vx .vx-seg.is-klikbaar:hover { opacity: .82; }
+.vx .vx-seg:focus-visible { outline: none; stroke: var(--vx-ink); stroke-width: 1.5; }
+
+/* De geselecteerde snede: 1 px ink-rand — dezelfde grammatica voor een staaf,
+   een band en een slice (Design ronde 5, Detail Fase 3). */
+.vx .is-gekozen { stroke: var(--vx-ink); stroke-width: 1.5; }
+.vx .vx-selectievlak { fill: var(--vx-paper); stroke: var(--vx-ink); stroke-width: 1; }
+.vx .vx-selectiemarker { fill: var(--vx-ink); }
+
+/* De vullingen — als klassen zodat een kaart ze in de legenda hergebruikt. */
+.vx .f-orange        { fill: var(--vx-orange); }
+.vx .f-orange-deep   { fill: var(--vx-orange-deep); }
+.vx .f-orange-subtle { fill: var(--vx-orange-subtle); }
+.vx .f-orange-light  { fill: var(--vx-orange-light); }
+.vx .f-grijs         { fill: var(--vx-n400); }
+.vx .f-baan          { fill: var(--vx-paper-3); }
+.vx .f-band          { fill: var(--vx-paper); }
+.vx .f-nul           { fill: var(--vx-n400); }
+.vx .f-gepland       { fill: var(--vx-orange-subtle); stroke: var(--vx-orange); stroke-width: 1; stroke-dasharray: 3 2; }
+.vx .f-omtrek        { fill: none; stroke: var(--vx-n400); stroke-dasharray: 3 2; }
+.vx .f-gat           { stroke: var(--vx-n400); stroke-width: 1; stroke-dasharray: 3 2; }
+.vx .f-lopend        { opacity: .55; }
+
+/* Donut */
+.vx .vx-donut-groot { font-size: 22px; font-weight: 600; letter-spacing: -.02em; fill: var(--vx-ink); }
+.vx .vx-donut-klein { font-size: 10px; fill: var(--vx-n500); font-family: var(--vx-sans); }
+
+/* ── Tip ──────────────────────────────────────────────── */
+.vx-tip {
+  position: absolute; z-index: 5; pointer-events: none;
+  max-width: 230px; padding: 8px 10px;
+  border: 1px solid var(--vx-n300, #e2d9cd); border-radius: 9px;
+  background: var(--vx-card, #fff); color: var(--vx-ink, #2c1810);
+  box-shadow: 0 6px 20px -8px rgba(44,24,16,.28), 0 1px 2px rgba(44,24,16,.06);
+  font: 400 11.5px/1.45 var(--vx-sans, "Instrument Sans", system-ui, sans-serif);
+}
+.vx-tip__kop { font-weight: 600; font-size: 12px; }
+.vx-tip__regel { font-family: var(--vx-mono, ui-monospace, monospace); font-variant-numeric: tabular-nums; color: var(--vx-n700, #5f4d40); font-size: 11px; margin-top: 2px; }
+.vx-tip__zin { margin-top: 5px; color: var(--vx-n500, #95836f); font-size: 11px; }

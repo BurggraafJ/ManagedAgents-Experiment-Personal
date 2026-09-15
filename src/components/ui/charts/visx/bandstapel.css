@@ -1,0 +1,39 @@
+/* Bandstapel — horizontale stapel per band (kaart Kantoorgrootte).
+   Tokens met vaste terugval (G6), zie visx.css. */
+.bst {
+  --bst-ink: #2c1810; --bst-n700: #5f4d40; --bst-n500: #95836f; --bst-n400: #c3b6a6; --bst-n300: #e2d9cd;
+  --bst-paper: #f7f3ee; --bst-paper-3: #f1ece5;
+  --bst-orange: #dc6f3f; --bst-orange-deep: #8b4628; --bst-error: #b8362a;
+  --bst-sans: "Instrument Sans", system-ui, -apple-system, sans-serif;
+  --bst-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  display: flex; flex-direction: column; gap: 18px; margin-top: 14px;
+  font-family: var(--bst-sans);
+}
+.bst__rij {
+  display: grid; grid-template-columns: 74px minmax(0, 1fr) 34px;
+  grid-template-areas: "lab spoor n" "lab mix mix";
+  column-gap: 10px; align-items: center;
+  margin: 0 -8px; padding: 5px 8px; border-radius: 8px;
+  border: 1px solid transparent;
+}
+.bst__rij.is-klikbaar { cursor: pointer; }
+.bst__rij.is-klikbaar:hover { background: var(--bst-paper); }
+.bst__rij.is-gekozen { background: var(--bst-paper); border-color: var(--bst-ink); }
+.bst__rij:focus-visible { outline: 2px solid var(--bst-ink); outline-offset: 1px; }
+.bst__lab { grid-area: lab; font-size: 12px; color: var(--bst-n700); text-align: right; }
+.bst__rij.is-kern .bst__lab { color: var(--bst-orange-deep); font-weight: 600; }
+.bst__spoor { grid-area: spoor; display: flex; height: 10px; border-radius: 5px; background: var(--bst-paper-3); overflow: hidden; }
+.bst__seg { height: 100%; min-width: 2px; }
+.bst__seg--3 { background: var(--bst-orange); }
+.bst__seg--2 { background: var(--bst-orange-deep); }
+.bst__seg--1 { background: var(--bst-n400); }
+.bst__seg--gat { background: repeating-linear-gradient(90deg, var(--bst-n400) 0 3px, transparent 3px 6px); }
+.bst__n { grid-area: n; font: 600 12.5px var(--bst-mono); font-variant-numeric: tabular-nums; color: var(--bst-ink); }
+.bst__rij.is-kern .bst__n { color: var(--bst-orange-deep); }
+.bst__mix { grid-area: mix; margin-top: 3px; font: 400 9.5px var(--bst-mono); color: var(--bst-n500); white-space: nowrap; }
+.bst__rij.is-gat .bst__lab, .bst__rij.is-gat .bst__n { color: var(--bst-n500); }
+.bst__gatsep {
+  display: flex; align-items: center; gap: 8px; margin: -6px 0 -10px;
+  font: 400 9px var(--bst-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--bst-error); white-space: nowrap;
+}
+.bst__gatsep::after { content: ""; flex: 1; border-top: 1px dashed var(--bst-n300); }
