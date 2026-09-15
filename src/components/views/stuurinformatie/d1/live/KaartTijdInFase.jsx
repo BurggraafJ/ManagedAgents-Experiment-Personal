@@ -2,7 +2,7 @@ import Kaart from './Kaart'
 import Bereikrijen from '../../../../ui/charts/visx/Bereikrijen'
 import { useTip } from '../../../../ui/charts/visx/Tip'
 import { getal } from '../../format'
-import { FASE_KORT, faseZin, bereikKort } from './labels'
+import { FASE_KORT, FASE_UITLEG, faseZin, bereikKort } from './labels'
 
 /**
  * Tijd in fase — hoe lang de open deals nú in hun fase zitten, per fase op één
@@ -15,6 +15,7 @@ export default function KaartTijdInFase({ aging, eenheid, gekozen, onKies }) {
   const rijen = (aging || []).map(r => ({
     key: String(r.fase),
     label: FASE_KORT[r.fase] || `Fase ${r.fase}`,
+    uitleg: FASE_UITLEG[r.fase] || null,
     sub: eenheid.lic
       ? (bereikKort(r.bodem_licenties, r.plafond_licenties) || 'geen band')
       : `${getal(r.aantal)} ${r.aantal === 1 ? 'deal' : 'deals'}`,

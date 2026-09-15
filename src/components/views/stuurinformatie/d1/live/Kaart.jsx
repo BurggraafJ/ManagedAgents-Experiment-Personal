@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { createContext, useContext, useRef } from 'react'
 import useMaat from '../../../../ui/charts/visx/useMaat'
 import Tip from '../../../../ui/charts/visx/Tip'
 
@@ -10,6 +10,14 @@ import Tip from '../../../../ui/charts/visx/Tip'
  *
  * De kaart is `data-tipanker`: de gedeelde Tip meet zijn positie hiertegen.
  *
+ * **Focus-split (v1.210, Jelle 2026-09-15).** Staat de kaart alleen — omdat een
+ * snede erop gekozen is — dan leest hij `KaartFocus` en draagt zijn kop drie
+ * dingen extra: `◂ Overzicht` (de weg terug naar de grid), de gekozen snede
+ * achter het label (`TIJD IN FASE · FASE 3`) en de eenheid (`units: deals`).
+ * Dat gaat via een context en niet via props, zodat de zeven kaarten hier
+ * niets van hoeven te weten: ze staan in de grid of ze staan in focus, en de
+ * kaart zelf is in beide gevallen dezelfde.
+ *
  * Props:
  *   label · plus (mono-badge naast het label) · meta (rechts in de kop)
  *   sub          subregel onder de kop
@@ -20,21 +28,37 @@ import Tip from '../../../../ui/charts/visx/Tip'
  *   tip          de actieve Tip-inhoud (uit useTip)
  *   className
  */
+export const KaartFocus = createContext(null)
+
 export default function Kaart({
   label, plus = null, meta = null, sub = null, boven = null, children,
   legenda = null, voet = null, voetExtra = null, tip = null, className = '', ontbreekt = null,
 }) {
   const ref = useRef(null)
   const maat = useMaat(ref)
+  const focus = useContext(KaartFocus)
 
   return (
-    <section className={`dl-kaart ${className}`.trim()} data-tipanker>
+    <section className={`dl-kaart ${className}${focus ? ' is-focus' : ''}`.trim()} data-tipanker>
       <div className="dl-kaart__kop">
-        <div className="dl-kaart__label">
-          {label}
-          {plus && <span className="dl-kaart__plus">{plus}</span>}
+        <div className="dl-kaart__links">
+          {focus && (
+            <button type="button" className="dl-terug" onClick={focus.terug} title="Terug naar het overzicht (Esc, of klik de snede nog eens)">
+              ◂ Overzicht <kbd>esc</kbd>
+            </button>
+          )}
+          <div className="dl-kaart__label">
+            {label}
+            {plus && <span className="dl-kaart__plus">{plus}</span>}
+            {focus?.snede && <span className="dl-kaart__snede">{focus.snede}</span>}
+          </div>
         </div>
-        {meta && <div className="dl-kaart__meta">{meta}</div>}
+        {(meta || focus) && (
+          <div className="dl-kaart__meta">
+            {meta}
+            {focus?.units && <span className="dl-units">units: {focus.units}</span>}
+          </div>
+        )}
       </div>
       {sub && <div className="dl-kaart__sub">{sub}</div>}
       {boven}
@@ -48,6 +72,7 @@ export default function Kaart({
           {legenda && (
             <div className="dl-legenda">
               {legenda.map(l => <span key={l.tekst}><i className={`dl-sw dl-sw--${l.swatch}`} />{l.tekst}</span>)}
+              {focus && <span><i className="dl-sw dl-sw--sel" />geselecteerd</span>}
             </div>
           )}
           {voet && <span className="dl-kaart__voettekst">{voet}</span>}

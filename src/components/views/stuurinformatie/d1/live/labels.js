@@ -33,6 +33,24 @@ export const BAND_LABEL = { '17+': '17+', '5-16': '5–16 kern', '1-4': '1–4',
 export const weekNr = label => (label ? String(label).replace(/^.*-W/, '') : '')
 
 /**
+ * De snede in de kop van de gefocuste kaart (focus-split, v1.210): kort, zonder
+ * de kaartnaam — die staat er al vóór. `Fase 3`, `Week W36`, `sep`, `Offline`.
+ * Het volledige label (`Fase 3 · aging`) blijft van de sink.
+ */
+export function snedeKort(gekozen) {
+  if (!gekozen) return ''
+  switch (gekozen.soort) {
+    case 'fase': case 'waarde': return FASE_KORT[gekozen.sleutel] || `Fase ${gekozen.sleutel}`
+    case 'week': return `Week W${weekNr(gekozen.week?.week_label)}${gekozen.gepland ? ' · gepland' : ''}`
+    case 'beweging': return `W${weekNr(gekozen.week?.week_label)} · ${gekozen.type}`
+    case 'kanaal': return gekozen.slice?.label || ''
+    case 'band': return BAND_LABEL[gekozen.sleutel] || gekozen.sleutel
+    case 'maand': return String(gekozen.label || '').split(' · ')[0]
+    default: return ''
+  }
+}
+
+/**
  * De eenheid volgt de toggle Deals | Licenties. `waarde(rij, veldDeals,
  * veldLic)` kiest de kolom; `fmt` schrijft hem. Licenties zijn een mid
  * ((bodem + plafond) / 2) en kunnen dus een halve zijn — één decimaal als het

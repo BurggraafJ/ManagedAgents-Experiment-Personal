@@ -72,7 +72,10 @@ export default function KaartKanaal({ kanaal, meta, eenheid, gekozen, onKies }) 
           /* De ring krimpt mee met de kaart: de legenda (≈ 23 px per rij, plus
              de gatregel) heeft voorrang, de ring krijgt wat er overblijft,
              tussen 96 en 150 px. */
-          maat={Math.max(96, Math.min(150, m.breedte, m.hoogte - (slices.length * 25 + (slices.some(s => s.onbekend) ? 24 : 0) + 14)))}
+          maat={m.breedte > 400
+            // Focus-split: donut en legenda naast elkaar (d1live.css), de ring mag tot 240 px.
+            ? Math.max(96, Math.min(320, m.hoogte - 8, m.breedte - 300))
+            : Math.max(96, Math.min(150, m.breedte, m.hoogte - (slices.length * 25 + (slices.some(s => s.onbekend) ? 24 : 0) + 14)))}
           gekozen={gekozen?.soort === 'kanaal' ? gekozen.sleutel : null}
           onKies={kies}
           onHover={hover}

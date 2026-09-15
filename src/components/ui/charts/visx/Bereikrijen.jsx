@@ -15,7 +15,9 @@ import './visx.css'
  *
  * Props:
  *   rijen      [{ key, label, sub, chip: { tekst, toon: 'warn'|'ok' }|null,
- *                 p50, p90, leeg?: string, titel? }]
+ *                 p50, p90, leeg?: string, titel?, uitleg? }]
+ *              `uitleg` (fase in gewone taal) komt alleen in beeld als de rij
+ *              ruim is (≥ 110 px, focus-split); in de grid blijft hij hover.
  *   schaalMax  bovengrens van de dagen-as (gedeeld over de rijen)
  *   ticks      [0, 30, 60, 90]
  *   breedte, hoogte · gekozen · onKies(rij) · onHover(e, rij) · onLeave
@@ -26,21 +28,29 @@ export default function Bereikrijen({
 }) {
   if (!breedte || !hoogte || rijen.length === 0) return null
   const padL = 12, padR = 12, padT = 6, asH = 24
-  const rowH = Math.floor((hoogte - asH - padT) / rijen.length)
+  // Rijen groeien mee met de kaart, maar niet voorbij 150 px: in de focus-split
+  // (v1.210) krijgt deze chart ~660 px en drie rijen over die hoogte zijn drie
+  // eilanden. De svg wordt dan lager dan de kaart; de kaart centreert hem.
+  const rowH = Math.min(150, Math.floor((hoogte - asH - padT) / rijen.length))
+  const H = padT + rowH * rijen.length + asH
+  const ruim = rowH >= 110
   const pw = breedte - padL - padR
   const x = scaleLinear({ domain: [0, schaalMax], range: [padL, padL + pw], clamp: true })
-  const ay = hoogte - 6
-  const bh = 14
+  const ay = H - 6
+  const bh = ruim ? 20 : 14
   // Smalle kaart (mét sidebar): de subtekst wijkt voor de chip — `subKort`
   // ("25" i.p.v. "25 deals") als de aanroeper die meegeeft.
   const smal = breedte < 260
 
   return (
-    <svg className="vx" width={breedte} height={hoogte} role="img" aria-label="tijd in fase">
+    <svg className={`vx${ruim ? ' vx--ruim' : ''}`} width={breedte} height={H} role="img" aria-label="tijd in fase">
+      {ruim && ticks.map(t => <Line key={`g${t}`} from={{ x: x(t), y: padT }} to={{ x: x(t), y: ay - 12 }} className="vx-grid" />)}
       {rijen.map((r, i) => {
         const y0 = padT + i * rowH
         const gek = gekozen !== null && gekozen === r.key
-        const by = y0 + 26
+        // Ruim: de fase-uitleg in gewone taal (r.uitleg) krijgt een eigen regel
+        // onder de rijkop, en de staaf zakt mee.
+        const by = y0 + (ruim && r.uitleg ? 46 : 26)
         const lo = Math.min(Number(r.p50) || 0, Number(r.p90) || 0), hi = Number(r.p90) || 0
         const klik = onKies ? { onClick: () => onKies(r), tabIndex: 0, role: 'button', onKeyDown: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onKies(r) } } } : {}
         const hover = onHover ? { onMouseMove: e => onHover(e, r), onMouseLeave: onLeave, onFocus: e => onHover(e, r), onBlur: onLeave } : {}
@@ -57,6 +67,7 @@ export default function Bereikrijen({
               <tspan className="vx-rowlab">{r.label}</tspan>
               <tspan className="vx-rowsub" dx={7}>{smal && r.subKort !== undefined ? r.subKort : r.sub}</tspan>
             </text>
+            {ruim && r.uitleg && <text x={padL} y={y0 + 30} className="vx-uitleg" pointerEvents="none">{r.uitleg}</text>}
             {r.chip
               ? (
                 <Group left={breedte - padR} top={y0 + 2} pointerEvents="none">
@@ -73,8 +84,8 @@ export default function Bereikrijen({
                   <Bar x={x(0)} y={by} width={Math.max(2, x(hi) - x(0))} height={bh} rx={5} className="f-orange-subtle" pointerEvents="none" />
                   <Bar x={x(0)} y={by} width={Math.max(2, x(lo) - x(0))} height={bh} rx={5} className="f-orange" pointerEvents="none" />
                   <Line from={{ x: x(r.p50), y: by - 3 }} to={{ x: x(r.p50), y: by + bh + 3 }} className="vx-mediaan" pointerEvents="none" />
-                  <text x={padL} y={by + bh + 15} className="vx-val vx-val--sm vx-ink" pointerEvents="none">mediaan {r.p50} d</text>
-                  <text x={breedte - padR} y={by + bh + 15} textAnchor="end" className="vx-val vx-val--sm vx-n500" pointerEvents="none">P90 {hi} d</text>
+                  <text x={padL} y={by + bh + (ruim ? 18 : 15)} className="vx-val vx-val--sm vx-ink" pointerEvents="none">mediaan {r.p50} d</text>
+                  <text x={breedte - padR} y={by + bh + (ruim ? 18 : 15)} textAnchor="end" className="vx-val vx-val--sm vx-n500" pointerEvents="none">P90 {hi} d</text>
                 </>
               )}
           </Group>
