@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase } from '../../../lib/supabase'
 import { dbPrioToMockup, mockupPrioToDb, fmtDeadlineLabel, dateUrgencyKind } from './v2-helpers'
@@ -27,6 +27,16 @@ export default function V2TaskDetail({ task, project, onClose, applyOptimistic }
     setDraftNotes(task.notes || '')
     setTagsInput((task.tags || []).join(' '))
   }, [task.id])
+
+  // De titel is een textarea zodat een lange taaknaam afbreekt in plaats van
+  // uit beeld te schuiven; hij groeit mee met zijn inhoud.
+  const titleRef = useRef(null)
+  useEffect(() => {
+    const el = titleRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [draftTitle])
 
   useEffect(() => {
     const onEsc = (e) => { if (e.key === 'Escape') onClose() }
@@ -93,9 +103,11 @@ export default function V2TaskDetail({ task, project, onClose, applyOptimistic }
 
         {/* Hoofd-card: titel + meta */}
         <div className={styles.detailSection}>
-          <input
+          <textarea
+            ref={titleRef}
             className={styles.detailTitle}
             value={draftTitle}
+            rows={1}
             onChange={e => setDraftTitle(e.target.value)}
             onBlur={saveTitle}
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } }}

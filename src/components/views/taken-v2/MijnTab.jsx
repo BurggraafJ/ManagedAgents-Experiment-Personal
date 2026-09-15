@@ -30,14 +30,20 @@ export default function MijnTab({ tasks, dateFilter, filterSource, typeFilter, a
   const backlogAll = sortByUrgency(filtered.filter(t => t.in_backlog))
   const completionCandidates = allTasks.filter(t => t.completion_candidate && t.status === 'open')
 
+  // Drop op een prio-groep zet de prio én haalt de taak uit de backlog; drop op
+  // de backlog parkeert hem met behoud van prio. Landt hij waar hij al stond,
+  // dan schrijven we niets weg — een lege update kost een realtime-ronde door
+  // de hele tree en verandert niets.
   const handleDrop = useCallback(async (taskId, toMockupPrio, toBacklog) => {
+    const cur = allTasks.find(t => t.id === taskId)
+    if (!cur || String(taskId).startsWith('tmp-')) return
     const patch = {}
-    if (toMockupPrio) patch.priority = mockupPrioToDb(toMockupPrio)
-    if (toBacklog !== undefined) patch.in_backlog = !!toBacklog
+    if (toMockupPrio && dbPrioToMockup(cur.priority) !== toMockupPrio) patch.priority = mockupPrioToDb(toMockupPrio)
+    if (toBacklog !== undefined && !!cur.in_backlog !== !!toBacklog) patch.in_backlog = !!toBacklog
     if (Object.keys(patch).length === 0) return
     applyOptimistic(taskId, patch)
     await supabase.from('tasks').update(patch).eq('id', taskId)
-  }, [applyOptimistic])
+  }, [allTasks, applyOptimistic])
 
   // Insert — meteen lokaal + async supabase. Actief dag-filter (Vandaag/Morgen
   // op deadline-bron) en categorie-filter worden automatisch overgenomen.
@@ -77,6 +83,16 @@ export default function MijnTab({ tasks, dateFilter, filterSource, typeFilter, a
   )
 }
 
+/**
+ * Een net toegevoegde taak bestaat een tel lang alleen lokaal (tmp-id). Het
+ * detail-paneel zoekt zijn taak in de lijst uit `useTasks` en vindt die dan
+ * niet — de ⋯ deed niets. Zolang het id tijdelijk is, tonen we de knop dus
+ * niet; zodra de insert terug is, staat hij er vanzelf.
+ */
+function detailFor(task, onOpenDetail) {
+  return String(task.id).startsWith('tmp-') ? undefined : onOpenDetail
+}
+
 /* Quick-add row — persistent input, Enter = save, input clear, focus blijft */
 export function QuickAddRow({ prioId, onInsert, placeholder }) {
   const [draft, setDraft] = useState('')
@@ -97,13 +113,21 @@ export function QuickAddRow({ prioId, onInsert, placeholder }) {
   )
 }
 
+/**
+ * Drop-zone voor HTML5-drag (desktop).
+ *
+ * `onDragLeave` vuurt óók als de cursor van de zone naar een kind erbinnen
+ * gaat — dus bij elke rij die je passeert knipperde de rand uit en weer aan.
+ * `relatedTarget` is het element waar de cursor heen gaat: zit dat nog in de
+ * zone, dan hebben we hem niet verlaten.
+ */
 function useDropZone(onDropId) {
   const [dragOver, setDragOver] = useState(false)
   return {
     dragOver,
     handlers: {
       onDragOver: (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) },
-      onDragLeave: () => setDragOver(false),
+      onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(false) },
       onDrop: (e) => { e.preventDefault(); setDragOver(false); const id = e.dataTransfer.getData('text/plain'); if (id) onDropId(id) },
     },
   }
@@ -113,11 +137,11 @@ function useDropZone(onDropId) {
 function PrioGroup({ id, label, live, onDrop, onInsert, applyOptimistic, onOpenDetail }) {
   const { dragOver, handlers } = useDropZone((taskId) => onDrop(taskId, id, false))
   return (
-    <section className={`${styles.group} ${dragOver ? styles.dragOver : ''}`} {...handlers}>
+    <section className={`${styles.group} ${dragOver ? styles.dragOver : ''}`} data-dropzone={id} {...handlers}>
       <header className={`${styles.groupHead} ${styles['groupHead_' + id]}`}>
         <i className={styles.groupMark} />{label}<span>{live.length}</span>
       </header>
-      {live.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />)}
+      {live.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} onOpenDetail={detailFor(t, onOpenDetail)} />)}
       <QuickAddRow prioId={id} onInsert={onInsert} placeholder={`Nieuwe taak in ${label.toLowerCase()}…`} />
     </section>
   )
@@ -128,14 +152,14 @@ function BacklogSection({ tasks, onDrop, onInsert, applyOptimistic, onOpenDetail
   const [open, setOpen] = useState(false)
   const { dragOver, handlers } = useDropZone((taskId) => onDrop(taskId, null, true))
   return (
-    <div className={`${styles.backlog} ${dragOver ? styles.dragOver : ''}`} {...handlers}>
+    <div className={`${styles.backlog} ${dragOver ? styles.dragOver : ''}`} data-dropzone="backlog" {...handlers}>
       <button type="button" className={styles.backlogToggle} onClick={() => setOpen(o => !o)} aria-expanded={open}>
         Backlog · {tasks.length} geparkeerd
         <em>{open ? '▴' : 'sleep een taak hierheen om te parkeren ▾'}</em>
       </button>
       {open && (
         <div className={styles.backlogList}>
-          {tasks.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} onOpenDetail={onOpenDetail} />)}
+          {tasks.map(t => <V2TaskRow key={t.id} task={t} draggable applyOptimistic={applyOptimistic} onOpenDetail={detailFor(t, onOpenDetail)} />)}
           <QuickAddRow prioId="middel" onInsert={(prio, title) => onInsert(prio, title, true)} placeholder="Nieuwe taak in backlog…" />
         </div>
       )}

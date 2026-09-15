@@ -115,6 +115,9 @@
 .row:hover { background: var(--tv2-paper-2); }
 .row[draggable="true"] { cursor: grab; }
 .rowBacklog { opacity: .8; }
+/* De rij die je optilt blijft staan maar vervaagt — anders spring je over een
+   gat en weet je halverwege niet meer wat je vasthebt. */
+.rowDragging { opacity: .4; cursor: grabbing; }
 .check { width: 26px; height: 26px; border-radius: 9999px; flex-shrink: 0; margin-top: 1px; padding: 0; cursor: pointer; border: 1.5px solid var(--tv2-neutral-300); background: #fff; color: #fff; display: flex; align-items: center; justify-content: center; transition: background .15s, border-color .15s; }
 .check svg { width: 14px; height: 14px; opacity: 0; transition: opacity .15s; }
 .check:hover { border-color: var(--tv2-success); background: var(--tv2-success-subtle); }
@@ -124,6 +127,10 @@
 .rowMain { flex: 1; min-width: 0; }
 .title { font: 500 14.5px/1.35 var(--tv2-font-sans); letter-spacing: -.005em; color: var(--tv2-ink); cursor: text; user-select: text; }
 .titleDone, .justDone .title { text-decoration: line-through; color: var(--tv2-neutral-400); }
+/* Klikbaar naar het detail-paneel — met de tekstcursor zou niets verraden dat
+   er iets achter zit. Dubbelklik-hernoemen blijft. */
+.titleClickable { cursor: pointer; }
+.row:hover .titleClickable { text-decoration: underline; text-decoration-color: var(--tv2-neutral-300); text-underline-offset: 3px; }
 .titleInput { width: 100%; font: 500 14.5px var(--tv2-font-sans); color: var(--tv2-ink); background: #fff; border: 1px solid var(--tv2-ink); border-radius: 6px; padding: 3px 8px; outline: 0; }
 .prioDotInline { display: inline-block; width: 8px; height: 8px; border-radius: 9999px; margin: 0 8px 1px 0; background: var(--tv2-error); vertical-align: middle; }
 .typeSub { display: block; margin-top: 2px; padding: 0; border: 0; background: transparent; font: 500 12px var(--tv2-font-sans); color: var(--tv2-neutral-500); cursor: pointer; text-align: left; }

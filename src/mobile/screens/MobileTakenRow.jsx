@@ -8,7 +8,7 @@ import { dueOf, prioOf } from '../../lib/taskViews'
 // rij uit de lijst valt — zodat de tik voelbaar registreert.
 //   variant 'mijn'  → taaktype als grijze subregel
 //   variant 'board' → rood bolletje vóór de titel bij prio Hoog, geen subregel
-export default function MobileTaskRow({ task, variant = 'mijn', onComplete, onTap }) {
+export default function MobileTaskRow({ task, variant = 'mijn', onComplete, onTap, dragging = false, dragProps }) {
   const [completing, setCompleting] = useState(false)
   const tick = () => {
     if (completing) return
@@ -20,8 +20,8 @@ export default function MobileTaskRow({ task, variant = 'mijn', onComplete, onTa
   const hoog = prioOf(task) === 'hoog'
   const Main = onTap ? 'button' : 'div'
   return (
-    <div className={`m-tkrow ${completing ? 'is-completing' : ''}`}>
-      <button type="button" className="m-tkrow__check" onClick={tick} aria-label="Afvinken" aria-pressed={completing}>
+    <div className={`m-tkrow ${completing ? 'is-completing' : ''} ${dragging ? 'is-dragging' : ''}`} {...dragProps}>
+      <button type="button" className="m-tkrow__check" data-nodrag onClick={tick} aria-label="Afvinken" aria-pressed={completing}>
         <MIcon name="check" size={14} color="#fff" stroke={2.6} />
       </button>
       <Main className="m-tkrow__main" onClick={onTap ? () => onTap(task) : undefined} type={onTap ? 'button' : undefined}>

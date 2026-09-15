@@ -1,10 +1,14 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useTasks } from '../../hooks/useTasks'
+import { useOptimisticTasks } from '../../hooks/useOptimisticTasks'
+import { useLongPressDrag } from '../../hooks/useLongPressDrag'
 import MIcon from '../MIcon'
 import MobileNewTask from './MobileNewTask'
 import MobileTaskRow from './MobileTakenRow'
+import MobileTaskSheet from './MobileTaskSheet'
 import MobileTakenBoard from './MobileTakenBoard'
+import { mockupPrioToDb } from '../../components/views/taken-v2/v2-helpers'
 import {
   isMijnTask, prioOf, PRIOS, PRIO_LABEL, dueOf, sortByDue, groupBy, deriveProjects,
   STAGES, STAGE_LABEL,
@@ -16,14 +20,22 @@ import {
 // drie gestapelde fases (MobileTakenBoard). Jira / Sales / Nieuw bestaan niet
 // meer in de UI (product-cut 2026-09-01). Afvinken = status 'done'
 // (optimistisch verborgen). FAB opent de MobileNewTask-sheet.
+//
+// v1.205 — twee dingen die de desktop al had en de telefoon niet:
+//   • ingedrukt houden en slepen naar een andere prio-groep (of de backlog),
+//     via useLongPressDrag. De groepskoppen zijn de drop-zones.
+//   • tikken op een rij opent het taakdetail (MobileTaskSheet) met een
+//     beschrijving. Geen zijpaneel op een telefoon, dus een sheet.
 const SEGS = [{ key: 'mijn', label: 'Mijn taken' }, { key: 'proj', label: 'Projecten' }]
 
 export default function MobileTaken() {
-  const { tasks, projects, refresh } = useTasks()
+  const { tasks: rawTasks, projects, refresh } = useTasks()
+  const { merged: tasks, applyOptimistic } = useOptimisticTasks(rawTasks)
   const [seg, setSeg] = useState('mijn')
   const [projId, setProjId] = useState(null)
   const [newOpen, setNewOpen] = useState(false)
   const [backlogOpen, setBacklogOpen] = useState(false)
+  const [detailId, setDetailId] = useState(null)
   const [justDone, setJustDone] = useState(() => new Set())
 
   const complete = async (id) => {
@@ -32,6 +44,12 @@ export default function MobileTaken() {
     if (error) setJustDone(prev => { const n = new Set(prev); n.delete(id); return n })
     else refresh()
   }
+
+  // Elke mutatie langs één pad: eerst lokaal tonen, dan wegschrijven.
+  const mutate = useCallback(async (id, patch) => {
+    applyOptimistic(id, patch)
+    await supabase.from('tasks').update(patch).eq('id', id)
+  }, [applyOptimistic])
 
   // Optimistisch: afgevinkte rijen meteen weg, ook uit de tellers.
   const live = useMemo(() => tasks.filter(t => !justDone.has(t.id)), [tasks, justDone])
@@ -46,6 +64,32 @@ export default function MobileTaken() {
   const projActive = projList.filter(p => p.open.length > 0).length
   const counts = { mijn: mijn.length, proj: projActive }
   const proj = projList.find(p => p.id === projId) || null
+  const detailTask = detailId ? tasks.find(t => t.id === detailId) : null
+
+  // Sleep-doel → wat er verandert. 'backlog' parkeert (de prio blijft staan),
+  // een prio-groep zet de prio én haalt de taak zo nodig uit de backlog.
+  // Landt een taak waar hij al stond, dan gebeurt er niets — geen lege update
+  // die de realtime-lus wakker maakt.
+  const byId = useMemo(() => new Map(live.map(t => [t.id, t])), [live])
+  const onDropTask = useCallback((id, zone) => {
+    const t = byId.get(id)
+    if (!t) return
+    if (zone === 'backlog') {
+      if (t.in_backlog) return
+      return mutate(id, { in_backlog: true })
+    }
+    if (!PRIOS.includes(zone)) return
+    const patch = {}
+    if (prioOf(t) !== zone) patch.priority = mockupPrioToDb(zone)
+    if (t.in_backlog) patch.in_backlog = false
+    if (Object.keys(patch).length === 0) return
+    mutate(id, patch)
+  }, [byId, mutate])
+
+  const { drag, rowProps, swallowClick } = useLongPressDrag({ onDrop: onDropTask })
+  // Tijdens een sleep staan alle drie de groepen er, ook de lege: anders kun
+  // je niet naar een groep slepen die op dat moment toevallig geen taak heeft.
+  const groupKeys = drag ? PRIOS : PRIOS.filter(k => byPrio.has(k))
 
   // Sticky groepskoppen moeten ónder de sticky header blijven hangen →
   // header-hoogte als CSS-var op de container (data-driven, mag inline).
@@ -83,26 +127,43 @@ export default function MobileTaken() {
             </div>
           </header>
 
-          <div className="m-tk__body">
+          <div className="m-tk__body" onClickCapture={swallowClick}>
             {seg === 'mijn' ? (
               <>
-                {mijn.length === 0 && <div className="m-tk__empty">Geen open taken. Lekker bezig.</div>}
-                {PRIOS.filter(k => byPrio.has(k)).map(k => (
-                  <section key={k} className="m-tkgroup">
-                    <header className={`m-tkgroup__head m-tkgroup__head--${k}`}>
-                      <i className="m-tkgroup__mark" />{PRIO_LABEL[k]}<span>{byPrio.get(k).length}</span>
-                    </header>
-                    {byPrio.get(k).map(t => <MobileTaskRow key={t.id} task={t} onComplete={complete} />)}
-                  </section>
-                ))}
-                {backlog.length > 0 && (
+                {mijn.length === 0 && !drag && <div className="m-tk__empty">Geen open taken. Lekker bezig.</div>}
+                {groupKeys.map(k => {
+                  const rows = byPrio.get(k) || []
+                  return (
+                    <section key={k} data-dropzone={k}
+                      className={`m-tkgroup ${drag ? 'is-target' : ''} ${drag?.zone === k ? 'is-over' : ''}`}>
+                      <header className={`m-tkgroup__head m-tkgroup__head--${k}`}>
+                        <i className="m-tkgroup__mark" />{PRIO_LABEL[k]}<span>{rows.length}</span>
+                      </header>
+                      {rows.map(t => (
+                        <MobileTaskRow
+                          key={t.id} task={t} onComplete={complete} onTap={() => setDetailId(t.id)}
+                          dragging={drag?.id === t.id} dragProps={rowProps(t.id, t.title)}
+                        />
+                      ))}
+                      {rows.length === 0 && <div className="m-tkgroup__empty">Sleep een taak hierheen</div>}
+                    </section>
+                  )
+                })}
+                {(backlog.length > 0 || drag) && (
                   <>
-                    <button type="button" className="m-tk__backlog" onClick={() => setBacklogOpen(o => !o)} aria-expanded={backlogOpen}>
-                      Backlog · {backlog.length} geparkeerd {backlogOpen ? '▴' : '▾'}
+                    <button type="button" data-dropzone="backlog"
+                      className={`m-tk__backlog ${drag ? 'is-target' : ''} ${drag?.zone === 'backlog' ? 'is-over' : ''}`}
+                      onClick={() => setBacklogOpen(o => !o)} aria-expanded={backlogOpen}>
+                      Backlog · {backlog.length} geparkeerd {drag ? '— laat hier los om te parkeren' : (backlogOpen ? '▴' : '▾')}
                     </button>
                     {backlogOpen && (
                       <section className="m-tkgroup m-tkgroup--backlog">
-                        {backlog.map(t => <MobileTaskRow key={t.id} task={t} onComplete={complete} />)}
+                        {backlog.map(t => (
+                          <MobileTaskRow
+                            key={t.id} task={t} onComplete={complete} onTap={() => setDetailId(t.id)}
+                            dragging={drag?.id === t.id} dragProps={rowProps(t.id, t.title)}
+                          />
+                        ))}
                       </section>
                     )}
                   </>
@@ -122,6 +183,21 @@ export default function MobileTaken() {
         <MIcon name="plus" size={24} color="#fff" stroke={2.2} />
       </button>
       <MobileNewTask open={newOpen} onClose={() => setNewOpen(false)} onCreated={refresh} projectId={seg === 'proj' ? proj?.id : null} />
+
+      {/* Het sleepbeeld volgt de vinger. Positie is een gemeten afmeting, dus
+          inline (CLAUDE.md § conventies); alle vormgeving staat in mobile.css. */}
+      {drag && (
+        <div className="m-tkghost" style={{ left: `${drag.left}px`, top: `${drag.top}px`, width: `${drag.width}px` }} aria-hidden>
+          <span className="m-tkghost__title">{drag.label}</span>
+          <span className="m-tkghost__hint">
+            {drag.zone === 'backlog' ? '→ Backlog' : drag.zone ? `→ ${PRIO_LABEL[drag.zone]}` : 'sleep naar een groep'}
+          </span>
+        </div>
+      )}
+
+      {detailTask && (
+        <MobileTaskSheet task={detailTask} onClose={() => setDetailId(null)} onMutate={mutate} onComplete={complete} />
+      )}
     </div>
   )
 }

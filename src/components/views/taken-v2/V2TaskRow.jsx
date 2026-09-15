@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { dbPrioToMockup, mockupPrioToDb, playSuccessChime } from './v2-helpers'
 import { dueOf } from '../../../lib/taskViews'
@@ -17,7 +17,16 @@ import pops from './taken-v2-pops.module.css'
  *   variant 'board' → rood bolletje bij prio Hoog, geen subregel
  * Alle acties blijven: afvinken, dubbelklik-titel, type, prio, deadline,
  * backlog, verwijderen (met bevestiging), ⋯ detail, drag.
+ *
+ * v1.205 — één klik op de titel opent het detail-paneel; dubbelklik blijft
+ * hernoemen. Die twee bijten elkaar niet omdat de enkele klik een tel wacht
+ * (CLICK_DELAY_MS): komt er binnen die tijd een tweede klik, dan wint het
+ * hernoemen. En tijdens het hernoemen staat `draggable` uit — anders pakt
+ * Chrome het slepen van de rij op in plaats van het selecteren van tekst in
+ * het invoerveld.
  */
+const CLICK_DELAY_MS = 220
+
 export default function V2TaskRow({ task, hideDelete, draggable = false, variant = 'mijn', applyOptimistic, onOpenDetail }) {
   const [prioPopAnchor, setPrioPopAnchor] = useState(null)
   const [datePopAnchor, setDatePopAnchor] = useState(null)
@@ -72,17 +81,37 @@ export default function V2TaskRow({ task, hideDelete, draggable = false, variant
     await mutate({ title: nt })
   }, [draftTitle, t.title, mutate])
 
+  const [dragging, setDragging] = useState(false)
   const handleDragStart = (e) => {
     if (!draggable) return
     e.dataTransfer.setData('text/plain', task.id)
     e.dataTransfer.effectAllowed = 'move'
+    setDragging(true)
   }
+
+  // Enkele klik → detail, dubbelklik → hernoemen. De timer is de scheidsrechter.
+  const clickTimer = useRef(null)
+  useEffect(() => () => { if (clickTimer.current) clearTimeout(clickTimer.current) }, [])
+  const handleTitleClick = useCallback((e) => {
+    // Zonder eigen detail-actie (projectbord: de kaart eromheen doet het) niets
+    // tegenhouden — anders slikt deze rij de klik van zijn ouder op.
+    if (!onOpenDetail) return
+    e.stopPropagation()
+    if (clickTimer.current) clearTimeout(clickTimer.current)
+    clickTimer.current = setTimeout(() => { clickTimer.current = null; onOpenDetail(task.id) }, CLICK_DELAY_MS)
+  }, [onOpenDetail, task.id])
+  const handleTitleDouble = useCallback((e) => {
+    e.stopPropagation(); e.preventDefault()
+    if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null }
+    startEdit()
+  }, [startEdit])
 
   return (
     <div
-      className={[styles.row, done && styles.rowDone, justDone && styles.justDone, inBacklog && styles.rowBacklog].filter(Boolean).join(' ')}
-      draggable={draggable}
+      className={[styles.row, done && styles.rowDone, justDone && styles.justDone, inBacklog && styles.rowBacklog, dragging && styles.rowDragging].filter(Boolean).join(' ')}
+      draggable={draggable && !editing}
       onDragStart={handleDragStart}
+      onDragEnd={() => setDragging(false)}
       data-task-id={task.id}
     >
       <button
@@ -113,10 +142,11 @@ export default function V2TaskRow({ task, hideDelete, draggable = false, variant
           />
         ) : (
           <div
-            className={`${styles.title} ${done ? styles.titleDone : ''}`}
+            className={`${styles.title} ${done ? styles.titleDone : ''} ${onOpenDetail ? styles.titleClickable : ''}`}
             onMouseDown={e => { if (e.detail >= 2) e.preventDefault() }}
-            onDoubleClick={e => { e.stopPropagation(); e.preventDefault(); startEdit() }}
-            title="Dubbelklik om naam te bewerken"
+            onClick={handleTitleClick}
+            onDoubleClick={handleTitleDouble}
+            title={onOpenDetail ? 'Klik voor details + beschrijving · dubbelklik om te hernoemen' : 'Dubbelklik om naam te bewerken'}
           >
             {variant === 'board' && prio === 'hoog' && <span className={styles.prioDotInline} aria-label="Hoog" />}
             {t.title}
