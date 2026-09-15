@@ -8,9 +8,11 @@ import { eenheid as maakEenheid, FASE_KORT, FASE_UITLEG, kanaalLabel, BAND_LABEL
  * D1Detail — zone 4, de gedeelde sink van het Live-bord (D1-LIVE-INTERACTION.md).
  * Zeven ingangen, één paneel: week · fase · maand · waarde · beweging · kanaal
  * (UI: Leadsource) · band. De kop noemt altijd de herkomst, de chips de getallen
- * van de snede, de tabel de records met een HubSpot-deeplink per rij. Leeg
- * wordt het paneel via `◂ Overzicht` in de balk of Esc (D1View) — niet via een
- * tweede klik (v1.211).
+ * van de snede, de tabel de records met een HubSpot-deeplink per rij. Weg gaat
+ * het paneel via `◂ Overzicht` in de balk of Esc (D1View) — niet via een
+ * tweede klik (v1.211). **Sinds v1.212 bestaat het paneel alleen in focus:**
+ * D1View mount het pas bij een selectie, dus een lege staat ("klik een staaf")
+ * is er niet meer; zonder `gekozen` rendert dit component niets.
  *
  * **Kennismakingen (v1.211, Jelle 15-09-2026).** Achter een weekstaaf staan
  * altijd kantoorgrootte (advocaten, `totale_omvang`), de kennismakingdatum en
@@ -30,14 +32,6 @@ import { eenheid as maakEenheid, FASE_KORT, FASE_UITLEG, kanaalLabel, BAND_LABEL
  * scherm en draagt de kop `◂ Overzicht` — daar is geen kaartkop in beeld die
  * hem kan dragen (dl-detail__terug, alleen zichtbaar onder 1000 px).
  */
-const LEEG = (
-  <div className="dl-leeg">
-    <div className="dl-leeg__ph" aria-hidden><i style={{ height: '30%' }} /><i style={{ height: '55%' }} /><i className="on" style={{ height: '80%' }} /><i style={{ height: '40%' }} /><i style={{ height: '62%' }} /></div>
-    <div className="dl-leeg__t1">Klik een staaf of band</div>
-    <div className="dl-leeg__t2">De deals erachter verschijnen hier, met een link naar HubSpot.</div>
-  </div>
-)
-
 const Link = d => (d.hubspot_url ? <a href={d.hubspot_url} target="_blank" rel="noreferrer" title="Open in HubSpot" className="dl-hs">↗</a> : null)
 const kantoor = (d, extra) => (
   <span className="dl-cel">
@@ -171,11 +165,7 @@ export default function D1Detail({ gekozen, deals, aanvoerDeals, bewegingDeals, 
     }
   }, [gekozen, deals, aanvoerDeals, bewegingDeals, eenheid])
 
-  if (!gekozen || !uit) {
-    return (
-      <DetailPaneel leegTekst={LEEG} />
-    )
-  }
+  if (!gekozen || !uit) return null
   const { chips, kolommen, extra, rijen, uitView, sort, voet, leeg } = uit
   return (
     <DetailPaneel

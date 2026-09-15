@@ -34,8 +34,12 @@
   background: var(--dl-paper-3); color: var(--dl-n700);
 }
 
-/* ── werk: master (kaartgrid) + sink (300 px) ─────────────── */
-.bs--d1-live .bs__werk { grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; }
+/* ── werk: idle = alleen de kaartgrid, volle breedte ────────
+   Sinds v1.212 (Jelle 15-09-2026) is er in idle geen sink: D1View
+   geeft `detail` pas mee als er een selectie is, dus de werkrij
+   heeft één kolom. De 300 px-kolom met "klik een staaf" was een
+   instructie op de plek van data. */
+.bs--d1-live .bs__werk { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .bs--d1-live .bs-paneel { border-radius: 12px; border-color: var(--dl-border); }
 
 .dl-grid { display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; min-height: 0; min-width: 0; }
@@ -166,27 +170,18 @@
 .bs--d1-live .bs-paneel__voet { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10.5px; background: var(--dl-card); }
 .dl-detail__bron { flex-basis: 100%; color: var(--dl-n500); }
 
-/* lege sink */
-.bs--d1-live .bs-detail__leeg { flex-direction: column; }
-.dl-leeg { display: flex; flex-direction: column; align-items: center; text-align: center; }
-.dl-leeg__ph {
-  width: 160px; height: 96px; margin-bottom: 18px; padding: 0 20px 16px;
-  display: flex; align-items: flex-end; gap: 8px;
-  border: 1.5px dashed var(--dl-n300); border-radius: 10px;
-}
-.dl-leeg__ph i { display: block; flex: 1; background: var(--dl-paper-3); border-radius: 3px 3px 0 0; }
-.dl-leeg__ph i.on { background: var(--dl-orange-subtle); border: 1px dashed var(--dl-orange); }
-.dl-leeg__t1 { font-size: 13.5px; font-weight: 600; color: var(--dl-n700); }
-.dl-leeg__t2 { margin-top: 4px; max-width: 220px; font-size: 12px; line-height: 1.5; color: var(--dl-n500); }
+/* Geen lege sink meer (v1.212): de detailkolom bestaat alleen in focus. */
 
 /* ── focus-split (v1.210, Jelle 2026-09-15) ──────────────────
    Mét een selectie laat het bord de grid los: één kaart links
-   (≈ 52 %), de sink breed rechts (≈ 48 %). De kolommen schuiven
-   (grid-template-columns is animeerbaar), de kaartinhoud fadet.
-   Geen modal, geen overlay: de zes andere kaarten zijn er niet. */
-.bs--d1-live .bs__werk { transition: grid-template-columns .22s ease-out; }
+   (≈ 52 %), de sink breed rechts (≈ 48 %). Sinds v1.212 komt de
+   sinkkolom er pas bij in focus (idle is één kolom); tussen één
+   en twee sporen valt niets te interpoleren, dus geen kolom-
+   transitie meer — kaart én sink faden in. Geen modal, geen
+   overlay: de zes andere kaarten zijn er niet. */
 .bs--d1-live.is-focus .bs__werk { grid-template-columns: minmax(0, 1.07fr) minmax(0, 1fr); }
 .dl-focus { display: flex; min-height: 0; min-width: 0; animation: dl-fade .16s ease-out .04s both; }
+.bs--d1-live.is-focus .bs-paneel[data-zone="detail"] { animation: dl-fade .16s ease-out .04s both; }
 .dl-focus > .dl-kaart { flex: 1; padding: 14px 18px 12px; }
 @keyframes dl-fade { from { opacity: 0; } to { opacity: 1; } }
 
@@ -210,9 +205,23 @@
 }
 .dl-terug:hover { background: var(--dl-paper); border-color: var(--dl-n300); color: var(--dl-ink); }
 .dl-terug:focus-visible { outline: 2px solid var(--dl-ink); outline-offset: 1px; }
-/* In de witte balk, naast Live | Monthly (v1.211): dezelfde knop, alleen in
-   focus gerenderd (D1View). Op de telefoon draagt de detailkop hem (hieronder). */
-.bs__balk .dl-terug--balk { margin: 0 2px 0 4px; }
+/* In de witte balk, als eérste knop vóór Live | Monthly (v1.212; in v1.211 stond
+   hij ernaast als stille zusterchip). Alleen in focus gerenderd (D1View), en dan
+   primair: ink op wit, zodat de weg terug niet zoekt tussen de tabs. Een dunne
+   scheidslijn erachter houdt hem los van de tabs. Op de telefoon draagt de
+   detailkop hem (hieronder). */
+.bs__balk .dl-terug--balk {
+  position: relative; height: 28px; margin: 0 14px 0 0; padding: 0 12px 0 10px;
+  border-color: var(--dl-ink); background: var(--dl-ink); color: #fff;
+  font-weight: 600; font-size: 12.5px; letter-spacing: .01em;
+  box-shadow: 0 1px 2px rgba(44,24,16,.18);
+}
+.bs__balk .dl-terug--balk:hover { background: var(--dl-orange-deep); border-color: var(--dl-orange-deep); color: #fff; }
+.bs__balk .dl-terug--balk:focus-visible { outline: 2px solid var(--dl-orange); outline-offset: 2px; }
+.bs__balk .dl-terug--balk::after {
+  content: ""; position: absolute; right: -10px; top: 50%; transform: translateY(-50%);
+  width: 1px; height: 16px; background: var(--dl-border);
+}
 .dl-sw--sel { background: var(--dl-paper); border: 1px solid var(--dl-ink); }
 .dl-detail__terug { display: none; }
 
@@ -239,13 +248,11 @@
 .dl-cel__gat { color: var(--dl-error); }
 
 @media (prefers-reduced-motion: reduce) {
-  .bs--d1-live .bs__werk { transition: none; }
-  .dl-focus { animation: none; }
+  .dl-focus, .bs--d1-live.is-focus .bs-paneel[data-zone="detail"] { animation: none; }
 }
 
 /* ── smaller dan 1240 px: drie kaarten per rij wordt krap ── */
 @media (max-width: 1240px) {
-  .bs--d1-live .bs__werk { grid-template-columns: minmax(0, 1fr) 280px; }
   .bs--d1-live.is-focus .bs__werk { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .dl-grid--lic .dl-rij--1 { grid-template-columns: 1.4fr 1fr 1fr; }
   .dl-grid--lic .dl-rij--1 > .dl-kaart--waarde { display: none; }
@@ -259,7 +266,7 @@
 @media (max-width: 1000px) {
   .bs--d1-live { padding: 16px 14px 24px; }
   .bs--d1-live .bs__balk { margin: -16px -14px 0; padding: 8px 14px; }
-  .bs--d1-live .bs__werk { grid-template-columns: 1fr; transition: none; }
+  .bs--d1-live .bs__werk { grid-template-columns: 1fr; }
   /* Focus-split op de telefoon = geen naast-elkaar: de kaart verdwijnt, de sink
      vult het scherm en draagt zelf `◂ Overzicht` (D1Detail). */
   .bs--d1-live.is-focus .bs__werk { grid-template-columns: 1fr; }

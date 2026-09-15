@@ -43,6 +43,13 @@ import './live/d1live.css'
  *   • het kennismakingen-detail draagt altijd kantoorgrootte, kennismakingdatum
  *     en pipeline.
  *
+ * Polish 2 v1.212 (Jelle 15-09-2026 ~20:41, D1-LIVE-POLISH-2-IDLE.md):
+ *   • idle heeft géén detailkolom meer — `detail` is null tot er een selectie is
+ *     en de zeven kaarten krijgen de hele breedte; de lege "klik een staaf"-sink
+ *     bestaat niet meer;
+ *   • `◂ Overzicht` is de eerste, primaire knop in de balk (vóór Live | Monthly),
+ *     nog steeds alleen in focus; Esc blijft stil, geen tweede-klik-wissen.
+ *
  * Dit bord rekent niet. Elk getal komt uit de `v_d1_*`-laag (migratie
  * 20260915130000); de kaarten kiezen alleen hoe het getoond wordt.
  */
@@ -138,18 +145,20 @@ export default function D1View() {
       }
       filters={
         <>
-          <BordTabs tabs={[
-            { id: 'live', label: 'Live', actief: true },
-            { id: 'monthly', label: 'Monthly', actief: false, onClick: () => nav('/pipeline/kwartaal') },
-          ]} />
           {/* De ene weg terug uit de focus-split (naast Esc). Alleen in focus:
               buiten focus is er niets om naar terug te gaan, en een knop die
-              niets doet is ruis in de balk. */}
+              niets doet is ruis in de balk. Eérste in de balk en primair
+              (v1.212, Jelle 15-09-2026: "prominenter, vóór Live | Monthly") —
+              in focus is terug de handeling die je het vaakst nodig hebt. */}
           {focus && (
             <button type="button" className="dl-terug dl-terug--balk" onClick={terug} title="Terug naar het overzicht (Esc)">
               ◂ Overzicht
             </button>
           )}
+          <BordTabs tabs={[
+            { id: 'live', label: 'Live', actief: true },
+            { id: 'monthly', label: 'Monthly', actief: false, onClick: () => nav('/pipeline/kwartaal') },
+          ]} />
           <BordPeriode
             opties={[{ id: 'half', label: '6 maanden', kort: '6 mnd' }, { id: 'kwartaal', label: 'Dit kwartaal', kort: 'kwartaal' }]}
             actief={periode}
@@ -205,7 +214,10 @@ export default function D1View() {
       className={`bs--d1 bs--d1-live${focus ? ' is-focus' : ''}`}
       kop={kop}
       master={<D1Live data={data} modus={modus} periode={periode} gekozen={gekozen} onKies={setGekozen} />}
-      detail={<D1Detail gekozen={gekozen} deals={data.deals} aanvoerDeals={data.aanvoerDeals} bewegingDeals={data.bewegingDeals} pipeline={data.pipeline} modus={modus} meta={meta} focus={focus} onTerug={terug} />}
+      /* Geen sink in idle (v1.212): de zeven kaarten krijgen de hele breedte, de
+         detailkolom bestaat pas als er iets te tonen is. Een lege "klik een
+         staaf"-kolom van 300 px was een instructie op de plek van data. */
+      detail={focus ? <D1Detail gekozen={gekozen} deals={data.deals} aanvoerDeals={data.aanvoerDeals} bewegingDeals={data.bewegingDeals} pipeline={data.pipeline} modus={modus} meta={meta} focus onTerug={terug} /> : null}
     />
   )
 }

@@ -10,9 +10,10 @@ import { eenheid as maakEenheid, snedeKort } from './labels'
 
 /**
  * D1Live — het bord van Design ronde 5: twee rijen kaarten (Deals: 3 + 3,
- * Licenties: 4 + 3 met Waarde erbij) die samen de master vormen; de sink staat
- * rechts (D1Detail). Eén selectie-state voor het hele bord, één toggle voor de
- * eenheid — beide komen van D1View.
+ * Licenties: 4 + 3 met Waarde erbij) die samen de master vormen en in idle de
+ * hele breedte krijgen (v1.212: geen lege sink meer); de sink (D1Detail) komt
+ * er rechts bij zodra er een selectie is. Eén selectie-state voor het hele
+ * bord, één toggle voor de eenheid — beide komen van D1View.
  *
  * **Focus-split (v1.210, Jelle 2026-09-15: "zoals jij het voorstelde").** Is er
  * een snede gekozen, dan laat het bord de grid los: alleen de kaart waar die
