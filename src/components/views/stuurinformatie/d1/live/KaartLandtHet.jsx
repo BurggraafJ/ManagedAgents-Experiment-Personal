@@ -2,7 +2,7 @@ import Kaart from './Kaart'
 import Maandstapel from '../../../../ui/charts/visx/Maandstapel'
 import { useTip } from '../../../../ui/charts/visx/Tip'
 import { maandKort } from '../../format'
-import { faseZin } from './labels'
+import { faseZin, FASE_UITLEG_12 } from './labels'
 
 /**
  * Landt het? — forecast op beslisdatum (verwachte start van de proef, nooit
@@ -35,7 +35,7 @@ export default function KaartLandtHet({ forecast, periode, eenheid, gekozen, onK
     const regels = seg === 'f3'
       ? [faseZin(3), `${eenheid.fmt(w(b.f3))} ${eenheid.naam}`]
       : seg === 'f12'
-        ? ['Fase 1–2 · indicatief', `${eenheid.fmt(w(b.f12))} ${eenheid.naam}`]
+        ? [`Fase 1–2 · ${FASE_UITLEG_12} · indicatief`, `${eenheid.fmt(w(b.f12))} ${eenheid.naam}`]
         : [`fase 3 ${eenheid.fmt(w(b.f3))} · fase 1–2 ${eenheid.fmt(w(b.f12))} ${eenheid.naam}`]
     toon(e, { kop: naam, regels, zin: k.soort === 'geen' ? 'zonder beslisdatum · hygiëne: datum invullen in HubSpot' : 'beslisdatum in deze maand (forecast)' })
   }

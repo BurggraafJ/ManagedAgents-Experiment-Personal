@@ -18,21 +18,37 @@ import './live/d1live.css'
  *
  * Vorm sinds v1.209 (Design ronde 5, Jelle-lock 2026-09-15): zeven kaarten met
  * Visx-charts in twee rijen — Kennismakingen · Tijd in fase · Landt het? ·
- * (Waarde) · Beweging · Kanaal · Kantoorgrootte — en één detail-sink rechts.
+ * (Waarde) · Beweging · Leadsource · Kantoorgrootte — en één detail-sink rechts.
  * Geen HeroStrip, geen Aanvoerstrip, geen werktellers: PR #128 is afgewezen en
  * dit bord is opnieuw gebouwd vanuit het ontwerp, niet vanuit de vorige code.
  *
  * Wat vast ligt (skill dashboard-build-preferences):
- *   • witte standaardbalk: Live | Monthly · periodefilter — Deals | Licenties · ● Sync
- *   • één selectie-state voor het hele bord; tweede klik = leeg (D1Live)
+ *   • witte standaardbalk: Live | Monthly · [◂ Overzicht] · periodefilter — Deals | Licenties · ● Sync
+ *   • één selectie-state voor het hele bord (D1Live)
  *   • hover = één zin + de getallen van de snede; klik = de records in de sink
  *   • de pagina scrollt niet (BordShell); onder 1000 px stapelen de kaarten
  *
  * Focus-split (v1.210, Jelle 2026-09-15): mét een selectie wordt het bord een
  * 50/50 — alleen de gekozen kaart links, de sink breed rechts. `is-focus` op de
- * shell stuurt de kolommen (d1live.css); Esc, `◂ Overzicht` en de tweede klik
- * maken de selectie leeg. Op een telefoon is er geen naast-elkaar: de sink vult
- * het scherm en draagt zelf de terugknop (D1Detail).
+ * shell stuurt de kolommen (d1live.css). Op een telefoon is er geen
+ * naast-elkaar: de sink vult het scherm en draagt zelf de terugknop (D1Detail).
+ *
+ * Polish v1.211 (Jelle 15-09-2026, D1-LIVE-POLISH-2026-09-15.md):
+ *   • de weg terug is één knop, `◂ Overzicht` in de balk naast Live | Monthly,
+ *     alleen zichtbaar in focus; Esc blijft als stille sneltoets (geen hint);
+ *     de tweede klik op dezelfde snede wist niets meer;
+ *   • geen vraagregel en geen meta meer boven het bord — de kop is de balk;
+ *     het Sync-paneel opent alleen nog op klik (`stil`), niet op hover;
+ *   • Kanaal heet in de UI Leadsource (de data blijft `hs_analytics_source`);
+ *   • het kennismakingen-detail draagt altijd kantoorgrootte, kennismakingdatum
+ *     en pipeline.
+ *
+ * Polish 2 v1.212 (Jelle 15-09-2026 ~20:41, D1-LIVE-POLISH-2-IDLE.md):
+ *   • idle heeft géén detailkolom meer — `detail` is null tot er een selectie is
+ *     en de zeven kaarten krijgen de hele breedte; de lege "klik een staaf"-sink
+ *     bestaat niet meer;
+ *   • `◂ Overzicht` is de eerste, primaire knop in de balk (vóór Live | Monthly),
+ *     nog steeds alleen in focus; Esc blijft stil, geen tweede-klik-wissen.
  *
  * Dit bord rekent niet. Elk getal komt uit de `v_d1_*`-laag (migratie
  * 20260915130000); de kaarten kiezen alleen hoe het getoond wordt.
@@ -57,7 +73,7 @@ export default function D1View() {
   }, [focus])
 
   // Mobiel: de sink komt in plaats van de kaarten en begint bóven, niet waar
-  // je net Kanaal stond te lezen.
+  // je net Leadsource stond te lezen.
   useEffect(() => {
     if (!focus || typeof window === 'undefined' || !window.matchMedia('(max-width: 1000px)').matches) return
     document.querySelector('.bs--d1-live')?.scrollIntoView({ block: 'start' })
@@ -90,7 +106,7 @@ export default function D1View() {
     }
     uit.push(`${getal(meta.closedate_onbruikbaar)} van ${getal(meta.open_deals)} open deals heeft geen bruikbare afsluitdatum (${getal(meta.closedate_leeg)} leeg, ${getal(meta.closedate_verlopen)} verlopen). Dit bord forecast daarom op beslisdatum, de verwachte start van de proef.`)
     const zonderBron = (data.kanaal || []).find(k => k.onbekend)?.aantal || 0
-    if (zonderBron > 0) uit.push(`${getal(zonderBron)} van ${getal(meta.open_deals)} open deals heeft geen bron (hs_analytics_source). De kaart Kanaal toont ze als eigen slice.`)
+    if (zonderBron > 0) uit.push(`${getal(zonderBron)} van ${getal(meta.open_deals)} open deals heeft geen leadsource (hs_analytics_source). De kaart Leadsource toont ze als eigen slice.`)
     const zonderFase = (data.aging || []).reduce((s, r) => s + (r.zonder_fasedatum || 0), 0)
     if (zonderFase > 0) uit.push(`${getal(zonderFase)} open deals hebben geen datum waarop ze hun fase bereikten; ze tellen niet mee in mediaan en P90 van Tijd in fase.`)
     if (!meta.segment_bruikbaar) uit.push(`${getal(meta.companies_met_omvang)} van ${getal(meta.companies_zichtbaar)} companies draagt kantoorgrootte; deals zonder staan in Kantoorgrootte als "onbekend".`)
@@ -106,27 +122,39 @@ export default function D1View() {
   const voetnoot = (
     <>
       Bron: HubSpot-mirror (<code>hubspot_deals</code>) via <code>v_d1_*</code> · fase-indeling uit <code>dim_stage_fase</code> ·
-      doel uit <code>dash_parameters</code> · kanaal = <code>hs_analytics_source</code> · tijd in fase uit <code>hs_v2_date_entered_*</code>.
+      doel uit <code>dash_parameters</code> · leadsource = <code>hs_analytics_source</code> · pipeline uit <code>hubspot_pipelines</code> · tijd in fase uit <code>hs_v2_date_entered_*</code>.
       Beslisdatum = <code>verwachte_start_pilot</code>. Licenties = (bodem + plafond) / 2 over gewaardeerde deals.
       {refreshedAt && <> Scherm ververst {refreshedAt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}, daarna elke 5 minuten.</>}
     </>
   )
 
   const geenRechten = !loading && !error && !schemaMissing && (meta?.deals_zichtbaar ?? 0) === 0
+  const terug = () => setGekozen(null)
 
+  // Geen `vraag` en geen `meta` (v1.211): de vraag staat op de D1-pagina in
+  // Confluence en in de paginatitel; hier kostte hij 40 px en las hij als kop
+  // boven een bord dat al een kop heeft.
   const kop = (
     <BordKop
-      vraag={<>Komt er genoeg van de <em>juiste</em> kantoren binnen, en landt het op tijd?</>}
-      meta={<>sales-weekly · <b>Jay</b> met <b>Jelle</b> <span className="dl-units">units: {modus === 'lic' ? 'licenties' : 'deals'}</span></>}
       vertrouwen={
         <DataStatusBar
           variant="kop" peildatum={meta?.peildatum} minutenOud={meta?.minuten_oud} verouderd={!!meta?.mirror_verouderd}
           bronnen={bronnen} meldingen={meldingen} caveat={caveat} zin={zin} voetnoot={voetnoot}
-          ververs={{ onClick: refresh, bezig: loading }}
+          ververs={{ onClick: refresh, bezig: loading }} stil
         />
       }
       filters={
         <>
+          {/* De ene weg terug uit de focus-split (naast Esc). Alleen in focus:
+              buiten focus is er niets om naar terug te gaan, en een knop die
+              niets doet is ruis in de balk. Eérste in de balk en primair
+              (v1.212, Jelle 15-09-2026: "prominenter, vóór Live | Monthly") —
+              in focus is terug de handeling die je het vaakst nodig hebt. */}
+          {focus && (
+            <button type="button" className="dl-terug dl-terug--balk" onClick={terug} title="Terug naar het overzicht (Esc)">
+              ◂ Overzicht
+            </button>
+          )}
           <BordTabs tabs={[
             { id: 'live', label: 'Live', actief: true },
             { id: 'monthly', label: 'Monthly', actief: false, onClick: () => nav('/pipeline/kwartaal') },
@@ -181,14 +209,15 @@ export default function D1View() {
     )
   }
 
-  const terug = () => setGekozen(null)
-
   return (
     <BordShell
       className={`bs--d1 bs--d1-live${focus ? ' is-focus' : ''}`}
       kop={kop}
-      master={<D1Live data={data} modus={modus} periode={periode} gekozen={gekozen} onKies={setGekozen} onTerug={terug} />}
-      detail={<D1Detail gekozen={gekozen} deals={data.deals} aanvoerDeals={data.aanvoerDeals} bewegingDeals={data.bewegingDeals} modus={modus} meta={meta} focus={focus} onTerug={terug} />}
+      master={<D1Live data={data} modus={modus} periode={periode} gekozen={gekozen} onKies={setGekozen} />}
+      /* Geen sink in idle (v1.212): de zeven kaarten krijgen de hele breedte, de
+         detailkolom bestaat pas als er iets te tonen is. Een lege "klik een
+         staaf"-kolom van 300 px was een instructie op de plek van data. */
+      detail={focus ? <D1Detail gekozen={gekozen} deals={data.deals} aanvoerDeals={data.aanvoerDeals} bewegingDeals={data.bewegingDeals} pipeline={data.pipeline} modus={modus} meta={meta} focus onTerug={terug} /> : null}
     />
   )
 }

@@ -43,7 +43,7 @@ export default function KaartKantoorgrootte({ grootte, meta, eenheid, gekozen, o
       label="Kantoorgrootte"
       meta="advocaten"
       sub={`${eenheid.fmt(lic ? tot : (meta?.open_deals ?? tot))} ${lic ? 'lic (mid)' : 'open'} · fase-mix per band`}
-      legenda={[{ swatch: 'o', tekst: 'F3' }, { swatch: 'od', tekst: 'F2' }, { swatch: 'g', tekst: 'F1' }]}
+      legenda={[{ swatch: 'o', tekst: 'F3', titel: faseZin(3) }, { swatch: 'od', tekst: 'F2', titel: faseZin(2) }, { swatch: 'g', tekst: 'F1', titel: faseZin(1) }]}
       voetExtra={<><span>kern = ICP2</span><span className="dl-badge">{eenheid.fmt(close30)} {lic ? 'lic' : 'close'} ≤ 30 d</span></>}
       tip={tip}
     >

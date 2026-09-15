@@ -44,6 +44,11 @@ import './data-status-bar.css'
  *   zin         kop: de volle zin, bovenin het paneel
  *   voetnoot    kop: de bronregel onderin het paneel
  *   ververs     kop: { onClick, bezig } — de knop Ververs in het paneel
+ *   stil        kop: het paneel opent alleen op klik/tap of toetsenbordfocus, niet
+ *               op hover (v1.211, Jelle 15-09-2026: op D1 Live staat ● Sync naast
+ *               de toggle Deals | Licenties, en elke muisbeweging daarheen klapte
+ *               het telegram `actueel · n min / Wat ontbreekt (n)` open). D9 en
+ *               D10 houden hover; de tooltip op de knop blijft overal.
  */
 const STATUS_WOORD = { groen: 'groen', geel: 'geel', rood: 'rood' }
 
@@ -88,6 +93,7 @@ export default function DataStatusBar({
   zin = null,
   voetnoot = null,
   ververs = null,
+  stil = false,
 }) {
   const leeftijd = leeftijdLabel(minutenOud)
 
@@ -104,6 +110,7 @@ export default function DataStatusBar({
         voetnoot={voetnoot}
         actie={actie}
         ververs={ververs}
+        stil={stil}
       />
     )
   }
@@ -165,8 +172,12 @@ export default function DataStatusBar({
  *     ook als de muis er nog boven staat (`gesloten`, tot de muis weggaat).
  * Zonder die laatste regel zou een klik op een al-gehoverd paneel niets doen,
  * en op een telefoon is de tap de enige weg.
+ *
+ * `stil` haalt de hoverweg eruit. Dan telt alleen zíchtbare toetsenbordfocus
+ * (`:focus-visible`) als focus-open: een muisklik focust de knop óók, en zou
+ * anders eerst openen en in dezelfde klik weer sluiten.
  */
-function SyncGroep({ peildatum, leeftijd, verouderd, bronnen, meldingen, caveat, zin, voetnoot, actie, ververs }) {
+function SyncGroep({ peildatum, leeftijd, verouderd, bronnen, meldingen, caveat, zin, voetnoot, actie, ververs, stil = false }) {
   const [vast, setVast] = useState(false)
   const [zweeft, setZweeft] = useState(false)
   const [gesloten, setGesloten] = useState(false)
@@ -191,9 +202,9 @@ function SyncGroep({ peildatum, leeftijd, verouderd, bronnen, meldingen, caveat,
       className={`dsb dsb--kop dsb--${status} ${verouderd ? 'dsb--verouderd' : ''}`}
       data-zone="vertrouwen"
       ref={wrap}
-      onMouseEnter={() => setZweeft(true)}
+      onMouseEnter={() => { if (!stil) setZweeft(true) }}
       onMouseLeave={() => { setZweeft(false); setGesloten(false) }}
-      onFocus={() => setZweeft(true)}
+      onFocus={(e) => { if (!stil || e.target.matches?.(':focus-visible')) setZweeft(true) }}
       onBlur={(e) => { if (!wrap.current?.contains(e.relatedTarget)) setZweeft(false) }}
       onKeyDown={(e) => { if (e.key === 'Escape') sluit() }}
     >

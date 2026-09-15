@@ -69,7 +69,8 @@ const knop = tekst => () => Array.from(document.querySelectorAll('button')).find
 const aria = prefix => () => Array.from(document.querySelectorAll('[aria-label]')).find(el => el.getAttribute('aria-label').startsWith(prefix))
 const legenda = tekst => () => Array.from(document.querySelectorAll('.dl-klegenda__rij')).find(el => el.textContent.includes(tekst))
 const sync = () => document.querySelector('.dsb__sync')
-const terug = () => document.querySelector('.dl-focus .dl-terug') || document.querySelector('.dl-detail__terug')
+// v1.211: de weg terug staat in de balk (desktop) of in de detailkop (mobiel).
+const terug = () => document.querySelector('.bs__balk .dl-terug--balk') || document.querySelector('.dl-detail__terug')
 const altijd = () => document.body
 
 const views = {
@@ -85,10 +86,13 @@ const views = {
   'focus-kanaal': <Doe stappen={[{ vind: legenda('Onbekend') }]}><Desktop /></Doe>,
   // Andere snede op dezelfde kaart: Fase 3 → Fase 1. De kaart blijft in focus, alleen de sink wisselt.
   'focus-wissel': <Doe stappen={[{ vind: aria('Fase 3') }, { vind: aria('Fase 1') }]}><Desktop /></Doe>,
-  // De drie wegen terug — elk moet de idle grid teruggeven (identiek aan `desktop`).
+  // De twee wegen terug — elk moet de idle grid teruggeven (identiek aan `desktop`).
   'focus-terug': <Doe stappen={[{ vind: aria('Fase 3') }, { vind: terug }]}><Desktop /></Doe>,
   'focus-esc': <Doe stappen={[{ vind: aria('Fase 3') }, { vind: altijd, actie: 'toets', key: 'Escape' }]}><Desktop /></Doe>,
+  // v1.211: een tweede klik op dezelfde snede wist níét meer — deze shot moet identiek zijn aan `focus-fase3`.
   'focus-tweede-klik': <Doe stappen={[{ vind: aria('Fase 3') }, { vind: aria('Fase 3') }]}><Desktop /></Doe>,
+  // Kantoorgrootte-band in focus: de fase-uitleg als eerste chip in de sink.
+  'focus-band': <Doe stappen={[{ vind: aria('5–16') }]}><Desktop /></Doe>,
   // Hover-tooltip: focus op de W36-staaf toont dezelfde tip als de muis.
   hover: <Doe stappen={[{ vind: aria('36 ·'), actie: 'focus' }]}><Desktop /></Doe>,
   // Hover blijft óók in focus: Fase 3 geklikt, dan de Fase 1-rij gefocust → tip op de ene kaart.

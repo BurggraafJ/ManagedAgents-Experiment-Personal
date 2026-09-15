@@ -5,12 +5,18 @@ import { getal } from '../../format'
 import { kanaalLabel, KANAAL_KLEUR, KANAAL_SWATCH } from './labels'
 
 /**
- * Kanaal — waar de open deals vandaan komen (`hs_analytics_source`), als donut
- * (Design ronde 5): slices vanaf 12 uur op grootte, Onbekend als laatste slice
- * uit de ring geschoven en gearceerd, centrum = het geheel (`33 open` of
+ * Leadsource — waar de open deals vandaan komen (`hs_analytics_source`), als
+ * donut (Design ronde 5): slices vanaf 12 uur op grootte, Onbekend als laatste
+ * slice uit de ring geschoven en gearceerd, centrum = het geheel (`33 open` of
  * `305 lic mid`), legenda met N + %, hygiëne-voet in error-rood. Percentages
  * zijn afgerond op hele procenten en tellen dus soms op tot 99 of 101 — dat is
  * normaal en wordt niet "gefixt".
+ *
+ * Het woord: in de UI heet dit sinds v1.211 **Leadsource** (Jelle 15-09-2026),
+ * het woord dat Sales in HubSpot gebruikt. Onder de motorkap blijft alles
+ * `kanaal` — bestand, component, `soort`, view `v_d1_kanaal`, CSS — omdat een
+ * hernoeming daar zeven bestanden en een migratie raakt zonder dat iemand het
+ * ziet. Alleen wat de kijker leest is hernoemd.
  */
 export default function KaartKanaal({ kanaal, meta, eenheid, gekozen, onKies }) {
   const { tip, toon, verberg } = useTip()
@@ -28,9 +34,9 @@ export default function KaartKanaal({ kanaal, meta, eenheid, gekozen, onKies }) 
   const hover = (e, s) => toon(e, {
     kop: s.label,
     regels: [`${eenheid.fmt(s.waarde)} ${eenheid.naam} · ${pct(s.waarde)} %`],
-    zin: s.onbekend ? 'geen bron vastgelegd · vul hs_analytics_source in HubSpot' : 'eerste bron (hs_analytics_source)',
+    zin: s.onbekend ? 'geen leadsource vastgelegd · vul hs_analytics_source in HubSpot' : 'leadsource = eerste bron van de deal (hs_analytics_source)',
   })
-  const kies = s => onKies({ soort: 'kanaal', sleutel: s.key, label: `Kanaal · ${s.label}`, slice: s })
+  const kies = s => onKies({ soort: 'kanaal', sleutel: s.key, label: `Leadsource · ${s.label}`, slice: s })
 
   const Legenda = ({ s, i }) => {
     const gek = gekozen?.soort === 'kanaal' && gekozen.sleutel === s.key
@@ -52,14 +58,14 @@ export default function KaartKanaal({ kanaal, meta, eenheid, gekozen, onKies }) 
   return (
     <Kaart
       className="dl-kaart--kanaal"
-      label="Kanaal"
-      meta="bron"
+      label="Leadsource"
+      meta="eerste bron"
       sub={eenheid.lic ? `${eenheid.fmt(tot)} lic open (mid) · ${getal(meta?.open_deals ?? 0)} deals` : `${getal(open)} open deals`}
       voetExtra={
         <span className="dl-kaart__voetblok">
           {onbekend && onbekend.aantal > 0
-            ? <><span className="dl-warnline">{eenheid.lic ? `${eenheid.fmt(w(onbekend))} lic` : `${getal(onbekend.aantal)} deals`} zonder bron</span><span>hygiëne: kanaal invullen in HubSpot</span></>
-            : <span>alle open deals dragen een bron</span>}
+            ? <><span className="dl-warnline">{eenheid.lic ? `${eenheid.fmt(w(onbekend))} lic` : `${getal(onbekend.aantal)} deals`} zonder leadsource</span><span>hygiëne: leadsource invullen in HubSpot</span></>
+            : <span>alle open deals dragen een leadsource</span>}
         </span>
       }
       tip={tip}

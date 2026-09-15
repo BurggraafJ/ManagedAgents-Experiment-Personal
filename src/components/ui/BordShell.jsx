@@ -82,7 +82,8 @@ export default function BordShell({ className = '', kop, antwoord, kernzin, mast
  * in Confluence.
  *
  * Props:
- *   vraag       de vraag die dit bord beantwoordt
+ *   vraag       de vraag die dit bord beantwoordt (optioneel sinds v1.211: zonder
+ *               vraag én meta is er geen regel A — D1 Live draagt alleen de balk)
  *   meta        eigenaar en ritme — tekst, rechts op de vraagregel
  *   vertrouwen  zone 5 — `<DataStatusBar variant="kop">`: `● Sync` + paneel, met
  *               Ververs erin (prop `ververs`), rechts in de balk
@@ -116,10 +117,14 @@ export function BordKop({ vraag, meta, vertrouwen, filters, acties, rechts = nul
         </div>
       )}
 
-      <div className="bs__kop-onder">
-        <h2 className="bs__vraag">{vraag}</h2>
-        {meta && <span className="bs__meta">{meta}</span>}
-      </div>
+      {/* Geen vraag en geen meta → geen regel A (v1.211, Jelle 15-09-2026: D1 Live
+          draagt alleen de balk; een lege h2 is een leeg slot, geen kop). */}
+      {(vraag || meta) && (
+        <div className="bs__kop-onder">
+          {vraag && <h2 className="bs__vraag">{vraag}</h2>}
+          {meta && <span className="bs__meta">{meta}</span>}
+        </div>
+      )}
     </div>
   )
 }

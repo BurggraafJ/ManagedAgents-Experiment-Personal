@@ -18,8 +18,15 @@ import { supabase } from '../lib/supabase'
  *   v_d1_fase_aging          mediaan · P90 · te lang per fase (Tijd in fase)
  *   v_d1_forecast_per_maand  fase 3 en fase 1–2 per maand op beslisdatum (Landt het?)
  *   v_d1_beweging_week       instroom · gewonnen · verloren per week (Beweging)
- *   v_d1_kanaal              open deals per hs_analytics_source (Kanaal)
+ *   v_d1_kanaal              open deals per hs_analytics_source (Leadsource)
  *   v_d1_kantoorgrootte      open deals per advocaten-band × fase (Kantoorgrootte)
+ *   hubspot_pipelines        het label van de ene pipeline die D1 leest ('default',
+ *                            de Sales Pipeline) — de kolom `pipeline` in het
+ *                            kennismakingen-detail (v1.211). Eén rij, géén
+ *                            kolom op v_d1_waarde: de view filtert al op die
+ *                            pipeline, dus per deal zou het hetzelfde woord zijn.
+ *                            Mislukt deze read, dan blijft het bord staan en
+ *                            toont de kolom `?`.
  *   v_d1_dekking · v_d1_win_rate · v_d1_ontleding   — de Monthly-pagina
  *   v_d1_waarde (3×)         de deals zelf voor het detailpaneel: de open deals
  *                            (fase · maand · kanaal · band · waarde), de deals
@@ -40,6 +47,9 @@ import { supabase } from '../lib/supabase'
  * Ontbreekt de metric-laag, dan geeft PostgREST 42P01 en zetten we `schemaMissing`.
  */
 const POLL_MS = 5 * 60 * 1000
+
+/** De pipeline waarop v_d1_deals filtert (`d.pipeline_id = 'default'`, de Sales Pipeline). */
+export const D1_PIPELINE_ID = 'default'
 
 /**
  * De maandag van elf weken terug — de eerste week die `v_d1_aanvoer` en
@@ -67,7 +77,7 @@ export function useD1Pipeline() {
   const [data, setData] = useState({
     meta: null, aanvoerKop: null, aanvoer: [], gepland: [], perFase: [], aging: [],
     forecast: [], beweging: [], kanaal: [], grootte: [], dekking: null, winRate: [], ontleding: [],
-    deals: [], aanvoerDeals: [], bewegingDeals: [], blokkers: null,
+    deals: [], aanvoerDeals: [], bewegingDeals: [], blokkers: null, pipeline: null,
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -105,6 +115,8 @@ export function useD1Pipeline() {
         .order('hs_created_at', { ascending: false }),
       supabase.from('v_d9_forecast_blokkers').select('*').maybeSingle(),
     ])
+    // Los van de metric-laag: een fout hier is geen reden om het bord te weigeren.
+    const pl = await supabase.from('hubspot_pipelines').select('pipeline_id,label').eq('pipeline_id', D1_PIPELINE_ID).maybeSingle()
 
     const firstError = res.map(r => r.error).find(Boolean)
     if (firstError) {
@@ -129,6 +141,7 @@ export function useD1Pipeline() {
       kanaal: kn.data || [], grootte: gr.data || [], dekking: dk.data || null, winRate: wr.data || [],
       ontleding: on.data || [], deals: dl.data || [], aanvoerDeals: ad.data || [],
       bewegingDeals: bd.data || [], blokkers: bl.data || null,
+      pipeline: pl.error ? null : (pl.data || null),
     })
     setRefreshedAt(new Date())
     setLoading(false)

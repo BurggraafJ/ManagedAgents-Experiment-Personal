@@ -61,6 +61,7 @@ shoot focus-wissel       1440,900  desktop-focus-wissel
 shoot focus-terug        1440,900  desktop-focus-terug
 shoot focus-esc          1440,900  desktop-focus-esc
 shoot focus-tweede-klik  1440,900  desktop-focus-tweede-klik
+shoot focus-band         1440,900  desktop-focus-band
 shoot focus-hover        1440,900  desktop-focus-hover
 shoot hover              1440,900  desktop-hover
 shoot shell              1440,900  shell

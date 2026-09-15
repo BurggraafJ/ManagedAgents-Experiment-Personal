@@ -2,14 +2,24 @@ import { useMemo } from 'react'
 import DetailPaneel from '../../../../ui/DetailPaneel'
 import WorkTable from '../../../../ui/WorkTable'
 import { getal, datumKort } from '../../format'
-import { eenheid as maakEenheid, FASE_KORT, kanaalLabel, BAND_LABEL, bereikKort, euroK, dagMaandKort } from './labels'
+import { eenheid as maakEenheid, FASE_KORT, FASE_UITLEG, kanaalLabel, BAND_LABEL, bereikKort, euroK, dagMaandKort } from './labels'
 
 /**
  * D1Detail — zone 4, de gedeelde sink van het Live-bord (D1-LIVE-INTERACTION.md).
- * Zeven ingangen, één paneel: week · fase · maand · waarde · beweging · kanaal ·
- * band. De kop noemt altijd de herkomst, de chips de getallen van de snede, de
- * tabel de records met een HubSpot-deeplink per rij. Tweede klik op dezelfde
- * snede maakt het paneel leeg (dat regelt D1Live).
+ * Zeven ingangen, één paneel: week · fase · maand · waarde · beweging · kanaal
+ * (UI: Leadsource) · band. De kop noemt altijd de herkomst, de chips de getallen
+ * van de snede, de tabel de records met een HubSpot-deeplink per rij. Weg gaat
+ * het paneel via `◂ Overzicht` in de balk of Esc (D1View) — niet via een
+ * tweede klik (v1.211). **Sinds v1.212 bestaat het paneel alleen in focus:**
+ * D1View mount het pas bij een selectie, dus een lege staat ("klik een staaf")
+ * is er niet meer; zonder `gekozen` rendert dit component niets.
+ *
+ * **Kennismakingen (v1.211, Jelle 15-09-2026).** Achter een weekstaaf staan
+ * altijd kantoorgrootte (advocaten, `totale_omvang`), de kennismakingdatum en
+ * de pipeline. Die laatste komt uit `hubspot_pipelines` voor de ene pipeline
+ * die dit bord leest (prop `pipeline`); v_d1_deals filtert al op de Sales
+ * Pipeline, dus de kolom zegt op elke rij hetzelfde — dat is de constatering,
+ * niet een bug. Fase en licentieband blijven staan.
  *
  * **De selectie rekent niet, hij kiest.** Alle sleutels komen uit de view-rij
  * die links is aangeklikt (bucket, fase, kanaal, kantoorband, week_start) en
@@ -22,18 +32,10 @@ import { eenheid as maakEenheid, FASE_KORT, kanaalLabel, BAND_LABEL, bereikKort,
  * scherm en draagt de kop `◂ Overzicht` — daar is geen kaartkop in beeld die
  * hem kan dragen (dl-detail__terug, alleen zichtbaar onder 1000 px).
  */
-const LEEG = (
-  <div className="dl-leeg">
-    <div className="dl-leeg__ph" aria-hidden><i style={{ height: '30%' }} /><i style={{ height: '55%' }} /><i className="on" style={{ height: '80%' }} /><i style={{ height: '40%' }} /><i style={{ height: '62%' }} /></div>
-    <div className="dl-leeg__t1">Klik een staaf of band</div>
-    <div className="dl-leeg__t2">De deals erachter verschijnen hier, met een link naar HubSpot. Tweede klik maakt de selectie leeg.</div>
-  </div>
-)
-
 const Link = d => (d.hubspot_url ? <a href={d.hubspot_url} target="_blank" rel="noreferrer" title="Open in HubSpot" className="dl-hs">↗</a> : null)
 const kantoor = (d, extra) => (
   <span className="dl-cel">
-    <span className="dl-cel__k">{d.dealname || d.company_naam || '(zonder naam)'}</span>
+    <span className="dl-cel__k" title={d.dealname || d.company_naam || undefined}>{d.dealname || d.company_naam || '(zonder naam)'}</span>
     <span className="dl-cel__b">{BAND_LABEL[d.kantoorband] || d.kantoorband || '—'}{extra}</span>
   </span>
 )
@@ -45,20 +47,29 @@ const KOL = {
   close: { key: 'close', label: 'close', breedte: '44px', klasse: 'wt__rechts wt__mono', render: d => <span className={d.beslisdatum ? '' : 'dl-cel__leeg'}>{dagMaandKort(d.beslisdatum)}</span> },
   fase: { key: 'fase', label: 'fase', breedte: '34px', klasse: 'wt__mono', render: d => (d.fase && FASE_KORT[d.fase] ? `F${d.fase}` : (d.fase === 'gewonnen' ? 'won' : d.fase === 'verloren' ? 'verl' : d.fase || '—')) },
   link: { key: 'link', label: '', breedte: '16px', klasse: 'wt__ext', render: Link },
+  // Kennismakingen (v1.211): kantoorgrootte in advocaten, `?` = geen company of geen totale_omvang.
+  // Kolombreedtes volgen de kopletters (9,5 px mono, .06em): KANTOORGROOTTE ≈ 88 px, KENNISMAKING ≈ 76 px.
+  // Mét sidebar op 1440 is de brede sink ≈ 520 px; wat hier bij komt gaat van de kantoornaam af.
+  grootte: { key: 'grootte', label: 'kantoorgrootte', breedte: '90px', klasse: 'wt__rechts wt__mono', render: d => (d.totale_omvang != null ? getal(d.totale_omvang) : <span className="dl-cel__gat">?</span>) },
   // Alleen in de brede sink (focus-split): wie, wat het waard is, waar het vandaan kwam.
   eigenaar: { key: 'eigenaar', label: 'eigenaar', breedte: '60px', klasse: 'wt__rechts dl-cel__s', render: d => (d.eigenaar ? d.eigenaar.split(' ')[0] : <span className="dl-cel__leeg">–</span>) },
-  bron: { key: 'bron', label: 'bron', breedte: '62px', klasse: 'wt__rechts dl-cel__s', render: d => <span className={d.kanaal ? '' : 'dl-cel__gat'}>{kanaalLabel(d.kanaal)}</span> },
+  bron: { key: 'bron', label: 'leadsource', breedte: '70px', klasse: 'wt__rechts dl-cel__s', render: d => <span className={d.kanaal && d.kanaal !== 'UNKNOWN' ? '' : 'dl-cel__gat'}>{kanaalLabel(d.kanaal)}</span> },
 }
 const KOL_BREED = { eigenaar: KOL.eigenaar, eur: KOL.eur, bron: KOL.bron }
+/** De pipeline van het bord — één label voor alle rijen (zie kop); `?` als de read mislukte. */
+const pipelineKol = pipeline => ({ key: 'pipeline', label: 'pipeline', breedte: '84px', klasse: 'wt__rechts dl-cel__s',
+  render: () => (pipeline?.label ? pipeline.label : <span className="dl-cel__leeg">?</span>) })
 /** Basiskolommen + de extra's van de brede sink, de link altijd achteraan. */
 const breed = (kolommen, extra) => [...kolommen.slice(0, -1), ...extra.map(k => KOL_BREED[k]).filter(k => !kolommen.includes(k)), KOL.link]
 const dagen = (veld, drempel) => ({ key: veld, label: 'dagen', breedte: '44px', klasse: 'wt__rechts wt__mono',
   render: d => <span className={`dl-dagen${drempel && d[veld] > drempel ? ' is-lang' : ''}`}>{d[veld] != null ? `${getal(d[veld])} d` : <span className="dl-cel__leeg">?</span>}</span> })
-const datum = (veld, label) => ({ key: veld, label, breedte: '44px', klasse: 'wt__rechts wt__mono', render: d => dagMaandKort(d[veld]) })
+const datum = (veld, label, breedte = '44px') => ({ key: veld, label, breedte, klasse: 'wt__rechts wt__mono', render: d => dagMaandKort(d[veld]) })
 
 const teLang = drempel => d => (drempel && d.dagen_in_fase > drempel ? <span className="dl-chip">te lang</span> : null)
+/** F1/F2/F3 nooit zonder gewone taal ernaast (Jelle): als tooltip op de fase-mix-chip. */
+const FASE_TITEL = [1, 2, 3].map(f => `F${f} = ${FASE_UITLEG[f]}`).join(' · ')
 
-export default function D1Detail({ gekozen, deals, aanvoerDeals, bewegingDeals, modus, meta, focus = false, onTerug = null }) {
+export default function D1Detail({ gekozen, deals, aanvoerDeals, bewegingDeals, pipeline = null, modus, meta, focus = false, onTerug = null }) {
   const eenheid = maakEenheid(modus)
   const uit = useMemo(() => {
     if (!gekozen) return null
@@ -73,10 +84,14 @@ export default function D1Detail({ gekozen, deals, aanvoerDeals, bewegingDeals, 
         const uitView = gekozen.gepland ? w.kennismakingen_gepland : w.kennismakingen
         return {
           chips: [`${eenheid.fmt(lic ? som(rijen) : uitView)} ${gekozen.gepland ? 'gepland' : gekozen.lopend ? 'gehouden · loopt nog' : 'gehouden'}`, ...(gekozen.gepland || lic ? [] : ['doel 8', { t: `${uitView - 8 >= 0 ? '+' : '−'}${Math.abs(uitView - 8)} ${uitView - 8 >= 0 ? 'op/boven' : 'onder'} doel`, warn: uitView < 8 }])],
-          kolommen: [KOL.kantoor(d => <> · {kanaalLabel(d.kanaal)}{!d.is_open ? ` · ${d.fase === 'gewonnen' ? 'gewonnen' : 'afgevallen'}` : ''}</>), datum('kennismaking', 'datum'), KOL.fase, KOL.lic, KOL.link],
-          extra: ['eigenaar', 'eur'],
-          rijen, uitView: gekozen.gepland || gekozen.lopend ? rijen.length : uitView, sort: 'datum ↑',
-          voet: `bron HubSpot-mirror · kennismaking_datum${gekozen.gepland ? ' · nog niet gehouden' : ''}`,
+          kolommen: [
+            KOL.kantoor(d => <> · {kanaalLabel(d.kanaal)}{!d.is_open ? ` · ${d.fase === 'gewonnen' ? 'gewonnen' : 'afgevallen'}` : ''}</>),
+            KOL.grootte, datum('kennismaking', 'kennismaking', '78px'), pipelineKol(pipeline), KOL.fase, KOL.lic, KOL.link,
+          ],
+          // Geen brede extra's: de drie vaste kolommen van Jelle nemen die ruimte al (eigenaar staat in de rij-tooltip).
+          extra: [],
+          rijen, uitView: gekozen.gepland || gekozen.lopend ? rijen.length : uitView, sort: 'kennismaking ↑',
+          voet: `bron HubSpot-mirror · kennismaking_datum · kantoorgrootte = totale_omvang (advocaten) · pipeline = ${pipeline?.label || '?'}${gekozen.gepland ? ' · nog niet gehouden' : ''}`,
           leeg: gekozen.gepland ? 'Geen kennismakingen gepland in deze week.' : 'Geen kennismakingen in deze week. Dat is een gemeten nul, geen ontbrekende meting.',
         }
       }
@@ -84,7 +99,7 @@ export default function D1Detail({ gekozen, deals, aanvoerDeals, bewegingDeals, 
         const r = gekozen.rij
         const rijen = open.filter(d => String(d.fase) === gekozen.sleutel).sort((a, b) => (b.dagen_in_fase ?? -1) - (a.dagen_in_fase ?? -1))
         return {
-          chips: [`${getal(r.aantal)} deals`, r.mediaan_dagen != null ? `mediaan ${r.mediaan_dagen} d` : 'geen fasedatum', ...(r.te_lang > 0 ? [{ t: `${getal(r.te_lang)} te lang`, warn: true }] : []), ...(lic && bereikKort(r.bodem_licenties, r.plafond_licenties) ? [`${bereikKort(r.bodem_licenties, r.plafond_licenties)} lic`] : [])],
+          chips: [{ t: FASE_UITLEG[r.fase], uitleg: true }, `${getal(r.aantal)} deals`, r.mediaan_dagen != null ? `mediaan ${r.mediaan_dagen} d` : 'geen fasedatum', ...(r.te_lang > 0 ? [{ t: `${getal(r.te_lang)} te lang`, warn: true }] : []), ...(lic && bereikKort(r.bodem_licenties, r.plafond_licenties) ? [`${bereikKort(r.bodem_licenties, r.plafond_licenties)} lic`] : [])],
           kolommen: lic ? [KOL.kantoor(teLang(r.te_lang_drempel)), KOL.lic, KOL.eur, dagen('dagen_in_fase', r.te_lang_drempel), KOL.link] : [KOL.kantoor(teLang(r.te_lang_drempel)), dagen('dagen_in_fase', r.te_lang_drempel), KOL.lic, KOL.close, KOL.link],
           extra: lic ? ['eigenaar', 'bron'] : ['eigenaar', 'eur', 'bron'],
           rijen, uitView: r.aantal, sort: 'dagen in fase ↓', voet: `te lang = > ${r.te_lang_drempel ?? '—'} d (1,5× mediaan) · ? = geen fasedatum of geen beslisdatum`,
@@ -108,7 +123,7 @@ export default function D1Detail({ gekozen, deals, aanvoerDeals, bewegingDeals, 
         const r = gekozen.rij
         const rijen = open.filter(d => String(d.fase) === gekozen.sleutel).sort((a, b) => (b.mrr_plafond ?? -1) - (a.mrr_plafond ?? -1))
         return {
-          chips: [`${bereikKort(r.bodem_licenties, r.plafond_licenties) || '—'} lic`, `${euroK(r.mrr_bodem) || '—'}–${euroK(r.mrr_plafond) || '—'}`, `${getal(r.aantal_gewaardeerd)} van ${getal(r.aantal)} gewaardeerd`],
+          chips: [{ t: FASE_UITLEG[r.fase], uitleg: true }, `${bereikKort(r.bodem_licenties, r.plafond_licenties) || '—'} lic`, `${euroK(r.mrr_bodem) || '—'}–${euroK(r.mrr_plafond) || '—'}`, `${getal(r.aantal_gewaardeerd)} van ${getal(r.aantal)} gewaardeerd`],
           kolommen: [KOL.kantoor(), KOL.lic, KOL.eur, KOL.close, KOL.link],
           extra: ['eigenaar', 'bron'],
           rijen, uitView: r.aantal, sort: 'plafond ↓', voet: 'bodem = minimumafname, plafond = contractomvang · × prijs per gebruiker',
@@ -130,17 +145,17 @@ export default function D1Detail({ gekozen, deals, aanvoerDeals, bewegingDeals, 
         const s = gekozen.slice, r = s.rij
         const rijen = open.filter(d => (d.kanaal || 'UNKNOWN') === gekozen.sleutel).sort((a, b) => String(a.fase).localeCompare(String(b.fase)) || String(a.beslisdatum || '9').localeCompare(String(b.beslisdatum || '9')))
         return {
-          chips: [`${eenheid.fmt(s.waarde)} ${eenheid.naam}`, ...(s.onbekend ? [{ t: 'bron ontbreekt', warn: true }] : [])],
+          chips: [`${eenheid.fmt(s.waarde)} ${eenheid.naam}`, ...(s.onbekend ? [{ t: 'leadsource ontbreekt', warn: true }] : [])],
           kolommen: [KOL.kantoor(), KOL.fase, KOL.lic, KOL.close, KOL.link],
           extra: ['eigenaar', 'eur'],
-          rijen, uitView: r.aantal, sort: 'fase · close ↑', voet: s.onbekend ? 'hygiëne: vul hs_analytics_source in HubSpot (link per rij)' : 'eerste bron · hs_analytics_source',
+          rijen, uitView: r.aantal, sort: 'fase · close ↑', voet: s.onbekend ? 'hygiëne: vul de leadsource (hs_analytics_source) in HubSpot in — link per rij' : 'leadsource = eerste bron van de deal · hs_analytics_source',
         }
       }
       case 'band': {
         const b = gekozen.band
         const rijen = open.filter(d => (d.kantoorband || 'onbekend') === gekozen.sleutel).sort((a, b2) => String(a.beslisdatum || '9').localeCompare(String(b2.beslisdatum || '9')))
         return {
-          chips: [`${eenheid.fmt(lic ? b.mid_licenties : b.aantal)} ${eenheid.naam}`, `F1 ${b.f1} · F2 ${b.f2} · F3 ${b.f3}`, ...(b.close_30d > 0 ? [`${b.close_30d} close ≤ 30 d`] : [])],
+          chips: [`${eenheid.fmt(lic ? b.mid_licenties : b.aantal)} ${eenheid.naam}`, { t: `F1 ${b.f1} · F2 ${b.f2} · F3 ${b.f3}`, titel: FASE_TITEL }, ...(b.close_30d > 0 ? [`${b.close_30d} close ≤ 30 d`] : [])],
           kolommen: [KOL.kantoor(d => (d.beslisdatum && d.beslisdatum <= new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10) ? <> <span className="dl-chip dl-chip--ok">≤ 30 d</span></> : null)), KOL.fase, KOL.lic, KOL.close, KOL.link],
           extra: ['eigenaar', 'eur', 'bron'],
           rijen, uitView: b.aantal, sort: 'close ↑', voet: b.onbekend ? 'hygiëne: kantoorgrootte (totale_omvang) ontbreekt op de company' : 'band = totale_omvang op de eerste company · kern = 5–16',
@@ -150,11 +165,7 @@ export default function D1Detail({ gekozen, deals, aanvoerDeals, bewegingDeals, 
     }
   }, [gekozen, deals, aanvoerDeals, bewegingDeals, eenheid])
 
-  if (!gekozen || !uit) {
-    return (
-      <DetailPaneel leegTekst={LEEG} />
-    )
-  }
+  if (!gekozen || !uit) return null
   const { chips, kolommen, extra, rijen, uitView, sort, voet, leeg } = uit
   return (
     <DetailPaneel
@@ -167,8 +178,8 @@ export default function D1Detail({ gekozen, deals, aanvoerDeals, bewegingDeals, 
           <span className="dl-detail__sel">{gekozen.label}</span>
         </span>
       }
-      sub={<span className="dl-chips">{chips.map((c, i) => (typeof c === 'string' ? <span key={i}>{c}</span> : <span key={i} className={c.warn ? 'is-warn' : ''}>{c.t}</span>))}</span>}
-      voet={<><span>{uitView != null ? `${getal(rijen.length)} van ${getal(uitView)}` : `${getal(rijen.length)} deals`} · {sort}</span><span className="dl-detail__wist">tweede klik wist{focus ? ' · esc' : ''}</span><span className="dl-detail__bron">{voet}</span></>}
+      sub={<span className="dl-chips">{chips.filter(c => typeof c === 'string' || c.t).map((c, i) => (typeof c === 'string' ? <span key={i}>{c}</span> : <span key={i} className={c.warn ? 'is-warn' : c.uitleg ? 'is-uitleg' : ''} title={c.titel || undefined}>{c.t}</span>))}</span>}
+      voet={<><span>{uitView != null ? `${getal(rijen.length)} van ${getal(uitView)}` : `${getal(rijen.length)} deals`} · {sort}</span><span className="dl-detail__bron">{voet}</span></>}
     >
       <WorkTable
         kolommen={focus && extra ? breed(kolommen, extra) : kolommen}
