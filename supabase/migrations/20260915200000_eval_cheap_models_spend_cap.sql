@@ -93,8 +93,8 @@ BEGIN
   IF v_cap_month IS NULL THEN v_cap_month := 25; END IF;
 
   -- Koers
-  SELECT coalesce((value #>> '{}')::numeric, 1.0) INTO v_usd_per_eur
-    FROM dash_parameters WHERE key = 'model_budget_usd_per_eur';
+  SELECT waarde INTO v_usd_per_eur
+    FROM public.dash_parameters WHERE sleutel = 'model_budget_usd_per_eur';
   IF v_usd_per_eur IS NULL OR v_usd_per_eur <= 0 THEN v_usd_per_eur := 1.0; END IF;
 
   v_estimate_eur := p_estimate_usd / v_usd_per_eur;
@@ -232,8 +232,8 @@ BEGIN
     + v_n_retrieval * coalesce((v_rates->>'retrieval')::numeric, 0.002)
     + (v_n_chat + v_n_retrieval) * coalesce((v_rates->>'judge')::numeric, 0.00005);
 
-  SELECT coalesce((value #>> '{}')::numeric, 1.0) INTO v_usd_per_eur
-    FROM dash_parameters WHERE key = 'model_budget_usd_per_eur';
+  SELECT waarde INTO v_usd_per_eur
+    FROM public.dash_parameters WHERE sleutel = 'model_budget_usd_per_eur';
   IF v_usd_per_eur IS NULL OR v_usd_per_eur <= 0 THEN v_usd_per_eur := 1.0; END IF;
   v_estimate_eur := v_estimate_usd / v_usd_per_eur;
 
