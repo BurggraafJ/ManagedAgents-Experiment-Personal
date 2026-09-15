@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useRef, useState } from 'react'
+import { useScrollToNow } from '../../../hooks/useScrollToNow'
 import {
   HOURS,
   DAY_START,
@@ -35,6 +36,14 @@ export default function AgendaWeekView({
 }) {
   const days5 = days.slice(0, 5)
   const hourRows = Array.from({ length: HOURS }, (_, i) => DAY_START + i)
+
+  // v1.216 — open op "nu", in het midden van de scrollport, één keer per week
+  // die je bekijkt (niet bij elke klok-tik of realtime-refetch). De ref hangt
+  // aan de nu-lijn in de kolom van vandaag; valt vandaag buiten deze week dan
+  // is er geen nu en blijft de scroll waar hij stond.
+  const nowRef = useRef(null)
+  const weekKey = toLocalDateKey(days5[0] || today)
+  useScrollToNow(nowRef, weekKey, days5.some(d => sameDay(d, today)))
 
   return (
     <>
@@ -117,14 +126,15 @@ export default function AgendaWeekView({
               key={d.toISOString()}
               day={d}
               today={today}
-              events={eventsByDay[toLocalDateKey(d)] || []}
+              events={eventsByDay[toLocalDateKey(d)] || EMPTY}
               rules={rules}
               showRules={showRules}
               showProposals={showProposals}
-              proposals={proposalsByDay?.[toLocalDateKey(d)] || []}
+              proposals={proposalsByDay?.[toLocalDateKey(d)] || EMPTY}
               forecastLoc={locationForecast[toLocalDateKey(d)]}
               onClickEvent={onClickEvent}
               onClickSlot={onClickSlot}
+              nowRef={sameDay(d, today) ? nowRef : undefined}
             />
           ))}
         </div>
@@ -173,8 +183,18 @@ export function AllDayRow({ days, eventsByDay, onClickEvent, singleDay, alwaysVi
   )
 }
 
-/* ---- Day-kolom (events + shadows + now-line) ---- */
-export function DayColumn({ day, today, events, rules, showRules, showProposals, proposals = [], forecastLoc, onClickEvent, onClickSlot }) {
+/* Eén gedeelde lege lijst i.p.v. `|| []` per render: een nieuwe array per dag
+ * per render maakt elke lege kolom een "gewijzigde" prop en dan is de memo op
+ * DayColumn hieronder voor niets. */
+const EMPTY = []
+
+/* ---- Day-kolom (events + shadows + now-line) ----
+ * v1.216: gememoïseerd. De view rendert elke 30 s opnieuw (klok in de topbar)
+ * en bij elke realtime-refetch; zonder memo pakten alle vijf de kolommen dan
+ * hun banen opnieuw in en werden alle event-blokken opnieuw gebouwd, terwijl
+ * er niets aan de kolom veranderd was. De props zijn nu stabiel (callbacks
+ * via useCallback in AgendaView, EMPTY hierboven), dus de memo pakt. */
+export const DayColumn = memo(function DayColumn({ day, today, events, rules, showRules, showProposals, proposals = EMPTY, forecastLoc, onClickEvent, onClickSlot, nowRef }) {
   const isToday    = sameDay(day, today)
   const dowIdx     = (day.getDay() + 6) % 7
   const isWednesday = dowIdx === 2
@@ -254,11 +274,11 @@ export function DayColumn({ day, today, events, rules, showRules, showProposals,
       ))}
 
       {nowOffset != null && (
-        <div className="ag-now-line" style={{ top: `${nowOffset}px` }} aria-hidden />
+        <div ref={nowRef} className="ag-now-line" style={{ top: `${nowOffset}px` }} aria-hidden />
       )}
     </div>
   )
-}
+})
 
 /* ---- Week list-view (uitklapbaar onder de grid) ---- */
 function WeekListView({ days, eventsByDay, onClickEvent }) {

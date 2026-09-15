@@ -28,20 +28,43 @@ export function canEditEvent(event) {
 }
 
 /**
- * Verwijderen mag alleen zonder genodigden. Niet omdat het technisch niet kan,
- * maar omdat het een productgrens is: Maestro stuurt nooit een afzeggingsmail
- * (besluit Jelle 2026-09-14). Voor afspraken mét genodigden blijft de
- * Outlook-deeplink de route.
+ * Annuleren mag als je de organisator bent en het geen reeks is.
+ *
+ * Tot v1.215 stond hier een derde hek: `attendeeCount > 0 → has_attendees`,
+ * omdat Maestro nooit een afzeggingsmail stuurde (besluit Jelle 2026-09-14).
+ * Dat besluit is op 2026-09-15 VERVANGEN door een keuze in het scherm, zoals
+ * Outlook die stelt: annuleren mét bericht (Outlook stuurt de afzegging) of
+ * zónder (stil verwijderen). De keuze is verplicht zodra er genodigden zijn —
+ * zie `outlook-calendar-live` (`notify_choice_required`) en de annuleer-kaart.
+ *
+ * `attendeeCount` blijft een parameter zodat de kaart weet óf hij de keuze
+ * moet stellen; het hek zelf kijkt er niet meer naar.
  *
  * Hele-dag-afspraken mogen hier wél weg: de tijdzone-val zit in het formulier,
- * en verwijderen heeft geen formulier.
+ * en annuleren heeft geen formulier.
  */
-export function canDeleteEvent(event, attendeeCount = 0) {
+export function canDeleteEvent(event, attendeeCount = 0) { // eslint-disable-line no-unused-vars
   if (!event) return { ok: false, reason: 'no_event' }
   if (event.is_organizer === false) return { ok: false, reason: 'not_organizer' }
   if (event.is_recurring) return { ok: false, reason: 'recurring' }
-  if (attendeeCount > 0) return { ok: false, reason: 'has_attendees' }
   return { ok: true, reason: null }
+}
+
+/**
+ * De tekst op de annuleer-kaart, vóór de klik. Twee situaties:
+ *
+ *   zonder genodigden → één lichte bevestiging, er gaat niets de deur uit;
+ *   mét genodigden    → de keuze wordt gesteld; deze tekst legt de twee
+ *                        knoppen uit en noemt het aantal.
+ */
+export function cancelNoticeText(n) {
+  if (!n) {
+    return 'De afspraak wordt uit je Outlook-agenda verwijderd. Er zijn geen '
+      + 'genodigden, dus er gaat geen bericht de deur uit.'
+  }
+  return `${n} ${n === 1 ? 'genodigde' : 'genodigden'}. Kies of Outlook een afzegging `
+    + 'stuurt: "Met bericht" doet dat meteen, "Zonder bericht" haalt de afspraak '
+    + 'stil uit je agenda — bij hen blijft hij dan staan.'
 }
 
 /** Waarom een hek dichtstaat — in de taal van het scherm, niet van de API. */
@@ -53,8 +76,6 @@ export const BLOCK_TEXT = {
     + 'reeks, dus dat doe je in Outlook, waar je per keer of voor de hele serie kunt kiezen.',
   all_day: 'Hele-dag-afspraken hebben geen begin- en eindtijd om te bewerken. '
     + 'Pas ze aan in Outlook.',
-  has_attendees: 'Er zijn genodigden. Legal Mind verstuurt nooit een '
-    + 'afzeggingsmail, dus annuleren doe je in Outlook — dan krijgen zij netjes bericht.',
 }
 
 /** Foutredenen van de edge-functie → leesbare toast-tekst. */
@@ -63,7 +84,10 @@ export const WRITE_ERROR_TEXT = {
   not_organizer: 'Je bent niet de organisator van deze afspraak.',
   recurring_not_supported: 'Terugkerende afspraken kun je alleen in Outlook wijzigen.',
   all_day_not_supported: 'Hele-dag-afspraken kun je alleen in Outlook wijzigen.',
-  has_attendees: 'Deze afspraak heeft genodigden — verwijderen gaat via Outlook.',
+  // Alleen nog uit een edge-functie van vóór v1.216: die kende de keuze niet.
+  has_attendees: 'Deze afspraak heeft genodigden en de agenda-functie is nog niet '
+    + 'bijgewerkt — annuleren gaat even via Outlook.',
+  notify_choice_required: 'Er zijn genodigden: kies eerst "Met bericht" of "Zonder bericht".',
   event_not_yours: 'Deze afspraak staat niet in jouw agenda.',
   event_not_in_mirror: 'Deze afspraak is nog niet gesynchroniseerd. Probeer het zo opnieuw.',
   end_before_start: 'De eindtijd ligt vóór de begintijd.',

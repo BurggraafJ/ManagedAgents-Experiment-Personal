@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAgenda } from '../../hooks/useAgenda'
 import { useAgendaWrite } from '../../hooks/useAgendaWrite'
+import { useNow } from '../../hooks/useNow'
+import { useSwipeDays } from '../../hooks/useSwipeDays'
 import { lastCalendarSyncAt } from '../../lib/agenda'
 import MIcon from '../MIcon'
 import MobileAgendaGrid from './MobileAgendaGrid'
@@ -20,6 +22,7 @@ import '../mobile-agenda.css'
 //     al toont, en het bezette juist de hoek waar nu de FAB staat;
 //   • "Nieuw event" is van het vierde icoontje rechtsboven een zwarte FAB
 //     rechtsonder geworden, zoals in Taken.
+const EMPTY = []
 const DAYS = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']
 const DAYS_FULL = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag']
 const MONTHS = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december']
@@ -48,9 +51,14 @@ function formatSyncTime(iso) {
 }
 
 export default function MobileAgenda() {
-  const { events, attendees, syncState, loading, refresh } = useAgenda()
-  const write = useAgendaWrite(refresh)
-  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const { events, attendees, syncState, loading, refresh, refreshCalendar } = useAgenda()
+  // v1.216: na een schrijfactie alleen de agenda-tabellen verversen.
+  const write = useAgendaWrite(refreshCalendar || refresh)
+  // v1.216: één "nu" per minuut i.p.v. een nieuwe Date per render — anders
+  // rekende de nu-lijn en "1 over N min" bij elke render opnieuw en brak de
+  // memo op het grid.
+  const now = useNow()
+  const today = useMemo(() => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d }, [now])
   const [selected, setSelected] = useState(today)
   const [weekStart, setWeekStart] = useState(() => startOfWeek(today))
   const [syncing, setSyncing] = useState(false)
@@ -86,8 +94,7 @@ export default function MobileAgenda() {
   }, [attendees])
 
   const selKey = dayKey(selected)
-  const dayEvents = eventsByDay.get(selKey) || []
-  const now = new Date()
+  const dayEvents = eventsByDay.get(selKey) || EMPTY
   const isTodaySel = isSameDay(selected, today)
   const past = dayEvents.filter(e => new Date(e.end_time || e.start_time) < now).length
   const upcoming = dayEvents.length - past
@@ -104,7 +111,21 @@ export default function MobileAgenda() {
   const goPrev = () => { const w = new Date(weekStart); w.setDate(w.getDate() - 7); setWeekStart(w) }
   const goNext = () => { const w = new Date(weekStart); w.setDate(w.getDate() + 7); setWeekStart(w) }
   const goToday = () => { setSelected(today); setWeekStart(startOfWeek(today)) }
-  
+  // v1.216 — vegen over het dag-grid: links = morgen, rechts = gisteren. De
+  // weekstrip springt mee zodra je over de weekgrens gaat.
+  const goDay = useCallback((delta) => {
+    setSelected(prev => {
+      const d = new Date(prev); d.setDate(d.getDate() + delta)
+      const ws = startOfWeek(d)
+      setWeekStart(cur => (cur.getTime() === ws.getTime() ? cur : ws))
+      return d
+    })
+  }, [])
+  const swipe = useSwipeDays({ onPrev: () => goDay(-1), onNext: () => goDay(1), disabled: !!sheet })
+  // Stabiele callbacks voor het (memo-)grid.
+  const onPickEvent = useCallback(e => setSheet({ mode: 'detail', event: e }), [])
+  const onPickSlot = useCallback(draft => setSheet({ mode: 'create', draft }), [])
+
   // Tikken = opnieuw ophalen uit de spiegel. Dat is wat deze knop écht doet, en
   // sinds v1.195 is dat ook zinvol: de schrijfbaan werkt de spiegel in dezelfde
   // call bij, dus na een wijziging staat het verse beeld er meteen.
@@ -205,7 +226,7 @@ export default function MobileAgenda() {
         </div>
       </header>
 
-      <div className="m-ag__body">
+      <div className="m-ag__body" {...swipe}>
         {dayEvents.length === 0 && loading ? (
           <div className="m-skel-list">{[0, 1, 2].map(i => <div key={i} className="m-skel m-skel--event" />)}</div>
         ) : (
@@ -217,8 +238,8 @@ export default function MobileAgenda() {
               day={selected}
               events={dayEvents}
               now={now}
-              onPickEvent={e => setSheet({ mode: 'detail', event: e })}
-              onPickSlot={draft => setSheet({ mode: 'create', draft })}
+              onPickEvent={onPickEvent}
+              onPickSlot={onPickSlot}
             />
             {/* v1.203 — het "Morgen"-blok is weg (Jelle, 2026-09-15): overbodig,
                 want morgen staat één tik verderop in de weekstrip erboven. Het

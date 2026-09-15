@@ -66,6 +66,10 @@ export default function AgendaEventForm({
 }) {
   const [v, setV] = useState(() => initialValues({ mode, event, draft }))
   const [guests, setGuests] = useState(() => attendeesToChips(attendees))
+  // v1.216 — Teams-vergadering, standaard UIT (Jelle, 2026-09-15). Alleen bij
+  // aanmaken: een bestaande Teams-link laat de update met rust (val 2 in
+  // _shared/outlook-calendar.ts), dus bij wijzigen is er niets te kiezen.
+  const [teams, setTeams] = useState(false)
   const set = (key) => (e) => setV(prev => ({ ...prev, [key]: e.target.value }))
   const isCreate = mode === 'create'
   const busy = write?.busy
@@ -88,6 +92,7 @@ export default function AgendaEventForm({
   const fields = {
     subject: v.subject, date: v.date, start: v.start, end: v.end, location: v.location,
     attendees: guests,
+    ...(isCreate ? { online_meeting: teams } : {}),
   }
   const invalid = !v.date || !v.start || !v.end || v.end <= v.start
 
@@ -166,6 +171,24 @@ export default function AgendaEventForm({
 
         <AgendaAttendeeField value={guests} onChange={setGuests} disabled={busy} />
 
+        {isCreate ? (
+          <label className="ag-pop__toggle">
+            <input
+              type="checkbox"
+              checked={teams}
+              onChange={e => setTeams(e.target.checked)}
+              disabled={busy}
+            />
+            <span className="ag-pop__toggle-track" aria-hidden />
+            <span className="ag-pop__toggle-text">
+              <strong>Teams-vergadering</strong>
+              <em>{teams ? 'Outlook maakt een deelnamelink aan.' : 'Uit — gewone afspraak zonder link.'}</em>
+            </span>
+          </label>
+        ) : event?.online_meeting_url ? (
+          <p className="ag-pop__note">Dit is een Teams-vergadering. De deelnamelink blijft staan.</p>
+        ) : null}
+
         {invalid && (
           <p className="ag-pop__note ag-pop__note--warn">
             De eindtijd moet ná de begintijd liggen.
@@ -193,8 +216,11 @@ export default function AgendaEventForm({
         >
           Outlook ↗
         </button>
+        {/* v1.216: heette "Annuleren", maar dat woord is nu de snelknop die
+            de afspráák annuleert (detail-stand). Hier verlaat je alleen het
+            formulier: terug naar detail bij wijzigen, dicht bij nieuw. */}
         <button type="button" className="ag-btn ag-btn--xs ag-pop__spacer" onClick={onCancel} disabled={busy}>
-          Annuleren
+          {isCreate ? 'Sluiten' : 'Terug'}
         </button>
         <button
           type="button"

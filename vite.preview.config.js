@@ -25,10 +25,22 @@ const HOOK_MOCKS = (process.env.PREVIEW_HOOK_MOCKS || '')
     return { find: new RegExp(`^.*/hooks/${name}$`), replacement: path.resolve(file) }
   })
 
+// v1.216: meetstand voor scripts/preview-agenda/perf.sh. In de productie-build
+// van React is `<Profiler onRender>` een no-op, en `vite build --mode
+// development` levert hier tóch de productie-bundle (gemeten: 0 commits na 95 s
+// virtuele tijd). React levert daarvoor een aparte build, `react-dom/profiling`
+// — productie-snelheid, maar mét de Profiler-timers. Alleen bij
+// PREVIEW_PROFILING=1, en `react-dom/client` volgt vanzelf mee omdat die zelf
+// `require('react-dom')` doet en die specifier hier wordt omgeleid.
+const PROFILING = process.env.PREVIEW_PROFILING === '1'
+  ? [{ find: /^react-dom$/, replacement: 'react-dom/profiling' }]
+  : []
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: [
+      ...PROFILING,
       // Anker op het héle specifier: een regex-alias vervangt alleen het
       // gematchte stuk, dus `/lib\/supabase$/` liet bij `../lib/supabase` de
       // `..` staan en zocht het bestand een map te hoog.
