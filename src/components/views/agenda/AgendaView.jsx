@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
 import { useAgenda } from '../../../hooks/useAgenda'
 import { useAgendaWrite } from '../../../hooks/useAgendaWrite'
 import { useAutoDraft } from '../../../hooks/useAutoDraft'
 import { useAgendaDerived } from '../../../hooks/useAgendaDerived'
+import { useSwipeDays } from '../../../hooks/useSwipeDays'
 import {
   addDays,
   lastCalendarSyncAt,
@@ -71,11 +72,14 @@ export default function AgendaView({ onNavigate }) {
     syncState,
     loading,
     refresh,
+    refreshCalendar,
   } = useAgenda()
   const { hubspotCustomerEmails } = useAutoDraft()
-  // De edge-functie schrijft de spiegel in dezelfde call bij; `refresh` haalt
-  // die verse rij meteen op, zodat het grid niet op de */15-sync hoeft te wachten.
-  const write = useAgendaWrite(refresh)
+  // De edge-functie schrijft de spiegel in dezelfde call bij; de refresh haalt
+  // die verse rij meteen op, zodat het grid niet op de */15-sync hoeft te
+  // wachten. v1.216: alleen de agenda-tabellen (events, genodigden, sync), niet
+  // de zeven planner-tabellen — die zijn door een afspraak niet veranderd.
+  const write = useAgendaWrite(refreshCalendar || refresh)
 
   const today    = useMemo(() => startOfDay(new Date()), [])
   const isMobile = useMediaQuery('(max-width: 768px)')
@@ -89,7 +93,6 @@ export default function AgendaView({ onNavigate }) {
   const [showProposals, setShowProposals]         = useState(false)
   const [showProposalsList, setShowProposalsList] = useState(false)
   const [showVoice, setShowVoice]                 = useState(false)
-  const [clock, setClock]                         = useState(() => formatClock(new Date()))
 
   // Houd selectedDay binnen weekStart..weekStart+7
   useEffect(() => {
@@ -99,11 +102,18 @@ export default function AgendaView({ onNavigate }) {
     }
   }, [weekStart, selectedDay, today])
 
-  // Live-klok in topbar (refresh elke 30s)
-  useEffect(() => {
-    const id = setInterval(() => setClock(formatClock(new Date())), 30000)
-    return () => clearInterval(id)
+  // v1.216 — een dag verder/terug (veeggebaar op de dag-view). Springt de week
+  // mee als de nieuwe dag buiten de getoonde week valt; anders zet het effect
+  // hierboven hem terug op maandag.
+  const goDay = useCallback((delta) => {
+    setSelectedDay(prev => {
+      const d = addDays(prev, delta)
+      const ws = mondayOf(d)
+      setWeekStart(cur => (cur.getTime() === ws.getTime() ? cur : ws))
+      return d
+    })
   }, [])
+  const swipe = useSwipeDays({ onPrev: () => goDay(-1), onNext: () => goDay(1) })
 
   const {
     days,
@@ -130,12 +140,14 @@ export default function AgendaView({ onNavigate }) {
   const lastSync = lastCalendarSyncAt(syncState)
 
   // Klik op een event-blok → detail-popover aan datzelfde blok.
-  const openEvent = ({ ev, classified, anchor }) =>
-    setPopover({ mode: 'detail', ev, classified, anchor })
+  // v1.216: useCallback, want deze twee gaan als prop naar de vijf (memo-)
+  // dagkolommen; een nieuwe functie per render maakte de memo daar nutteloos.
+  const openEvent = useCallback(({ ev, classified, anchor }) =>
+    setPopover({ mode: 'detail', ev, classified, anchor }), [])
 
   // Klik op een leeg tijdvak → nieuw-event-popover met dat vak voorgevuld.
-  const openSlot = ({ start, end, anchor }) =>
-    setPopover({ mode: 'create', anchor, draft: { start, end } })
+  const openSlot = useCallback(({ start, end, anchor }) =>
+    setPopover({ mode: 'create', anchor, draft: { start, end } }), [])
 
   // "Nieuw event" in de topbar: zelfde popover, geankerd aan de knop, met het
   // volgende halve uur als voorvulling.
@@ -172,11 +184,7 @@ export default function AgendaView({ onNavigate }) {
           <span>Week {weekNumber(weekStart)}</span>
         </div>
         <div className="ag-topbar__actions">
-          <span className="ag-sync-pill" title={`Laatste sync: ${lastSync || 'onbekend'}`}>
-            <span className="ag-sync-dot" />
-            <span>{formatSyncTime(lastSync)}</span>
-            <span className="ag-sync-meta">{clock}</span>
-          </span>
+          <SyncPill lastSync={lastSync} />
           <button
             type="button"
             className="ag-btn ag-btn--ghost ag-btn--sm"
@@ -236,6 +244,7 @@ export default function AgendaView({ onNavigate }) {
             showRules={showRules}
             onClickEvent={openEvent}
             onClickSlot={openSlot}
+            swipe={swipe}
           />
         ) : (
           <AgendaWeekView
@@ -285,6 +294,26 @@ export default function AgendaView({ onNavigate }) {
 
 function formatClock(d) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/* v1.216 — de klok tikt hier, niet in AgendaView. Tot v1.215 zat de 30 s-klok
+ * als state in de container, en elke tik renderde daarmee de hele view
+ * (topbar, toolbar, vijf dagkolommen, alle event-blokken) opnieuw. Nu tikt
+ * alleen deze pil — en "x min geleden" loopt daardoor ook mee, wat het eerst
+ * pas deed als er iets anders re-renderde. */
+function SyncPill({ lastSync }) {
+  const [clock, setClock] = useState(() => formatClock(new Date()))
+  useEffect(() => {
+    const id = setInterval(() => setClock(formatClock(new Date())), 30000)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <span className="ag-sync-pill" title={`Laatste sync: ${lastSync || 'onbekend'}`}>
+      <span className="ag-sync-dot" />
+      <span>{formatSyncTime(lastSync)}</span>
+      <span className="ag-sync-meta">{clock}</span>
+    </span>
+  )
 }
 
 // Voorvulling voor "Nieuw event": het eerstvolgende hele of halve uur.

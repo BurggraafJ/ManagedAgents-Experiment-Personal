@@ -53,8 +53,15 @@ export function useAgendaWrite(onDone) {
     (graphId, fields) => call({ action: 'update_event', graph_id: graphId, ...fields }, 'Afspraak gewijzigd'),
     [call],
   )
+  // v1.216 — annuleren mét of zónder bericht. `notifyAttendees` is de keuze
+  // uit de annuleer-kaart; hij gaat alleen mee als het echt een boolean is,
+  // zodat de edge-functie bij genodigden kan weigeren als de keuze ontbreekt
+  // in plaats van er stilzwijgend een te maken.
   const deleteEvent = useCallback(
-    (graphId) => call({ action: 'delete_event', graph_id: graphId }, 'Afspraak verwijderd'),
+    (graphId, { notifyAttendees } = {}) => call({
+      action: 'delete_event', graph_id: graphId,
+      ...(typeof notifyAttendees === 'boolean' ? { notify_attendees: notifyAttendees } : {}),
+    }, 'Afspraak geannuleerd'),
     [call],
   )
 
@@ -93,6 +100,15 @@ function messageFor(body) {
  */
 function detailFor(data) {
   if (!data) return undefined
+  // Annuleren (v1.216): `cancelled` onderscheidt dit van update_event, dat óók
+  // `attendees_notified` teruggeeft maar dan een wijzigingsmail bedoelt.
+  if (data.cancelled) {
+    const n = data.attendee_count || 0
+    if (!n) return undefined
+    return data.attendees_notified
+      ? `Outlook stuurt een afzegging naar ${n} ${n === 1 ? 'genodigde' : 'genodigden'}.`
+      : `Zonder bericht: bij ${n} ${n === 1 ? 'genodigde' : 'genodigden'} blijft de afspraak staan.`
+  }
   if (data.attendees_invited) {
     const n = data.attendee_count || 0
     return `Outlook heeft ${n === 1 ? 'een uitnodiging' : `${n} uitnodigingen`} verstuurd.`

@@ -4,7 +4,7 @@ import AgendaAttendeeField from '../../components/views/agenda/AgendaAttendeeFie
 import { OUTLOOK_CALENDAR_URL, openOutlook, outlookComposeUrl } from '../../lib/agendaOutlook'
 import {
   BLOCK_TEXT, attendeeDiffText, attendeeInviteText, attendeeNoticeText,
-  canDeleteEvent, canEditEvent,
+  canDeleteEvent, canEditEvent, cancelNoticeText,
 } from '../../lib/agendaWrite'
 
 /* MobileAgendaSheet — de mobiele tegenhanger van de desktop-popover (design A
@@ -66,6 +66,9 @@ export default function MobileAgendaSheet({
   // event staat de huidige lijst erin. Niet aan `mode` hangen — je kunt vanuit
   // detail naar wijzigen springen en dan moet de lijst er al staan.
   const [guests, setGuests] = useState(() => attendeesToChips(attendees))
+  // v1.216 — Teams-vergadering, standaard UIT; alleen bij aanmaken (zelfde
+  // regel als AgendaEventForm op de desktop).
+  const [teams, setTeams] = useState(false)
   const set = key => e => setForm(prev => ({ ...prev, [key]: e.target.value }))
 
   useEffect(() => {
@@ -99,20 +102,22 @@ export default function MobileAgendaSheet({
 
   const onSave = async () => {
     if (invalid || busy) return
-    const payload = { ...form, attendees: guests }
+    const payload = { ...form, attendees: guests, ...(isCreate ? { online_meeting: teams } : {}) }
     const res = isCreate
       ? await write.createEvent(payload)
       : await write.updateEvent(event.graph_id, payload)
     if (res) onClose?.()
   }
-  const onConfirmDelete = async () => {
+  // v1.216 — annuleren mét of zónder bericht (zie AgendaCancelPane voor het
+  // waarom). `notifyAttendees` is de keuze; zonder genodigden altijd false.
+  const onCancelEvent = async (notifyAttendees) => {
     if (!del.ok || busy) return
-    if (await write.deleteEvent(event.graph_id)) onClose?.()
+    if (await write.deleteEvent(event.graph_id, { notifyAttendees })) onClose?.()
   }
 
   const title = isCreate ? 'Nieuw event'
     : mode === 'edit' ? 'Event wijzigen'
-    : mode === 'delete' ? 'Event verwijderen?'
+    : mode === 'delete' ? 'Afspraak annuleren?'
     : (event?.subject || '(geen titel)')
 
   // Eén regel uitleg als er iets niet kan — geen uitgegrijsde knop zonder reden.
@@ -180,7 +185,7 @@ export default function MobileAgendaSheet({
                   )}
                   {del.ok && (
                     <button type="button" className="m-admbtn m-admbtn--warn" onClick={() => setMode('delete')}>
-                      Verwijderen
+                      Annuleren
                     </button>
                   )}
                 </div>
@@ -217,6 +222,18 @@ export default function MobileAgendaSheet({
                   value={guests} onChange={setGuests} disabled={busy} variant="sheet"
                 />
               </div>
+              {isCreate ? (
+                <label className="m-agsheet__toggle">
+                  <input type="checkbox" checked={teams} onChange={e => setTeams(e.target.checked)} disabled={busy} />
+                  <span className="m-agsheet__toggle-track" aria-hidden />
+                  <span className="m-agsheet__toggle-text">
+                    <strong>Teams-vergadering</strong>
+                    <em>{teams ? 'Outlook maakt een deelnamelink aan.' : 'Uit — gewone afspraak zonder link.'}</em>
+                  </span>
+                </label>
+              ) : event?.online_meeting_url ? (
+                <p className="m-agsheet__note">Dit is een Teams-vergadering. De deelnamelink blijft staan.</p>
+              ) : null}
               {invalid && (
                 <p className="m-agsheet__note m-agsheet__note--warn">De eindtijd moet ná de begintijd liggen.</p>
               )}
@@ -234,22 +251,39 @@ export default function MobileAgendaSheet({
           {mode === 'delete' && (
             <>
               <div className="m-agsheet__when">{whenLabel(base, baseEnd)}</div>
-              <p className="m-agsheet__note">
-                {del.ok
-                  ? 'De afspraak wordt uit je Outlook-agenda verwijderd. Er gaat geen '
-                    + 'bericht de deur uit — Legal Mind verstuurt nooit een afzeggingsmail.'
-                  : BLOCK_TEXT[del.reason]}
+              <p className={`m-agsheet__note${del.ok && attendeeCount > 0 ? ' m-agsheet__note--warn' : ''}`}>
+                {del.ok ? cancelNoticeText(attendeeCount) : BLOCK_TEXT[del.reason]}
               </p>
-              <div className="m-agsheet__acties">
-                <button type="button" className="m-admbtn" onClick={() => setMode('detail')} disabled={busy}>
-                  Terug
-                </button>
-                {del.ok && (
-                  <button type="button" className="m-admbtn m-admbtn--warn" onClick={onConfirmDelete} disabled={busy}>
-                    {busy ? 'Bezig…' : 'Verwijderen'}
+              {/* Zonder genodigden: Terug · Annuleren. Mét genodigden: de
+                  Outlook-keuze — Zonder bericht (omrand) · Met bericht (gevuld),
+                  met Terug erboven als tekstknop zodat de twee keuzes naast
+                  elkaar staan en even zwaar zijn. */}
+              {del.ok && attendeeCount > 0 ? (
+                <>
+                  <div className="m-agsheet__acties">
+                    <button type="button" className="m-admbtn m-admbtn--warn" onClick={() => onCancelEvent(false)} disabled={busy}>
+                      {busy ? 'Bezig…' : 'Zonder bericht'}
+                    </button>
+                    <button type="button" className="m-admbtn m-admbtn--warn m-admbtn--warn-solid" onClick={() => onCancelEvent(true)} disabled={busy}>
+                      {busy ? 'Bezig…' : 'Met bericht'}
+                    </button>
+                  </div>
+                  <button type="button" className="m-agsheet__outlook" onClick={() => setMode('detail')} disabled={busy}>
+                    Terug
                   </button>
-                )}
-              </div>
+                </>
+              ) : (
+                <div className="m-agsheet__acties">
+                  <button type="button" className="m-admbtn" onClick={() => setMode('detail')} disabled={busy}>
+                    Terug
+                  </button>
+                  {del.ok && (
+                    <button type="button" className="m-admbtn m-admbtn--warn m-admbtn--warn-solid" onClick={() => onCancelEvent(false)} disabled={busy}>
+                      {busy ? 'Bezig…' : 'Annuleren'}
+                    </button>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>

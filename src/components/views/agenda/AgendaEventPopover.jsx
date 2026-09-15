@@ -6,6 +6,7 @@ import {
   formatTimeRange,
 } from '../../../lib/agenda'
 import AgendaEventForm from './AgendaEventForm'
+import AgendaCancelPane from './AgendaCancelPane'
 import { OUTLOOK_CALENDAR_URL, openOutlook } from '../../../lib/agendaOutlook'
 import { BLOCK_TEXT, canDeleteEvent, canEditEvent } from '../../../lib/agendaWrite'
 
@@ -18,8 +19,8 @@ import { BLOCK_TEXT, canDeleteEvent, canEditEvent } from '../../../lib/agendaWri
  *             "Luchtlijn", 2026-09-12): dezelfde inhoud, nu aan het blok.
  *   edit    — dezelfde velden als formulier, en sinds v1.195 met een echt
  *             schrijf-pad naar Outlook.
- *   delete  — bevestig-stand. Verwijdert zonder afzeggingsmail, en daarom
- *             alléén bij afspraken zonder genodigden.
+ *   delete  — de annuleer-kaart (AgendaCancelPane). Sinds v1.216 ook mét
+ *             genodigden, met de Outlook-keuze "met of zonder bericht".
  *   create  — nieuw event vanaf een leeg tijdvak of de topbar-knop.
  *
  * v1.195 — de hekken. Wijzigen en verwijderen worden niet overal aangeboden;
@@ -106,7 +107,7 @@ export default function AgendaEventPopover({
             onSaved={onClose}
           />
         ) : mode === 'delete' ? (
-          <DeletePane
+          <AgendaCancelPane
             event={event}
             attendeeCount={attendees.length}
             write={write}
@@ -223,9 +224,17 @@ function DetailPane({ event, classified, attendees, start, end, onEdit, onDelete
         >
           Outlook ↗
         </button>
+        {/* v1.216 — "Annuleren", zoals in Outlook, en niet meer verstopt achter
+            een genodigden-hek: mét genodigden opent de kaart de keuze
+            met/zonder bericht (AgendaCancelPane). */}
         {del.ok && (
-          <button type="button" className="ag-btn ag-btn--xs ag-pop__danger ag-pop__spacer" onClick={onDelete}>
-            Verwijderen
+          <button
+            type="button"
+            className="ag-btn ag-btn--xs ag-pop__danger ag-pop__spacer"
+            onClick={onDelete}
+            title={attendees.length > 0 ? 'Annuleren — met of zonder bericht aan de genodigden' : 'Afspraak annuleren'}
+          >
+            Annuleren
           </button>
         )}
         {edit.ok && (
@@ -235,57 +244,6 @@ function DetailPane({ event, classified, attendees, start, end, onEdit, onDelete
             onClick={onEdit}
           >
             Wijzigen
-          </button>
-        )}
-      </div>
-    </>
-  )
-}
-
-function DeletePane({ event, attendeeCount, write, onBack, onDeleted }) {
-  const start = new Date(event.start_time)
-  const label = `${DOW_NL[(start.getDay() + 6) % 7]} ${start.getDate()} ${MONTH_NL[start.getMonth()]} · ${formatTimeRange(start, new Date(event.end_time))}`
-  const del = canDeleteEvent(event, attendeeCount)
-  const busy = write?.busy
-
-  const onConfirm = async () => {
-    if (!del.ok || busy) return
-    if (await write.deleteEvent(event.graph_id)) onDeleted?.()
-  }
-
-  return (
-    <>
-      <div className="ag-pop__head">
-        <h2 className="ag-pop__title">Event verwijderen?</h2>
-        <div className="ag-pop__when">{event.subject || '(geen titel)'} — {label}</div>
-      </div>
-      <div className="ag-pop__body">
-        <p className="ag-pop__note">
-          {del.ok
-            ? 'De afspraak wordt uit je Outlook-agenda verwijderd. Er gaat geen '
-              + 'bericht de deur uit — Legal Mind verstuurt nooit een afzeggingsmail.'
-            : BLOCK_TEXT[del.reason]}
-        </p>
-      </div>
-      <div className="ag-pop__actions">
-        <button
-          type="button"
-          className="ag-btn ag-btn--xs ag-pop__link"
-          onClick={() => openOutlook(OUTLOOK_CALENDAR_URL)}
-        >
-          Outlook ↗
-        </button>
-        <button type="button" className="ag-btn ag-btn--xs ag-pop__spacer" onClick={onBack} disabled={busy}>
-          Terug
-        </button>
-        {del.ok && (
-          <button
-            type="button"
-            className="ag-btn ag-btn--xs ag-pop__danger ag-pop__danger--solid"
-            onClick={onConfirm}
-            disabled={busy}
-          >
-            {busy ? 'Bezig…' : 'Verwijderen'}
           </button>
         )}
       </div>

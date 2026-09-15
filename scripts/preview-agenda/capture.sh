@@ -64,3 +64,14 @@ shoot mobile-geblokkeerd  430,1100  mobiel-geblokkeerd
 shoot desktop-genodigden  1440,1000 desktop-genodigden
 shoot mobile-genodigden   430,1100  mobiel-genodigden
 shoot mobile-verwijder    430,1100  mobiel-verwijder
+
+# v1.216 — Annuleren zoals Outlook: de detail-stand met de snelknop, de
+# annuleer-kaart mét genodigden (met/zonder bericht), en de Teams-schakelaar
+# aan (de `nieuw`-shots hierboven tonen de standaard: uit). De week-/dag-shots
+# bovenaan tonen nu ook de scroll-naar-nu (de nu-lijn staat in het midden).
+shoot desktop-detail      1440,1000 desktop-detail
+shoot desktop-annuleer    1440,1000 desktop-annuleer
+shoot desktop-teams       1440,1000 desktop-teams
+shoot mobile-detail       430,1100  mobiel-detail
+shoot mobile-annuleer     430,1100  mobiel-annuleer
+shoot mobile-teams        430,1100  mobiel-teams
