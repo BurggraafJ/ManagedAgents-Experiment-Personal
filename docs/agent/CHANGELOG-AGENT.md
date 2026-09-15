@@ -4,6 +4,34 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
+## v1.213 — 2026-09-15 · Eval cheap models + hard OpenAI spend caps
+
+**Judge `gpt-5.6-luna` → `gpt-5-nano`**
+- `rag-eval-cron/judge.ts` `JUDGE_MODEL` → `gpt-5-nano`. Beoordelings-contract
+  ongewijzigd (`reasoning_effort: "none"`, JSON-only). Bespaart ~$0,05/full.
+- `rag_eval_baseline.cjs` gelijk getrokken en als deprecated gemarkeerd.
+
+**Eval-pad rewrite/rerank → `gpt-5-nano`**
+- `context-build` v2.12: als `trigger_type === "eval"`, override `REWRITE_MODEL`
+  en `OPENAI_RERANK_MODEL` naar `gpt-5-nano`. Prod-default blijft `gpt-5.6-luna`.
+- Configureerbaar via `agent_config` keys `eval_rewrite_model` / `eval_rerank_model`.
+
+**Hard spend gate**
+- Migratie `20260915200000`: kolommen `preflight_estimate_usd/eur`,
+  `spend_ok_applied`, `judge_cost_usd`, `abort_reason`; status `aborted_spend`.
+- `rag_eval_spend_gate()`: per-run cap €2,50, maandcap €25. Spend_ok_token voor
+  runs boven de per-run cap; maandcap is hard.
+- `v_rag_eval_spend_month`: running runs tellen mee met max(actuals, preflight).
+- `rag_eval_start_run`: roept spend gate aan vóór materialisatie.
+- `rag_eval_finish_if_done`: `judge_cost_usd` uit `envelope_compact.judge_usage`;
+  `cost_usd_total` = chat-kosten + judge-kosten.
+- `agent_eval_run.cjs`: exit 5 op spend cap; preflight maandverbruik geprint.
+
+**PRICE_PER_M bijgewerkt**
+- `gpt-5.6-terra/sol/luna` en `gpt-5-nano` met officiële sep-2026 tarieven.
+
+---
+
 ## v1.165 — 2026-09-12 · Vervolgvragen uit het product
 
 **`rag-chat/compose.ts` vraagt geen vervolgvragen meer**

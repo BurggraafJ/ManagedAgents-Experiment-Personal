@@ -241,9 +241,13 @@ voor de getallen van `01-rook-first` en `01-full-first`. Drie cadansen:
 
 | Ronde | Wat | Wanneer | Budgetpoort |
 |---|---|---|---|
-| **rook** | 36 `p0`-items | bij elke PR op de chatketen (pre-flight punt 8) | < 15 min, ≤ $3 |
-| **wekelijks** | `full` (435), met artefact-builds | zondag 04:30 CEST, cron `rag-eval-weekly` | rapport, G1–G7 t.o.v. de vorige `full` |
-| **nachtelijk** | `chat-lane` (352) | **uit**; aan via `agent_config('rag-eval-cron','nightly_enabled')` in weken met een actieve implementatie op de chatketen | rapport |
+| **rook** | 36 `p0`-items | bij elke PR op de chatketen + max 2× gepland/week (niet dagelijks) | auto (< €2,50); exit 5 bij cap |
+| **full** | `full` (435), met artefact-builds | **maandelijks** (1×) of biweekly **alleen mét `spend_ok_token`** | altijd Jelle-OK (> €2,50) |
+| **nachtelijk** | `chat-lane` (352) | **uit** (`nightly_enabled=false`); **blijft uit** — budget staat het niet toe | rapport |
+
+Budget: €25/maand eval-OpenAI (hard gate in `rag_eval_spend_gate`). Rook ~$0,89 past;
+full ~$6,24 eist `spend_ok_token`. Voorbeeld: 10× rook + 1× full + 1× agentic-36 ≈ $19.
+Zie `DECISIONS.md` (2026-09-15) en `EVAL-CHEAP-MODELS-SPEND-CAP-RESEARCH.md`.
 
 ---
 

@@ -406,12 +406,15 @@ Deno.serve(async (req) => {
     // ── Nieuwe run ───────────────────────────────────────────────────────────
     const label: string = body.label || "cron-weekly";
     const suite: string = body.suite || "legacy71";
-    const params: Record<string, unknown> = { runner_version: RUNNER_VERSION, judge_model: JUDGE_MODEL };
+    const params: Record<string, unknown> = { runner_version: RUNNER_VERSION, judge_model: JUDGE_MODEL, eval_cheap_models: true };
     for (const k of ["ids", "only_tag", "lane", "category", "persona", "compare_to", "build_artifacts", "force"]) if (body[k] !== undefined) params[k] = body[k];
     const { data: runId, error: startErr } = await supabase.rpc("rag_eval_start_run", { p_label: label, p_suite: suite, p_params: params });
     if (startErr) {
-      const busy = /already_running/.test(startErr.message);
-      return json({ ok: false, error: busy ? "run_already_running" : `start_failed: ${startErr.message}` }, busy ? 409 : 500);
+      const msg = startErr.message || "";
+      const busy = /already_running/.test(msg);
+      const spendCap = /spend_cap/.test(msg);
+      if (spendCap) return json({ ok: false, error: "openai_spend_cap", detail: msg }, 402);
+      return json({ ok: false, error: busy ? "run_already_running" : `start_failed: ${msg}` }, busy ? 409 : 500);
     }
     const { data: pc } = await supabase.rpc("rag_eval_persona_check", { p_run_id: runId });
     if (!pc || pc.ok !== true) return json({ ok: false, run_id: runId, status: "invalid_persona", persona_check: pc }, 200);

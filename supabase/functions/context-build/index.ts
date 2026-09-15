@@ -55,7 +55,7 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import { callAnthropic } from "../_shared/anthropic-fetch.ts";
 import { requireCronOrServiceRole } from "../_shared/edge-auth.ts";
 
-const SKILL_VERSION = "context-build-v2.11-no-lessons";
+const SKILL_VERSION = "context-build-v2.12-eval-cheap-models";
 
 // WP2 — de gesloten verzameling redenen waarom een bundel leeg is. Deze vijf
 // woorden reizen ongewijzigd door naar rag-chat, naar het antwoord dat de
@@ -107,8 +107,9 @@ const RERANK_MODEL = "claude-haiku-4-5";
 const COHERE_RERANK_ENDPOINT = "https://api.cohere.com/v2/rerank";
 const COHERE_RERANK_MODEL = "rerank-v3.5";
 const OPENAI_RERANK_ENDPOINT = "https://api.openai.com/v1/chat/completions";
-const OPENAI_RERANK_MODEL = "gpt-5.6-luna"; // F.1e actief (v2.9: was gpt-5.4-mini): snel, reasoning_effort='none'; key skill:openai:embedding_key
-const REWRITE_MODEL = "gpt-5.6-luna";       // F.1c HyDE/query-rewrite (zelfde model + endpoint, reasoning_effort='none')
+const OPENAI_RERANK_MODEL_DEFAULT = "gpt-5.6-luna"; // F.1e actief (v2.9: was gpt-5.4-mini): snel, reasoning_effort='none'; key skill:openai:embedding_key
+const REWRITE_MODEL_DEFAULT = "gpt-5.6-luna";       // F.1c HyDE/query-rewrite (zelfde model + endpoint, reasoning_effort='none')
+const EVAL_CHEAP_MODEL = "gpt-5-nano";              // eval-pad override (v2.12): judge/rewrite/rerank goedkoop op eval-harness-calls
 const GROK_RERANK_ENDPOINT = "https://api.x.ai/v1/chat/completions";
 const GROK_RERANK_MODEL = "grok-4-fast";
 const RERANK_TIMEOUT_MS = 5000;
@@ -152,14 +153,14 @@ async function embedMany(apiKey: string, inputs: string[]): Promise<{ vectors: n
 }
 
 // F.1c — HyDE/query-rewrite: gpt-5.4-mini → tot 2 declaratieve herformuleringen voor betere recall.
-async function rewriteQuery(apiKey: string, query: string): Promise<string[]> {
+async function rewriteQuery(apiKey: string, query: string, model: string = REWRITE_MODEL_DEFAULT): Promise<string[]> {
   if (!query || query.length < 4) return [];
   const prompt = `Herschrijf deze zoekvraag naar 2 korte, declaratieve alternatieve formuleringen die hetzelfde bedoelen (synoniemen/andere woordvolgorde) — voor betere semantische retrieval over zakelijke mail, meetings en deals. Geen uitleg.\n\nVraag: ${query.slice(0, 300)}\n\nAntwoord ALLEEN met een JSON-array van 2 strings.`;
   try {
     const res = await fetch(OPENAI_RERANK_ENDPOINT, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: REWRITE_MODEL, messages: [{ role: "user", content: prompt }], max_completion_tokens: 200, reasoning_effort: "none" }),
+      body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], max_completion_tokens: 200, reasoning_effort: "none" }),
       signal: AbortSignal.timeout(RERANK_TIMEOUT_MS),
     });
     if (!res.ok) return [];
@@ -264,10 +265,10 @@ async function rerankWithCohere(apiKey: string, query: string, candidates: any[]
 }
 
 // F.1e — OpenAI gpt-4o-mini LLM-rerank (ACTIEVE reranker; snel; key skill:openai:embedding_key).
-async function rerankWithOpenAI(apiKey: string, query: string, candidates: any[], topN: number): Promise<{ chunks: any[]; used: boolean; error?: string }> {
+async function rerankWithOpenAI(apiKey: string, query: string, candidates: any[], topN: number, model: string = OPENAI_RERANK_MODEL_DEFAULT): Promise<{ chunks: any[]; used: boolean; error?: string }> {
   if (!apiKey || candidates.length <= topN) return { chunks: candidates.slice(0, topN), used: false };
   try {
-    const res = await fetch(OPENAI_RERANK_ENDPOINT, { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: OPENAI_RERANK_MODEL, messages: [{ role: "user", content: rankPrompt(query, candidates, topN, 30) }], max_completion_tokens: 512, reasoning_effort: "none" }), signal: AbortSignal.timeout(RERANK_TIMEOUT_MS) });
+    const res = await fetch(OPENAI_RERANK_ENDPOINT, { method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, messages: [{ role: "user", content: rankPrompt(query, candidates, topN, 30) }], max_completion_tokens: 512, reasoning_effort: "none" }), signal: AbortSignal.timeout(RERANK_TIMEOUT_MS) });
     if (!res.ok) { const t = await res.text().catch(() => ""); return { chunks: candidates.slice(0, topN), used: false, error: `openai_${res.status}: ${t.slice(0, 150)}` }; }
     const json = await res.json();
     return applyIndexRanking(json.choices?.[0]?.message?.content ?? "", candidates, topN);
@@ -374,6 +375,18 @@ Deno.serve(async (req) => {
     const freshness = (freshnessRes as any)?.data ?? null;
     if (!apiKey) throw new Error("openai_embedding_key_missing");
 
+    // v2.12 — eval-pad goedkope modellen: als trigger_type=eval, gebruik nano
+    // voor rewrite + OpenAI-rerank. Prod-default blijft Luna.
+    const isEvalPath = triggerType === "eval" || options.eval_cheap_models === true;
+    let evalRewriteModel = REWRITE_MODEL_DEFAULT;
+    let evalRerankModel = OPENAI_RERANK_MODEL_DEFAULT;
+    if (isEvalPath) {
+      const cfgRewrite = await getCfg(supabase, "rag-eval-cron", "eval_rewrite_model");
+      const cfgRerank = await getCfg(supabase, "rag-eval-cron", "eval_rerank_model");
+      evalRewriteModel = cfgRewrite || EVAL_CHEAP_MODEL;
+      evalRerankModel = cfgRerank || EVAL_CHEAP_MODEL;
+    }
+
     // v2.5: intel-niveau uit het intent-recipe; fallback = oud gedrag (search=full, rest off).
     const intelLevel: string = (recipe.query_intel_level as string) ?? (intent === "search" ? "full" : "off");
     const applyFullIntel = intelLevel === "full";
@@ -402,7 +415,7 @@ Deno.serve(async (req) => {
     // 4.5 HyDE/multi-query (F.1c) — alleen op het niet-entity zoek-pad (entity narrowt al + houdt chat snel).
     const doRewrite = applyFullIntel && !entityUsed && (options.rewrite ?? true);
     let rewriteVariants: string[] = [];
-    if (doRewrite) { rewriteVariants = await rewriteQuery(apiKey, queryText); }
+    if (doRewrite) { rewriteVariants = await rewriteQuery(apiKey, queryText, evalRewriteModel); }
     const queryList = [queryText, ...rewriteVariants].slice(0, 3);
     const tEmbed0 = Date.now();
     const embRes = await embedMany(apiKey, queryList);
@@ -549,7 +562,7 @@ Deno.serve(async (req) => {
         const r = await rerankWithCohere(cohereKey, queryText, normalized, top_k);
         finalMatches = r.chunks; if (r.used) rerankProvider = "cohere";
       } else if (openaiKey) {
-        const r = await rerankWithOpenAI(openaiKey, queryText, normalized, top_k);
+        const r = await rerankWithOpenAI(openaiKey, queryText, normalized, top_k, evalRerankModel);
         finalMatches = r.chunks; if (r.used) rerankProvider = "openai";
       } else {
         const grokKey = await getCfg(supabase, "legal-ai-research", "grok_api_key");

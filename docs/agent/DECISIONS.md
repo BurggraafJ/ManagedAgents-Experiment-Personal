@@ -8,6 +8,49 @@ wordt dit een archief van goede voornemens.
 
 ---
 
+## 2026-09-15 — Eval cheap models + hard OpenAI spend caps (v1.213)
+
+**Spoor 01, model `claude-opus-4-6`.** `APP_VERSION` 1.212 → 1.213.
+
+**Judge → `gpt-5-nano`.** De L2-judge (retrieval + chat) vergelijkt met een referentie;
+nano is gepositioneerd voor classification en JSON-scoring. Gemeten judge-aandeel: ~$0,075
+op een full-run van $6,24 (1,2 %); met nano ~$0,021 — cosmetische besparing, maar het
+voorkomt dat judge-kosten meeliften als iemand later de constante terugzet naar een duurder
+model. `rag_eval_baseline.cjs` gelijk getrokken (en als deprecated gemarkeerd).
+
+**Eval-pad rewrite/rerank → `gpt-5-nano`.** Alleen wanneer `trigger_type === "eval"` in
+`context-build`; prod-default blijft `gpt-5.6-luna`. Configureerbaar via `agent_config`
+keys `eval_rewrite_model` / `eval_rerank_model`. Flip naar luna = één SQL UPDATE.
+
+**Hard spend gate: €2,50/run + €25/maand.** Preflight in `rag_eval_start_run` via
+`rag_eval_spend_gate()`. Rook-p0 (~$0,89) past onder €2,50; full (~$6,24) en agentic-36
+eisen `spend_ok_token`. Maandcap is hard — token helpt niet. Running runs tellen mee in
+`v_rag_eval_spend_month` met `max(actuals, preflight)`. `agent_eval_run.cjs` exit 5 op cap;
+`--force` omzeilt alleen concurrency-lock, niet de spend-cap. Koers: `€1 = $1` (conservatief,
+zelfde als multi-user-rem).
+
+**Cadans onder €25.** Rook niet dagelijks maar per chatketen-PR + max 2×/week gepland. Full
+maandelijks of biweekly met `spend_ok_token`. Nightly (`nightly_enabled=false`) blijft uit.
+Budgetvoorbeeld: 10× rook ($9) + 1× full ($6) + 1× agentic-36 ($4) ≈ $19 ≈ €19.
+
+**Judge A/B uitgesteld.** J1–J5 poorten staan beschreven in het research-document. De nano-
+constante staat achter `agent_config judge_model`; terugdraaien = één SQL. Het A/B bewijs
+is een apart werkpakket na de eerste week metingen met nano.
+
+**PRICE_PER_M bijgewerkt.** `gpt-5.6-terra`, `gpt-5.6-sol`, `gpt-5.6-luna` en `gpt-5-nano`
+(met officiële sep-2026 tarieven) toegevoegd aan `_shared/user-gate.ts`. `gpt-5-mini`
+gecorrigeerd ($0,25/$2,00 i.p.v. $0,75/$4,50).
+
+**`rag_eval_finish_if_done` telt judge-kosten mee.** `judge_cost_usd` berekend uit
+`envelope_compact.judge_usage` × PRICE; opgeteld bij `cost_usd_total`.
+
+**OpenAI 402/insufficient_quota → `openai_credits`.** In judge.ts en de runner; geen
+vermelding van Vault/Anthropic in foutmeldingen.
+
+Research: `/workspace/security/maestro-agent-architecture/01-eval-validation/EVAL-CHEAP-MODELS-SPEND-CAP-RESEARCH.md`
+
+---
+
 ## 2026-09-13 — Spoor 07 item 7: twee guards maten iets anders dan ze beweerden
 
 **Spoor 07 item 7, model `claude-opus-5` (MODEL-MIX 07 = O).** Geen `APP_VERSION`-bump:

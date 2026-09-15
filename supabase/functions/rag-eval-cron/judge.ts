@@ -11,7 +11,7 @@
 // legacy-items met ground truth). Contract ongewijzigd: reasoning_effort none.
 // =============================================================================
 const OPENAI = "https://api.openai.com/v1/chat/completions";
-export const JUDGE_MODEL = "gpt-5.6-luna";
+export const JUDGE_MODEL = "gpt-5-nano";
 
 export type Q = {
   id: string; question: string; dimension: string | null; category: string | null; intent: string; qtype: string;
@@ -31,7 +31,10 @@ async function askJson(openaiKey: string, prompt: string, maxTokens: number): Pr
       signal: AbortSignal.timeout(60_000),
     });
     const t = await r.text();
-    if (!r.ok) return { error: `openai_${r.status}: ${t.slice(0, 120)}` };
+    if (!r.ok) {
+      const code = r.status === 402 || /insufficient_quota|no credits/i.test(t) ? "openai_credits" : `openai_${r.status}`;
+      return { error: `${code}: ${t.slice(0, 120)}` };
+    }
     const j = JSON.parse(t);
     const usage = { model: JUDGE_MODEL, in: j.usage?.prompt_tokens ?? null, cached: j.usage?.prompt_tokens_details?.cached_tokens ?? null, out: j.usage?.completion_tokens ?? null };
     const content = j.choices?.[0]?.message?.content ?? "";
