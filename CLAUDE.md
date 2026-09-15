@@ -201,12 +201,20 @@ de gewijzigde functionaliteit raakt (niet alleen een 200-check).
       bewijs ligt: `agent_eval_load.cjs` keurt de **vorm** af zonder token (en dus ook in CI),
       `DOC-12` keurt de **datum** af zodra er ná die dag nog een groene ronde op staat.
 11. **RLS, een view, een RPC-grant of een edge function aangeraakt? Dan de multi-user-poort.**
-    - `node scripts/multi_user_acl_eval.cjs` — exit 0. Zeventien asserties: geen view die de RLS
+    - `node scripts/multi_user_acl_eval.cjs` — exit 0. Achttien asserties: geen view die de RLS
       omzeilt (M1), geen DEFINER-RPC zonder poort voor `authenticated` (M2), geen app-functie
       met EXECUTE voor `PUBLIC` (M2b), elke `verify_jwt`-functie met rolcheck of op de lijst
       (M3), geen storage-policy die alleen op `bucket_id` test (M8), en de drie die er het
       meest toe doen: een member ziet niets van de gedeelde wereld (M4), een member ziet wél
       zijn eigen rijen (M5), en de owner ziet ná de wijziging evenveel of meer (M6).
+    - **M15** (v1.220) doet dat laatste ook voor `agent_config`: een member ziet uitsluitend de
+      sleutels uit `agent_config_member_keys`, nul van de deny-lijst, en de owner ziet nog
+      steeds álle non-secret rijen. Nieuwe member-call-site op `agent_config`? Dan een rij in
+      die tabel mét `reden` én `call_site` — anders leest het scherm nul.
+    - **De poort zet `last_sign_in_at` terug** voor de twee geminte persona's (v1.220,
+      geheugen `minted-jwt-counts-as-a-login`): minten ís inloggen, en een meting hoort geen
+      "Vandaag actief" achter te laten bij iemand die niets deed. De waarde komt uit de rij
+      zelf, nooit uit een schatting, en wordt ná afloop nageteld.
     - **M3 leest de repo, M3b de GEDEPLOYDE bundel.** Dat zijn twee verschillende gesprekken:
       M3 rood = iemand schreef geen poort, M3b rood = iemand vergat te deployen. M3b haalt per
       `verify_jwt`-functie de eszip op (`GET …/functions/<slug>/body`) en zoekt dezelfde
@@ -230,3 +238,19 @@ de gewijzigde functionaliteit raakt (niet alleen een 200-check).
     - ⚠ Tellen op het *bestáán* van een `model_usage_log`-rij is vals groen: een mislukte
       provider-call schrijft óók een regel (`ok = false`). Tijdens een credit-storing zou die
       telling groen worden terwijl er niets werkt.
+12. **Een mailbox-ETL aangeraakt (`mail-sync-etl-v2`, `mail-reconcile`,
+    `outlook-calendar-sync-etl`, `calendar-reconcile`, `_shared/mail-account.ts`)? Dan de
+    cadans-poort.**
+    - `node scripts/mail_cadence_check.cjs` — exit 0. Deterministisch en zonder token, dus ook
+      in CI. Hij rekent de formule na (`interval = cron_periode × ceil(A / N)`), controleert dat
+      elke ETL via de gedeelde driver claimt met een begrensd `MAX_ACCOUNTS_PER_RUN` én
+      `MAX_WALL_TIME_MS`, en dat `N × p95` in dat budget past — anders belooft de cadans-tabel
+      iets dat de lus elke tik afkapt.
+    - `--live` houdt de cron-perioden en de gemeten p95 in het script tegen `cron.job` en
+      `agent_runs`. Onbereikbaar is **rood**, nooit stil groen.
+    - **De cadans heeft één knop: N mailboxen per aanroep.** Niet óók de cron versnellen — dan
+      meet je ná de merge twee oorzaken tegelijk. Boven de zes mailboxen loopt het interval weer
+      op; dát is het moment om over de cron te praten.
+    - `mail-enricher` staat er bewust buiten: zijn lus zit in
+      `mail_enrichment_trigger_backfill_batch()` en doet 4 betaalde calls per account. Die
+      verhogen is een kosten-besluit, geen cadans-besluit.

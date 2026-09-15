@@ -111,12 +111,30 @@ function bronMetShared(indexPad) {
   return uit;
 }
 
-async function mgmt(p, init = {}) {
+// ⚠ Bounded retry op 5xx — niet op 4xx.
+//
+// De Management-API geeft na onderhoud minutenlang losse 500'en terug
+// ("Failed to perform authorization check", "Failed to check user auth status";
+// waargenomen 2026-09-15 21:52 UTC). Eén zo'n hik maakte de hele poort rood én
+// brak de opruiming halverwege af — een infrastoring die zich voordoet als een
+// bevinding, dezelfde faalmodus als geheugen `g1-gate-counts-502-as-silence`.
+//
+// Dit mág hier omdat élke statement in dit script idempotent is: SELECT,
+// DELETE op een testmerk, UPDATE op één id, of INSERT … ON CONFLICT DO UPDATE.
+// Een tweede poging kan niets dubbel doen. Blijft de 500 staan, dan valt de
+// poort alsnog om — een hardnekkige fout blijft een fout.
+async function mgmt(p, init = {}, poging = 1) {
   const r = await fetch(`${MGMT}${p}`, {
     ...init, headers: { Authorization: `Bearer ${SBT}`, 'Content-Type': 'application/json', ...UA, ...(init.headers || {}) },
   });
   const t = await r.text();
-  if (!r.ok) throw new Error(`mgmt ${p} ${r.status}: ${t.slice(0, 300)}`);
+  if (!r.ok) {
+    if (r.status >= 500 && poging < 3) {
+      await new Promise(res => setTimeout(res, poging * 2000));
+      return mgmt(p, init, poging + 1);
+    }
+    throw new Error(`mgmt ${p} ${r.status}: ${t.slice(0, 300)}`);
+  }
   return JSON.parse(t);
 }
 const sql   = (q) => mgmt('/database/query', { method: 'POST', body: JSON.stringify({ query: q, read_only: true }) });
@@ -138,6 +156,18 @@ async function count(jwt, apikey, rel) {
   });
   if (!r.ok) return { status: r.status, n: null };
   return { status: 200, n: Number((r.headers.get('content-range') || '').split('/')[1] ?? -1) };
+}
+/**
+ * Rijen ophalen als een persona. `kolommen` blijft expres klein: van
+ * `agent_config` lezen we alléén de sleutels, nooit `config_value` — een poort
+ * die de waarde ophaalt om te bewijzen dat je hem niet mag zien is zelf het lek.
+ */
+async function rowsAs(jwt, apikey, rel, kolommen, query = '') {
+  const r = await fetch(`${REST}/${rel}?select=${kolommen}${query}`, {
+    headers: { apikey, Authorization: `Bearer ${jwt}`, ...UA },
+  });
+  if (!r.ok) return { status: r.status, rijen: null };
+  try { return { status: 200, rijen: JSON.parse(await r.text()) }; } catch { return { status: 200, rijen: [] }; }
 }
 /** Eén RPC-aanroep als een persona. Alleen voor LEZENDE functies. */
 async function callRpc(jwt, apikey, naam, args) {
@@ -402,12 +432,30 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
   const anonKey = keys.find(k => k.name === 'anon')?.api_key;
   if (!serviceKey || !anonKey) { assert('M4', 'sleutels opvraagbaar', false, 'geen', 'service_role + anon'); return await klaar(); }
 
-  const users = await sql(`select r.app_role, u.email, r.user_id
+  const users = await sql(`select r.app_role, u.email, r.user_id,
+                                  u.last_sign_in_at::text as laatst
                              from public.user_roles r join auth.users u on u.id = r.user_id
                             order by r.app_role, u.last_sign_in_at desc nulls last`);
   const owner = users.find(u => u.app_role === 'owner');
   const member = users.find(u => u.app_role === 'member');
   if (!owner || !member) { assert('M4', 'owner- en member-persona aanwezig', false, users.length + ' users', 'minstens 1 van elk'); return await klaar(); }
+
+  // ⚠ Minten IS inloggen (geheugen `minted-jwt-counts-as-a-login`):
+  // `/auth/v1/verify` schuift `last_sign_in_at` naar nu. `revokeMintedSessions()`
+  // haalt de sessie weg maar zet die datum niet terug — en dan staat er "Vandaag
+  // actief" bij een owner die zat te werken en bij een member die niets deed.
+  // De waarden hieronder zijn GEMETEN, niet geraden: precies terugzetten wat er
+  // stond, of `null` als er niets stond. (PR-C liet dit bewust open in
+  // `SECURITY-PRC-IMPL-NOTES.md` §6.1; PR-D sluit het.)
+  const laatstVoor = [owner, member].map(u => ({
+    user_id: u.user_id,
+    waarde: u.laatst === null || u.laatst === undefined ? 'null' : `'${u.laatst}'::timestamptz`,
+  }));
+  const laatstTerug = async () => {
+    for (const r of laatstVoor) {
+      await sqlRw(`update auth.users set last_sign_in_at = ${r.waarde} where id = '${r.user_id}'::uuid;`);
+    }
+  };
 
   const o = await mintUserJwt({ ref: REF, serviceKey, email: owner.email });
   const m = await mintUserJwt({ ref: REF, serviceKey, email: member.email });
@@ -669,12 +717,127 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
       m14regels.map(r => `${r.naam} sql=${r.sqlN} js=${r.js} invite=${r.invN}`).join(' · '),
       'per persona gelijk, en de twee persona\'s verschillen');
 
+    // ── M15 · agent_config: allowlist, niet "alles behalve secrets" (S7) ─────
+    //
+    // De policy stond op `session_mfa_ok() and (not is_secret)`. Op dit project
+    // is `is_secret` voor élke rij false, dus die tweede arm deed niets: een
+    // member mét tweede factor las de hele tabel — Composio-identifiers van het
+    // kantoorpostvak, Vercel- en GitHub-projectnamen, het spend-token van de
+    // evalcron, en resten van een in v1.135 gestript product.
+    //
+    // Deze assertie stelt de vraag van twee kanten, want alleen "member ziet
+    // weinig" is te halen door per ongeluk álles dicht te zetten:
+    //
+    //   POSITIEF  de schermen die een member wél heeft (Postvak, Agenda,
+    //             Instellingen) krijgen hun sleutels — anders is de handtekening
+    //             onder zijn mail weg en staat er een verzonnen chat-prompt.
+    //   NEGATIEF  nul rijen op de deny-lijst hieronder, en niet méér rijen dan
+    //             de allowlist toestaat.
+    //   OWNER     ongewijzigd: alle non-secret rijen.
+    //
+    // De deny-lijst staat hier met opzet als literal en komt NIET uit de
+    // allowlist-tabel: een negatieve controle die zijn verwachting uit dezelfde
+    // bron haalt als de handhaving bewijst niets.
+    const M15_DENY = [
+      ['global', 'composio_user_id'],
+      ['global', 'composio_connection_id_outlook'],
+      ['global', 'composio_connection_id_hubspot'],
+      ['mail-sync-etl-v2', 'composio_connection_id'],
+      ['connectors', 'outlook_auth_config_id'],
+      ['dashboard-refresh', 'vercel_project_id'],
+      ['dashboard-refresh', 'vercel_team_id'],
+      ['rag-eval-cron', 'spend_ok_token'],
+      ['linkedin-connect', 'browser_session_live_url'],   // gestript product, v1.135
+    ];
+
+    const tabelBestaat = (await sql(
+      `select to_regclass('public.agent_config_member_keys') is not null as er`))[0].er;
+
+    if (!tabelBestaat) {
+      // Migratie 20260915220000 nog niet toegepast. Niet stil overslaan: meet
+      // read-only wat hij gáát doen, met de allowlist als VALUES-lijst, en zet
+      // de uitkomst in de reden. Een overgeslagen assertie zonder getallen is
+      // een assertie die je de volgende keer ook overslaat.
+      const sim = (await sql(`
+        with k(agent_name, config_key) as (values
+          ('*','custom_instructions'), ('*','reminder_style'),
+          ('auto-draft','postvak_signature'), ('auto-draft','spelcheck_default_instruction'),
+          ('rag-chat','system_prompt'))
+        select count(*) filter (where zichtbaar)                  as member_na,
+               count(*)                                           as niet_secret,
+               count(*) filter (where zichtbaar and op_denylijst)  as deny_na
+          from (
+            select a.agent_name, a.config_key,
+                   exists (select 1 from k
+                            where k.config_key = a.config_key
+                              and (k.agent_name = '*' or k.agent_name = a.agent_name)) as zichtbaar,
+                   (a.agent_name, a.config_key) in (
+                     ${M15_DENY.map(([an, ck]) => `('${an}','${ck}')`).join(',')}) as op_denylijst
+              from public.agent_config a where not a.is_secret) t`))[0];
+      const nu = await count(m.jwt, anonKey, 'agent_config');
+      overslaan('M15', 'agent_config: member ziet alleen de allowlist-sleutels',
+        `migratie 20260915220000 nog niet toegepast · nu: member ziet ${nu.n}/${sim.niet_secret} · `
+        + `ná migratie: ${sim.member_na}/${sim.niet_secret}, deny-lijst ${sim.deny_na}/${M15_DENY.length}`);
+    } else {
+      const toegestaan = await sql(
+        `select agent_name, config_key from public.agent_config_member_keys`);
+      const mag = (an, ck) => toegestaan.some(k =>
+        k.config_key === ck && (k.agent_name === '*' || k.agent_name === an));
+
+      const mRijen = await rowsAs(m.jwt, anonKey, 'agent_config', 'agent_name,config_key');
+      const oRijen = await rowsAs(o.jwt, anonKey, 'agent_config', 'agent_name,config_key');
+      const nietSecret = (await sql(
+        `select count(*)::int as n from public.agent_config where not is_secret`))[0].n;
+      const verwachtMember = (await sql(`
+        select count(*)::int as n from public.agent_config a
+         where not a.is_secret
+           and exists (select 1 from public.agent_config_member_keys k
+                        where k.config_key = a.config_key
+                          and (k.agent_name = '*' or k.agent_name = a.agent_name))`))[0].n;
+
+      const teveel = (mRijen.rijen ?? []).filter(r => !mag(r.agent_name, r.config_key));
+      const denyGezien = (mRijen.rijen ?? []).filter(r =>
+        M15_DENY.some(([an, ck]) => an === r.agent_name && ck === r.config_key));
+      const memberN = mRijen.rijen?.length ?? -1;
+      const ownerN  = oRijen.rijen?.length ?? -1;
+
+      assert('M15', 'agent_config: member alleen allowlist, owner ongewijzigd',
+        mRijen.status === 200 && oRijen.status === 200
+          && teveel.length === 0 && denyGezien.length === 0
+          && memberN === verwachtMember && memberN > 0   // > 0: dichttimmeren is geen slagen
+          && ownerN === nietSecret,
+        `member=${memberN}/${verwachtMember} deny=${denyGezien.length} buiten_lijst=${teveel.length} owner=${ownerN}/${nietSecret}`,
+        `member=allowlist>0 · deny=0 · owner=alle non-secret`);
+    }
+
   } finally {
-    await sqlRw(`delete from public.task_projects where name = 'acl-eval M13 persoonlijk'`);
-    await sqlRw(`delete from public.user_capabilities where note = '${TESTMERK}';`);
-    await opruimen();
+    // Elke opruimstap apart, en de datum-reparatie eerst.
+    //
+    // Tot v1.219 stond dit als één keten van `await`s. Eén hik van de
+    // Management-API (waargenomen 2026-09-15: HTTP 500 "Failed to retrieve the
+    // requested resource", vlak na onderhoud) liet de rest van de keten dan
+    // over: testrijen bleven staan én `last_sign_in_at` bleef op "nu". Een
+    // opruiming die stopt bij de eerste fout is geen opruiming.
+    const stappen = [
+      ['last_sign_in_at terug', laatstTerug],
+      ['testproject weg', () => sqlRw(`delete from public.task_projects where name = 'acl-eval M13 persoonlijk'`)],
+      ['override weg', () => sqlRw(`delete from public.user_capabilities where note = '${TESTMERK}';`)],
+      ['MFA-testrijen weg', opruimen],
+    ];
+    for (const [naam, fn] of stappen) {
+      try { await fn(); } catch (e) { console.log(`\n⚠ opruimen "${naam}" mislukt: ${String(e.message).slice(0, 120)}`); }
+    }
     const rest = await sql(`select count(*)::int as n from public.user_session_mfa where user_agent = '${TESTMERK}'`);
     if (rest[0].n !== 0) console.log(`\n⚠ ${rest[0].n} MFA-testrijen niet opgeruimd — verwijder ze handmatig.`);
+    // Natellen in plaats van aannemen: een `update` die stil niets raakte ziet
+    // er hetzelfde uit als een geslaagde.
+    const terug = await sql(`select id::text as user_id, last_sign_in_at::text as nu from auth.users
+                              where id in (${laatstVoor.map(r => `'${r.user_id}'::uuid`).join(',')})`);
+    const scheef = terug.filter(t => {
+      const wil = laatstVoor.find(r => r.user_id === t.user_id).waarde;
+      return wil === 'null' ? t.nu !== null : wil !== `'${t.nu}'::timestamptz`;
+    });
+    if (scheef.length) console.log(`\n⚠ last_sign_in_at niet teruggezet voor ${scheef.length} persona('s).`);
   }
   await klaar();
 })().catch(e => { console.error('\nFOUT:', e.message); process.exit(2); });

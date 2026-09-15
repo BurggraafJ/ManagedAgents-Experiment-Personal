@@ -18,14 +18,28 @@
 // verwijderd kan markeren. Zie MAIL-PIPELINE.md §3.2.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
+// v1.2 (S5, 2026-09-15): N mailboxen per invocatie. Zie de constanten hieronder
+// en `_shared/mail-account.ts` → forEachClaimedMailAccount.
 import {
-  claimMailAccount, finishMailAccountClaim, getCfg as getSharedCfg, type MailAccount,
+  forEachClaimedMailAccount, getCfg as getSharedCfg,
+  type AccountPass, type MailAccount,
 } from "../_shared/mail-account.ts";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-const SKILL_VERSION = "mail-reconcile-v1.1";
+const SKILL_VERSION = "mail-reconcile-v1.2";
 const TOOL_LIST_MESSAGES = "OUTLOOK_OUTLOOK_LIST_MESSAGES";
 const MAX_PAGES_PER_FOLDER = 30;  // 30 * 999 = 30k mails cap, ruim genoeg
+
+// ── v1.2 (S5) · de cadans-knop ───────────────────────────────────────────────
+// Cron staat op `5,35 * * * *` (elke 30 min). Eén claim per aanroep betekende
+// bij zes mailboxen een reconcile per mailbox elke drie uur; met N = 6 blijft
+// het 30 minuten. Formule: interval = cron_periode × ceil(A / N).
+//
+// Reconcile is de zwaarste van de drie per mailbox (alle message-ids per
+// folder), vandaar hetzelfde wall-budget van 60 s als de andere twee: wie niet
+// meer past komt over 30 minuten weer langs, met zijn claim-volgorde intact.
+const MAX_ACCOUNTS_PER_RUN = 6;
+const MAX_WALL_TIME_MS = 60_000;
 
 interface ComposioContext { apiKey: string; userId: string; connectionId: string; }
 
@@ -245,6 +259,15 @@ Deno.serve(async (req) => {
     messages_marked_deleted: 0,
     outlook_only_total: 0,
     per_folder: [] as ReconcileResult[],
+    // v1.2 (S5): meerdere mailboxen per invocatie. De drie account_*-velden
+    // beschrijven de láátste mailbox (bestaande queries blijven werken);
+    // `accounts[]` is de volledige ronde, één rij per eigenaar.
+    accounts: [] as AccountPass[],
+    accounts_claimable: 0,
+    accounts_processed: 0,
+    accounts_failed: 0,
+    max_accounts_per_run: MAX_ACCOUNTS_PER_RUN,
+    stop_reason: null as string | null,
     warnings: [] as string[],
   };
 
@@ -255,24 +278,20 @@ Deno.serve(async (req) => {
   if (runErr || !runIns) return new Response(`run_record_create_failed: ${runErr?.message}`, { status: 500 });
   const runId = runIns.id as string;
 
-  let account: MailAccount | null = null;
-  try {
-    // v1.1: één mailbox per invocatie, round-robin via de registry.
-    account = await claimMailAccount(supabase, "reconcile", "mail-reconcile");
-    if (!account) {
-      stats.warnings.push("no_claimable_account");
-      await supabase.from("agent_runs").update({
-        status: "warning", completed_at: new Date().toISOString(),
-        summary: "geen claimbaar mail_account", stats,
-      }).eq("id", runId);
-      return new Response(JSON.stringify({ ok: true, runId, skipped: true, reason: "no_claimable_account" }),
-        { status: 200, headers: { "Content-Type": "application/json" } });
-    }
+  // v1.2 (S5): N mailboxen per invocatie, elk met zijn eigen try/catch binnen
+  // de driver — één mailbox die faalt laat de andere eigenaren staan.
+  const reconcileEenMailbox = async (
+    account: MailAccount,
+    lus: { pass: number; detail: Record<string, unknown> },
+  ): Promise<string | null> => {
     const ownerUserId = account.user_id;
     (stats as Record<string, unknown>).mailbox_email = account.mailbox_email;
     (stats as Record<string, unknown>).account_user_id = ownerUserId;
     (stats as Record<string, unknown>).account_source =
       account.from_registry ? "mail_accounts" : "agent_config_fallback";
+    const warningsVoor = stats.warnings.length;
+    const faalVoor = stats.folders_failed;
+    const deletedVoor = stats.messages_marked_deleted;
 
     const ctx = await buildCtx(supabase, account);
 
@@ -323,25 +342,61 @@ Deno.serve(async (req) => {
       }
     }
 
-    const summary = stats.messages_marked_deleted > 0
+    lus.detail.folders_failed = stats.folders_failed - faalVoor;
+    lus.detail.messages_marked_deleted = stats.messages_marked_deleted - deletedVoor;
+
+    // Zelfde regel als vóór v1.2, maar per mailbox: een folder-fout van DEZE
+    // mailbox wordt de claim-fout van DEZE mailbox.
+    const eigenWarnings = stats.warnings.slice(warningsVoor);
+    return stats.folders_failed > faalVoor ? (eigenWarnings[0] ?? "folder_failed").slice(0, 300) : null;
+  };
+
+  try {
+    const ronde = await forEachClaimedMailAccount(
+      supabase, "reconcile", "mail-reconcile",
+      { maxAccounts: MAX_ACCOUNTS_PER_RUN, maxWallMs: MAX_WALL_TIME_MS },
+      reconcileEenMailbox,
+    );
+    stats.accounts = ronde.passes;
+    stats.accounts_claimable = ronde.claimbaar;
+    stats.accounts_processed = ronde.passes.length;
+    stats.accounts_failed = ronde.passes.filter((p) => !p.ok).length;
+    stats.stop_reason = ronde.stop_reason;
+
+    if (ronde.passes.length === 0) {
+      stats.warnings.push("no_claimable_account");
+      await supabase.from("agent_runs").update({
+        status: "warning", completed_at: new Date().toISOString(),
+        summary: "geen claimbaar mail_account", stats,
+      }).eq("id", runId);
+      return new Response(JSON.stringify({ ok: true, runId, skipped: true, reason: "no_claimable_account" }),
+        { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+
+    const mboxen = ronde.passes.map((p) => p.mailbox_email ?? p.account_user_id).join(", ");
+    const kern = stats.messages_marked_deleted > 0
       ? `${stats.folders_reconciled} folder(s), ${stats.messages_marked_deleted} mail(s) gemarkeerd als verplaatst/weg`
       : `${stats.folders_reconciled} folder(s), alles synchroon`;
+    const summary = `${stats.accounts_processed}/${ronde.claimbaar} mailbox(en) [${mboxen}], ${kern}` +
+      (ronde.stop_reason === "wall_budget" ? " — tijd op, rest volgt volgende tik" : "");
 
-    const finalStatus = stats.folders_failed > 0
-      ? "warning"
-      : (stats.warnings.length > 0 ? "warning" : "success");
+    const allesStuk = stats.accounts_failed === stats.accounts_processed;
+    const finalStatus = allesStuk
+      ? "error"
+      : (stats.folders_failed > 0 || stats.warnings.length > 0 ? "warning" : "success");
 
-    await finishMailAccountClaim(supabase, account, stats.folders_failed > 0 ? (stats.warnings[0] ?? "").slice(0, 300) : null);
     await supabase.from("agent_runs").update({
-      status: finalStatus, completed_at: new Date().toISOString(), summary, stats
+      status: finalStatus, completed_at: new Date().toISOString(), summary, stats,
+      errors: ronde.passes.filter((p) => !p.ok)
+        .map((p) => ({ message: `${p.mailbox_email ?? p.account_user_id}: ${p.error}`, at: new Date().toISOString() })),
     }).eq("id", runId);
 
-    return new Response(JSON.stringify({ ok: true, runId, stats }), {
-      status: 200, headers: { "Content-Type": "application/json" }
+    return new Response(JSON.stringify({ ok: !allesStuk, runId, stats }), {
+      status: allesStuk ? 500 : 200, headers: { "Content-Type": "application/json" }
     });
   } catch (err) {
+    // Alleen nog fouten buiten een mailbox om (claim-RPC, registry-telling).
     const errMsg = err instanceof Error ? err.message : String(err);
-    await finishMailAccountClaim(supabase, account, errMsg.slice(0, 300));
     await supabase.from("agent_runs").update({
       status: "error", completed_at: new Date().toISOString(),
       summary: errMsg.slice(0, 500), stats,

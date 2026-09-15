@@ -31,11 +31,43 @@
 // warning. Dit voorkomt dat een tijdelijke Composio-fout per ongeluk de hele
 // agenda wegnukt.
 
+// ── v1.1 (S5, 2026-09-15) · per-eigenaar én N agenda's per invocatie ─────────
+//
+// Tot v1.0 wist deze functie niet van `mail_accounts`: hij bouwde de
+// Composio-context uit `agent_config` (de org-connectie) en las én schreef
+// `calendar_events` ZONDER `user_id`-filter. Met één agenda is dat hetzelfde
+// als per-eigenaar werken. Met twee agenda's niet: hij zou de event-ids van
+// mailbox #1 ophalen, ze vergelijken met de rijen van iedereen, en de events
+// van mailbox #2 als `is_deleted = true` markeren. Dat is de fout die
+// `mail-reconcile` in v1.1 al had gehad en die hier nog open stond.
+//
+// Nu: dezelfde registry-claim en dezelfde begrensde lus als de andere drie
+// ETL's, en elke lees en schrijf op `calendar_events` is op `user_id`
+// gescopeerd. De veiligheidsrail (weiger te markeren als Outlook bijna leeg
+// terugkomt) telt daarmee ook per eigenaar in plaats van over de hele tabel.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
+import {
+  forEachClaimedMailAccount, type AccountPass, type MailAccount,
+} from "../_shared/mail-account.ts";
 
 const COMPOSIO_API_BASE = "https://backend.composio.dev/api/v3";
-const SKILL_VERSION = "calendar-reconcile-v1.0";
+const SKILL_VERSION = "calendar-reconcile-v1.1";
+
+// Cron staat op `7,37 * * * *` (elke 30 min). Formule: interval = cron_periode
+// × ceil(A / N). Met N = 6 blijft de reconcile 30 minuten tot en met zes
+// agenda's, in plaats van drie uur.
+//
+//   p95 per agenda = 4,1 s  (336 runs, 7 dagen, gemeten 2026-09-15)
+//   6 × 4,1 = 24,6 s  →  60 s budget is ruim; worst case 60 + 5,1 = 65 s,
+//   ver onder de gateway-idle-timeout van 150 s.
+//
+// Purpose 'calendar' wordt gedeeld met outlook-calendar-sync-etl. Dat mag: met
+// N ≥ A ziet elke invocatie álle agenda's, dus de gedeelde round-robin-wijzer
+// kan geen agenda overslaan. Een eigen purpose zou een CHECK-migratie kosten
+// voor precies nul gedragsverschil.
+const MAX_ACCOUNTS_PER_RUN = 6;
+const MAX_WALL_TIME_MS = 60_000;
 const TOOL_LIST_EVENTS = "OUTLOOK_OUTLOOK_LIST_EVENTS";
 const PAGE_SIZE = 999;
 const MAX_PAGES = 10;        // 10 × 999 = ~10k events cap, ruim genoeg voor 150d window
@@ -60,17 +92,22 @@ async function getCfg(supabase: SupabaseClient, agentName: string, key: string):
   return typeof data.config_value === "string" ? data.config_value : String(data.config_value);
 }
 
-async function buildCtx(supabase: SupabaseClient): Promise<ComposioContext> {
+// v1.1: de connectie komt uit het geclaimde mail_accounts-record, net als bij
+// outlook-calendar-sync-etl. agent_config blijft alleen nog fallback voor een
+// registry-rij zonder credential (seed liep vóór agent_config).
+async function buildCtx(supabase: SupabaseClient, account: MailAccount): Promise<ComposioContext> {
   const apiKey = await getCfg(supabase, "global", "composio_api_key");
   if (!apiKey) throw new Error("composio_api_key_missing");
-  // Hergebruik dezelfde connection als outlook-calendar-sync-etl + mail-sync.
-  const userId = (await getCfg(supabase, "outlook-calendar-sync-etl", "composio_user_id"))
+  const userId = account.composio_user_id
+    ?? (await getCfg(supabase, "outlook-calendar-sync-etl", "composio_user_id"))
     ?? (await getCfg(supabase, "global", "composio_user_id"))
     ?? "user-jelle";
-  const connectionId =
-    (await getCfg(supabase, "outlook-calendar-sync-etl", "composio_connection_id"))
+  const connectionId = account.composio_connection_id
+    ?? (await getCfg(supabase, "outlook-calendar-sync-etl", "composio_connection_id"))
     ?? (await getCfg(supabase, "mail-sync-etl-v2", "composio_connection_id"));
-  if (!connectionId) throw new Error("composio_connection_id_missing");
+  if (!connectionId) {
+    throw new Error(`composio_connection_id_missing for ${account.mailbox_email ?? account.user_id}`);
+  }
   return { apiKey, userId, connectionId };
 }
 
@@ -158,6 +195,14 @@ Deno.serve(async (req) => {
     revived: 0,                  // gevallen waar Outlook event terug komt
     outlook_only: 0,             // events die nog niet in DB staan (sync zal ze oppakken)
     skipped_safety: false,
+    // v1.1 (S5): meerdere agenda's per invocatie. `accounts[]` is de hele
+    // ronde, één rij per eigenaar — daar zie je wélke agenda stilvalt.
+    accounts: [] as AccountPass[],
+    accounts_claimable: 0,
+    accounts_processed: 0,
+    accounts_failed: 0,
+    max_accounts_per_run: MAX_ACCOUNTS_PER_RUN,
+    stop_reason: null as string | null,
     warnings: [] as string[],
   };
 
@@ -168,8 +213,23 @@ Deno.serve(async (req) => {
   if (runErr || !runIns) return new Response(`run_record_create_failed: ${runErr?.message}`, { status: 500 });
   const runId = runIns.id as string;
 
-  try {
-    const ctx = await buildCtx(supabase);
+  // Getypeerde optelling naast `stats` (die is `Record<string, unknown>`, dus
+  // `+=` erop is geen rekenen maar gokken). Aan het eind van de ronde gaan deze
+  // zes in één keer in stats.
+  const totaal = {
+    outlook_count: 0, db_count: 0, pages: 0,
+    marked_deleted: 0, revived: 0, outlook_only: 0,
+  };
+
+  // v1.1 (S5): één agenda per pass, N passes per invocatie. Alles binnen deze
+  // closure is op ÉÉN eigenaar gescopeerd — dat is de hele reden dat de
+  // functie nu langs de registry gaat.
+  const reconcileEenAgenda = async (
+    account: MailAccount,
+    lus: { pass: number; detail: Record<string, unknown> },
+  ): Promise<string | null> => {
+    const ownerUserId = account.user_id;
+    const ctx = await buildCtx(supabase, account);
 
     // Stap 1 — fetch alle event-IDs in window uit Outlook
     const outlookIds = new Set<string>();
@@ -207,13 +267,16 @@ Deno.serve(async (req) => {
       if (events.length < PAGE_SIZE) break;
     } while (pageToken && pages < MAX_PAGES);
 
-    stats.outlook_count = outlookIds.size;
-    stats.pages = pages;
+    totaal.outlook_count += outlookIds.size;
+    totaal.pages += pages;
 
-    // Stap 2 — DB events in zelfde window
+    // Stap 2 — DB events in zelfde window, VAN DEZE EIGENAAR.
+    // Het `user_id`-filter is de kern van v1.1: zonder dat vergelijkt de
+    // functie de agenda van eigenaar A met de rijen van iedereen.
     const { data: dbRows, error: dbErr } = await supabase
       .from("calendar_events")
       .select("graph_id, is_deleted")
+      .eq("user_id", ownerUserId)
       .gte("start_time", windowStart.toISOString())
       .lte("start_time", windowEnd.toISOString());
     if (dbErr) throw new Error(`db_select_failed: ${dbErr.message}`);
@@ -222,23 +285,22 @@ Deno.serve(async (req) => {
     for (const r of (dbRows ?? [])) {
       if (r.graph_id) dbActive.set(r.graph_id, !!r.is_deleted);
     }
-    stats.db_count = dbActive.size;
+    totaal.db_count += dbActive.size;
+    lus.detail.outlook_count = outlookIds.size;
+    lus.detail.db_count = dbActive.size;
 
-    // Safety: weiger te markeren als Outlook bijna leeg is maar DB vol
+    // Safety: weiger te markeren als Outlook bijna leeg is maar DB vol.
+    // v1.1: de rail telt nu per eigenaar en slaat alléén DEZE agenda over —
+    // vóór v1.1 stopte hij de hele invocatie, wat bij zes agenda's betekende
+    // dat één lege fetch de andere vijf óók zou overslaan.
     if (outlookIds.size < SAFETY_MIN_FETCH && dbActive.size > SAFETY_DB_THRESHOLD) {
       stats.skipped_safety = true;
-      (stats.warnings as string[]).push(
-        `safety_skip: outlook_count=${outlookIds.size} (<${SAFETY_MIN_FETCH}) vs db_count=${dbActive.size} (>${SAFETY_DB_THRESHOLD}) — refuse to mark`
-      );
-      await supabase.from("agent_runs").update({
-        status: "warning",
-        completed_at: new Date().toISOString(),
-        summary: `safety-skip: Outlook leverde maar ${outlookIds.size} events terug, DB heeft ${dbActive.size}. Geen deletions toegepast.`,
-        stats,
-      }).eq("id", runId);
-      return new Response(JSON.stringify({ ok: true, runId, stats }), {
-        status: 200, headers: { "Content-Type": "application/json" }
-      });
+      lus.detail.skipped_safety = true;
+      const reden =
+        `safety_skip ${account.mailbox_email ?? ownerUserId}: outlook_count=${outlookIds.size} ` +
+        `(<${SAFETY_MIN_FETCH}) vs db_count=${dbActive.size} (>${SAFETY_DB_THRESHOLD}) — refuse to mark`;
+      (stats.warnings as string[]).push(reden);
+      return reden;
     }
 
     // Stap 3 — bereken delta
@@ -254,9 +316,13 @@ Deno.serve(async (req) => {
     for (const id of outlookIds) {
       if (!dbActive.has(id)) outlookOnly++;
     }
-    stats.outlook_only = outlookOnly;
+    totaal.outlook_only += outlookOnly;
 
-    // Stap 4 — mark als is_deleted in batches van 200
+    // Stap 4 — mark als is_deleted in batches van 200.
+    // `.eq("user_id", …)` naast `.in("graph_id", …)`: de graph_id's komen uit
+    // dbActive en zijn dus al van deze eigenaar, maar een write die zelf niet
+    // op de eigenaar filtert is precies het soort regel dat later per ongeluk
+    // hergebruikt wordt. Twee gordels.
     const nowIso = new Date().toISOString();
     let markedTotal = 0;
     for (let i = 0; i < toDelete.length; i += 200) {
@@ -264,11 +330,13 @@ Deno.serve(async (req) => {
       const { error } = await supabase
         .from("calendar_events")
         .update({ is_deleted: true, deleted_at: nowIso, updated_at: nowIso })
+        .eq("user_id", ownerUserId)
         .in("graph_id", batch);
       if (error) throw new Error(`db_mark_deleted_failed: ${error.message}`);
       markedTotal += batch.length;
     }
-    stats.marked_deleted = markedTotal;
+    totaal.marked_deleted += markedTotal;
+    lus.detail.marked_deleted = markedTotal;
 
     // Stap 5 — revive events die terug zijn in Outlook (rare maar bestaat:
     // Jelle verplaatst event terug, of accepteert weer)
@@ -278,26 +346,63 @@ Deno.serve(async (req) => {
       const { error } = await supabase
         .from("calendar_events")
         .update({ is_deleted: false, deleted_at: null, updated_at: nowIso })
+        .eq("user_id", ownerUserId)
         .in("graph_id", batch);
       if (error) throw new Error(`db_revive_failed: ${error.message}`);
       revivedTotal += batch.length;
     }
-    stats.revived = revivedTotal;
+    totaal.revived += revivedTotal;
+    lus.detail.revived = revivedTotal;
+    return null;
+  };
 
-    const summary = (markedTotal > 0 || revivedTotal > 0)
-      ? `${markedTotal} event(s) gemarkeerd als verwijderd${revivedTotal > 0 ? `, ${revivedTotal} herleefd` : ''} (window: ${WINDOW_DAYS_BACK}d→${WINDOW_DAYS_FWD}d, outlook=${outlookIds.size}, db=${dbActive.size})`
-      : `alles synchroon (outlook=${outlookIds.size}, db=${dbActive.size}, window=${WINDOW_DAYS_BACK}d→${WINDOW_DAYS_FWD}d)`;
+  try {
+    const ronde = await forEachClaimedMailAccount(
+      supabase, "calendar", "calendar-reconcile",
+      { maxAccounts: MAX_ACCOUNTS_PER_RUN, maxWallMs: MAX_WALL_TIME_MS },
+      reconcileEenAgenda,
+    );
+    stats.accounts = ronde.passes;
+    stats.accounts_claimable = ronde.claimbaar;
+    stats.accounts_processed = ronde.passes.length;
+    stats.accounts_failed = ronde.passes.filter((p) => !p.ok).length;
+    stats.stop_reason = ronde.stop_reason;
 
-    const finalStatus = (stats.warnings as string[]).length > 0 ? "warning" : "success";
+    if (ronde.passes.length === 0) {
+      (stats.warnings as string[]).push("no_claimable_account");
+      await supabase.from("agent_runs").update({
+        status: "warning", completed_at: new Date().toISOString(),
+        summary: "geen claimbaar mail_account", stats,
+      }).eq("id", runId);
+      return new Response(JSON.stringify({ ok: true, runId, skipped: true, reason: "no_claimable_account" }), {
+        status: 200, headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    const mboxen = ronde.passes.map((p) => p.mailbox_email ?? p.account_user_id).join(", ");
+    Object.assign(stats, totaal);
+    const kern = (totaal.marked_deleted > 0 || totaal.revived > 0)
+      ? `${totaal.marked_deleted} event(s) gemarkeerd als verwijderd${totaal.revived > 0 ? `, ${totaal.revived} herleefd` : ''} (window: ${WINDOW_DAYS_BACK}d→${WINDOW_DAYS_FWD}d, outlook=${totaal.outlook_count}, db=${totaal.db_count})`
+      : `alles synchroon (outlook=${totaal.outlook_count}, db=${totaal.db_count}, window=${WINDOW_DAYS_BACK}d→${WINDOW_DAYS_FWD}d)`;
+    const summary = `${stats.accounts_processed}/${ronde.claimbaar} agenda('s) [${mboxen}], ${kern}` +
+      (ronde.stop_reason === "wall_budget" ? " — tijd op, rest volgt volgende tik" : "");
+
+    const allesStuk = stats.accounts_failed === stats.accounts_processed;
+    const finalStatus = allesStuk
+      ? "error"
+      : ((stats.warnings as string[]).length > 0 ? "warning" : "success");
 
     await supabase.from("agent_runs").update({
       status: finalStatus, completed_at: new Date().toISOString(), summary, stats,
+      errors: ronde.passes.filter((p) => !p.ok)
+        .map((p) => ({ message: `${p.mailbox_email ?? p.account_user_id}: ${p.error}`, at: new Date().toISOString() })),
     }).eq("id", runId);
 
-    return new Response(JSON.stringify({ ok: true, runId, stats }), {
-      status: 200, headers: { "Content-Type": "application/json" }
+    return new Response(JSON.stringify({ ok: !allesStuk, runId, stats }), {
+      status: allesStuk ? 500 : 200, headers: { "Content-Type": "application/json" }
     });
   } catch (err) {
+    // Alleen nog fouten buiten een agenda om (claim-RPC, registry-telling).
     const errMsg = err instanceof Error ? err.message : String(err);
     await supabase.from("agent_runs").update({
       status: "error", completed_at: new Date().toISOString(),
