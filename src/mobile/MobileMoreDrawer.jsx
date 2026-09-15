@@ -25,9 +25,14 @@ import { useUpdateStatus, reopenUpdatePrompt } from '../lib/updateStatus'
 // v1.178: pipeline / datakwaliteit / klantverlies weg uit Meer — die zijn
 // dashboards vanaf Home (stuurkaarten), geen modules. VIEW_TO_TAB houdt de
 // Home-tab actief als je op een bord zit.
+// v1.204 (Jelle 2026-09-15): Agenda ruilde van plek met Administratie —
+// Agenda is nu tab 2 en staat hier dus níét meer (geen dubbele ingang),
+// Administratie (view-id 'hubspot') staat hier als eerste module. De
+// badge komt uit nav → `v.count` (= badges.adminPending), dezelfde teller
+// die vroeger op de Admin-tab stond. Desktop-nav blijft ongewijzigd.
 const MOBILE_MORE_ITEMS = [
+  { id: 'hubspot',       label: 'Administratie',      icon: 'admin' },
   { id: 'vragenbak',     label: 'Analyse',            icon: 'spark' },
-  { id: 'agenda',        label: 'Agenda',             icon: 'cal' },
   { id: 'kennisbank',    label: 'Kennisbank',         icon: 'mind' },
   { id: 'long_running',  label: 'Long running tasks', icon: 'clock' },
 ]

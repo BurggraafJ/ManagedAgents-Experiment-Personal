@@ -1,6 +1,6 @@
 import MIcon from './MIcon'
 
-// Bottom tab bar — 5 hoofd-modules. Home/Postvak/Taken/Admin openen direct,
+// Bottom tab bar — 5 hoofd-modules. Home/Agenda/Postvak/Taken openen direct,
 // "Meer" opent de slide-up drawer met alle modules. Geport uit
 // app/mobile-shared.jsx (BottomTabBar). Badges komen uit de live nav-counts.
 // Vragenbak (471302146): Home is de eerste tab; de Briefing (vh "Vandaag")
@@ -8,21 +8,29 @@ import MIcon from './MIcon'
 // v1.176: Home (/, view-id 'zoeken') is het Dashboard met de stuurkaarten,
 // zoals op desktop — daarom het dashboard-icoon. De vragenbak staat op /zoeken
 // en telt als onderdeel van Home (vraag-pil), net als de drie borden erachter.
+// v1.204 (Jelle 2026-09-15): Agenda staat op plek 2 in de tabbar, Administratie
+// (view-id 'hubspot') zakt naar de Meer-drawer. Agenda stond daarvóór in de
+// Meer-modules en staat daar nu níét meer — geen dubbele ingang.
+// Alleen mobiel: de desktop-sidebar (NAV_GROUPS in viewRegistry) is ongemoeid,
+// dus daar houdt Administratie zijn plek onder Operations.
 const TABS = [
-  { id: 'home',  view: 'zoeken',    icon: 'dashboard', label: 'Home' },
-  { id: 'inbox', view: 'autodraft', icon: 'inbox',  label: 'Postvak' },
-  { id: 'task',  view: 'taken',     icon: 'task',   label: 'Taken' },
-  { id: 'admin', view: 'hubspot',   icon: 'admin',  label: 'Admin' },
-  { id: 'more',  view: null,        icon: 'more',   label: 'Meer' },
+  { id: 'home',   view: 'zoeken',    icon: 'dashboard', label: 'Home' },
+  { id: 'agenda', view: 'agenda',    icon: 'cal',    label: 'Agenda' },
+  { id: 'inbox',  view: 'autodraft', icon: 'inbox',  label: 'Postvak' },
+  { id: 'task',   view: 'taken',     icon: 'task',   label: 'Taken' },
+  { id: 'more',   view: null,        icon: 'more',   label: 'Meer' },
 ]
 
-// hubspot_future hoort visueel ook bij de Admin-tab. Instellingen, Long
-// running tasks en het owner-portaal (/admin/*, view-id 'admin') open je
-// vanuit de Meer-sheet → "Meer" blijft actief zodat je weet waar je bent en
-// hoe je terugkomt (v1.126/v1.127/v1.128).
+// agenda_rules (/agenda/spelregels) hoort visueel bij de Agenda-tab.
+// Administratie (hubspot + hubspot_future), Instellingen, Long running tasks
+// en het owner-portaal (/admin/*, view-id 'admin') open je vanuit de
+// Meer-sheet → "Meer" blijft actief zodat je weet waar je bent en hoe je
+// terugkomt (v1.126/v1.127/v1.128, uitgebreid met Administratie in v1.204).
 const VIEW_TO_TAB = {
   zoeken: 'home', vragenbak: 'home', pipeline: 'home', datakwaliteit: 'home', klantverlies: 'home',
-  autodraft: 'inbox', taken: 'task', hubspot: 'admin', hubspot_future: 'admin',
+  agenda: 'agenda', agenda_rules: 'agenda',
+  autodraft: 'inbox', taken: 'task',
+  hubspot: 'more', hubspot_future: 'more',
   settings: 'more', long_running: 'more', admin: 'more',
 }
 
