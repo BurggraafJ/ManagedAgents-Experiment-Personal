@@ -2,8 +2,9 @@
 // =============================================================================
 // multi_user_acl_eval.cjs — de poort voor multi-user toegang        (v1.190)
 // =============================================================================
-// Twaalf asserties. M2 bracht M9/M10; SECURITY PR-A brengt M11 (doorkijk over de
-// juiste persoon — S1). Draai hem vóór én ná elke
+// Dertien asserties. M2 bracht M9/M10; SECURITY PR-A brengt M11 (doorkijk over
+// de juiste persoon — S1) en M12 (het vinkje `levert_vandaag` dekt wat er echt
+// wordt afgedwongen — S4). Draai hem vóór én ná elke
 // wijziging aan RLS, een view, een RPC-grant of een edge function.
 //
 //   SBT=<management_token> node scripts/multi_user_acl_eval.cjs
@@ -222,6 +223,75 @@ const claims = (jwt) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64').toSt
   const m8Fout = buckets.filter(b => /bucket_id/.test(b.qual) && !STORAGE_POORT.test(b.qual));
   assert('M8', 'geen storage-policy die alleen op bucket_id test', m8Fout.length === 0,
     m8Fout.length ? m8Fout.map(b => b.naam).join(', ').slice(0, 28) : `0 van ${buckets.length} policies`, '0');
+
+  // ── M12 · `levert_vandaag` liegt niet (SECURITY PR-A / S4) ────────────────
+  //
+  // S4 zet negen vinkjes op true. Een vinkje is een belofte aan de owner: "dit
+  // recht doet vandaag iets". De kolom is handwerk en loopt dus uit de pas met
+  // de handhaving zodra iemand een policy verplaatst of een capability toevoegt
+  // — en dan liegt het Uitnodigen-scherm, want `rechten_zonder_dekking` in
+  // invite_readiness() leest exact deze kolom.
+  //
+  // Vier regels, allevier read-only en allevier aantoonbaar rood te krijgen
+  // (gemeten 2026-09-15 met een verzonnen rijenset: 1/1/1/1 waar de echte tabel
+  // 0/0/0/0 geeft — geheugen `grep-is-ugrep`: een poort die je niet één keer
+  // rood hebt gezien bewaakt niets):
+  //
+  //   a. tegenspraak       — levert_vandaag=true terwijl afdwingen_in leeg is of
+  //                          met 'nog niet' begint. De kolom spreekt zichzelf tegen.
+  //   b. claim_zonder_policy — afdwingen_in noemt capability_gate, maar geen
+  //                          pg_policy zet die poort op die key.
+  //   c. claim_zonder_guard  — afdwingen_in noemt assert_capability, maar geen
+  //                          functiebron roept hem aan met die key.
+  //   d. afgedwongen_zonder_vinkje — omgekeerd: de poort staat er wél (policy of
+  //                          guard) en het vinkje staat uit. Dan ónderschat het
+  //                          scherm wat de persoon krijgt.
+  //
+  // ⚠ Postgres bewaart een policy-expressie mét cast: `capability_gate('x'::text)`.
+  // Matchen op `capability_gate('x')` geeft stil nul treffers op élke key en
+  // daarmee vals groen op (d) en vals rood op (b). Daarom matcht het patroon op
+  // het prefix `capability_gate('x'` — dat dekt beide vormen. In `prosrc` staat
+  // de ruwe broncode, dus daar is de cast er niet; hetzelfde prefix dekt ook dat.
+  //
+  // BEWUST NIET gedekt: de edge-tak. RESEARCH §7.1 noemt die erbij, maar een
+  // edge-poort heet `requirePaidUse()` en draagt de capability-key niet in zijn
+  // naam. Dat koppelen vraagt een handlijst (key → functie), en dat is precies de
+  // tweede kopie van dezelfde regel waar `acl_poort_config` vanaf wilde. Zolang
+  // die lijst niet uit de code afleidbaar is, dekt M12 alleen wat de database
+  // zelf kan bewijzen — policy en RPC-guard. `modellen.gebruiken` valt daarmee
+  // onder (a): de tegenspraak-regel houdt hem eerlijk, de vindplaats niet.
+  const m12 = (await sql(`
+    with bron as (
+      select coalesce(pr.prosrc,'') as src from pg_proc pr
+        join pg_namespace n on n.oid = pr.pronamespace and n.nspname = 'public'
+    ),
+    beleid as (
+      select coalesce(p.qual,'')||' '||coalesce(p.with_check,'') as expr
+        from pg_policies p where p.schemaname = 'public'
+    ),
+    echt as (
+      select c.key, c.levert_vandaag, coalesce(c.afdwingen_in,'') as afdwingen_in,
+             exists (select 1 from beleid b where b.expr like '%capability_gate('''||c.key||'''%') as in_policy,
+             exists (select 1 from bron s where s.src like '%assert_capability('''||c.key||'''%') as in_guard
+        from public.capabilities c
+    )
+    select
+      (select count(*)::int from echt
+        where levert_vandaag and (afdwingen_in = '' or afdwingen_in like 'nog niet%')) as tegenspraak,
+      (select count(*)::int from echt
+        where levert_vandaag and afdwingen_in like '%capability_gate%' and not in_policy) as claim_zonder_policy,
+      (select count(*)::int from echt
+        where levert_vandaag and afdwingen_in like '%assert_capability%' and not in_guard) as claim_zonder_guard,
+      (select count(*)::int from echt
+        where not levert_vandaag and (in_policy or in_guard)) as afgedwongen_zonder_vinkje,
+      (select count(*)::int from echt where levert_vandaag) as vinkjes,
+      (select count(*)::int from echt) as totaal`))[0];
+  assert('M12', 'levert_vandaag dekt wat er echt wordt afgedwongen',
+    m12.tegenspraak === 0 && m12.claim_zonder_policy === 0
+      && m12.claim_zonder_guard === 0 && m12.afgedwongen_zonder_vinkje === 0,
+    `tegenspraak=${m12.tegenspraak} claim=${m12.claim_zonder_policy}/${m12.claim_zonder_guard} `
+      + `stil_afgedwongen=${m12.afgedwongen_zonder_vinkje} (${m12.vinkjes}/${m12.totaal} aan)`,
+    '0 0 0 0');
 
   // ── Personas ──────────────────────────────────────────────────────────────
   const keys = await mgmt('/api-keys?reveal=true');
