@@ -11,19 +11,23 @@ import Tip from '../../../../ui/charts/visx/Tip'
  * De kaart is `data-tipanker`: de gedeelde Tip meet zijn positie hiertegen.
  *
  * **Focus-split (v1.210, Jelle 2026-09-15).** Staat de kaart alleen — omdat een
- * snede erop gekozen is — dan leest hij `KaartFocus` en draagt zijn kop drie
- * dingen extra: `◂ Overzicht` (de weg terug naar de grid), de gekozen snede
- * achter het label (`TIJD IN FASE · FASE 3`) en de eenheid (`units: deals`).
- * Dat gaat via een context en niet via props, zodat de zeven kaarten hier
- * niets van hoeven te weten: ze staan in de grid of ze staan in focus, en de
- * kaart zelf is in beide gevallen dezelfde.
+ * snede erop gekozen is — dan leest hij `KaartFocus` en draagt zijn kop twee
+ * dingen extra: de gekozen snede achter het label (`TIJD IN FASE · FASE 3`) en
+ * de eenheid (`units: deals`). Dat gaat via een context en niet via props,
+ * zodat de zeven kaarten hier niets van hoeven te weten: ze staan in de grid of
+ * ze staan in focus, en de kaart zelf is in beide gevallen dezelfde.
+ *
+ * De weg terug stond in v1.210 óók hier (`◂ Overzicht esc` vóór het label).
+ * Sinds v1.211 niet meer (Jelle 15-09-2026): die knop staat één keer, in de
+ * witte standaardbalk naast Live | Monthly (D1View), en de kaartkop is weer
+ * alleen de kaartkop.
  *
  * Props:
  *   label · plus (mono-badge naast het label) · meta (rechts in de kop)
  *   sub          subregel onder de kop
  *   boven        vaste inhoud vóór de chart (groot getal, metric-pairs)
  *   children     (maat) => chart, of gewone inhoud; `maat` = { breedte, hoogte }
- *   legenda      [{ swatch: 'o'|'od'|'g'|'pl'|'q'|'ol'|'os', tekst }]
+ *   legenda      [{ swatch: 'o'|'od'|'g'|'pl'|'q'|'ol'|'os', tekst, titel? }]  titel = tooltip (fase in gewone taal)
  *   voet         tekst rechts in de voet · voetExtra: tweede voetregel
  *   tip          de actieve Tip-inhoud (uit useTip)
  *   className
@@ -41,17 +45,10 @@ export default function Kaart({
   return (
     <section className={`dl-kaart ${className}${focus ? ' is-focus' : ''}`.trim()} data-tipanker>
       <div className="dl-kaart__kop">
-        <div className="dl-kaart__links">
-          {focus && (
-            <button type="button" className="dl-terug" onClick={focus.terug} title="Terug naar het overzicht (Esc, of klik de snede nog eens)">
-              ◂ Overzicht <kbd>esc</kbd>
-            </button>
-          )}
-          <div className="dl-kaart__label">
-            {label}
-            {plus && <span className="dl-kaart__plus">{plus}</span>}
-            {focus?.snede && <span className="dl-kaart__snede">{focus.snede}</span>}
-          </div>
+        <div className="dl-kaart__label">
+          {label}
+          {plus && <span className="dl-kaart__plus">{plus}</span>}
+          {focus?.snede && <span className="dl-kaart__snede">{focus.snede}</span>}
         </div>
         {(meta || focus) && (
           <div className="dl-kaart__meta">
@@ -71,7 +68,7 @@ export default function Kaart({
         <div className="dl-kaart__voet">
           {legenda && (
             <div className="dl-legenda">
-              {legenda.map(l => <span key={l.tekst}><i className={`dl-sw dl-sw--${l.swatch}`} />{l.tekst}</span>)}
+              {legenda.map(l => <span key={l.tekst} title={l.titel || undefined}><i className={`dl-sw dl-sw--${l.swatch}`} />{l.tekst}</span>)}
               {focus && <span><i className="dl-sw dl-sw--sel" />geselecteerd</span>}
             </div>
           )}

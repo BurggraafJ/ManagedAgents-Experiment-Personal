@@ -27,10 +27,8 @@
   padding: 22px 20px 14px 20px;
 }
 .bs--d1-live .bs__balk { margin: -22px -20px 0; padding: 0 20px; }
-.bs--d1-live .bs__vraag { font-family: var(--dl-sans); font-size: 16px; letter-spacing: -.01em; }
-.bs--d1-live .bs__vraag em { font-style: normal; color: var(--dl-orange); }
-.bs--d1-live .bs__kop { gap: 10px; }
-.bs--d1-live .bs__kop-onder { padding: 2px 0 0; }
+/* Geen vraagregel meer (v1.211): de kop is de balk. */
+.bs--d1-live .bs__kop { gap: 0; }
 .dl-units {
   margin-left: 8px; font: 400 10.5px var(--dl-mono); padding: 2px 7px; border-radius: 5px;
   background: var(--dl-paper-3); color: var(--dl-n700);
@@ -150,6 +148,8 @@
 .dl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .dl-chips > span { font: 400 10.5px var(--dl-mono); color: var(--dl-n700); background: var(--dl-paper-3); padding: 2px 7px; border-radius: 5px; font-variant-numeric: tabular-nums; }
 .dl-chips > span.is-warn { color: var(--dl-warn-ink); background: var(--dl-warn-bg); }
+/* De fase in gewone taal (v1.211): eerste chip, sans en niet mono — het is een zin, geen getal. */
+.dl-chips > span.is-uitleg { font: 400 11px var(--dl-sans); font-style: italic; color: var(--dl-n700); background: transparent; padding-left: 0; }
 .bs--d1-live .bs-paneel__body .wt__head { padding: 4px 16px; height: auto; font: 400 9.5px var(--dl-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--dl-n500); border-bottom: 1px solid var(--dl-border-soft); }
 .bs--d1-live .bs-paneel__body .wt__head span:not(:first-child) { text-align: right; }
 .bs--d1-live .bs-paneel__body .wt__head, .bs--d1-live .bs-paneel__body .wt__rij { gap: 6px; }
@@ -164,7 +164,6 @@
 .dl-dagen.is-lang { color: var(--dl-warn-ink); }
 .dl-hs { color: var(--dl-orange); text-decoration: none; font-size: 13px; }
 .bs--d1-live .bs-paneel__voet { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10.5px; background: var(--dl-card); }
-.dl-detail__wist { font-family: var(--dl-mono); color: var(--dl-n400); margin-left: auto; }
 .dl-detail__bron { flex-basis: 100%; color: var(--dl-n500); }
 
 /* lege sink */
@@ -191,8 +190,8 @@
 .dl-focus > .dl-kaart { flex: 1; padding: 14px 18px 12px; }
 @keyframes dl-fade { from { opacity: 0; } to { opacity: 1; } }
 
-/* de kop van de gefocuste kaart: [◂ Overzicht esc] LABEL · SNEDE — meta · units */
-.dl-kaart__links { display: flex; align-items: center; gap: 12px; min-width: 0; }
+/* de kop van de gefocuste kaart: LABEL · SNEDE — meta · units (de terugknop
+   staat sinds v1.211 in de balk, zie .dl-terug--balk) */
 .dl-kaart__snede { color: var(--dl-ink); margin-left: 6px; }
 .dl-kaart__snede::before { content: "·"; color: var(--dl-n400); margin-right: 6px; }
 .dl-kaart.is-focus .dl-kaart__kop { align-items: center; }
@@ -211,7 +210,9 @@
 }
 .dl-terug:hover { background: var(--dl-paper); border-color: var(--dl-n300); color: var(--dl-ink); }
 .dl-terug:focus-visible { outline: 2px solid var(--dl-ink); outline-offset: 1px; }
-.dl-terug kbd { font: 400 9.5px var(--dl-mono); color: var(--dl-n500); border: 1px solid var(--dl-border); border-radius: 4px; padding: 0 4px; line-height: 14px; }
+/* In de witte balk, naast Live | Monthly (v1.211): dezelfde knop, alleen in
+   focus gerenderd (D1View). Op de telefoon draagt de detailkop hem (hieronder). */
+.bs__balk .dl-terug--balk { margin: 0 2px 0 4px; }
 .dl-sw--sel { background: var(--dl-paper); border: 1px solid var(--dl-ink); }
 .dl-detail__terug { display: none; }
 
@@ -258,13 +259,13 @@
 @media (max-width: 1000px) {
   .bs--d1-live { padding: 16px 14px 24px; }
   .bs--d1-live .bs__balk { margin: -16px -14px 0; padding: 8px 14px; }
-  .bs--d1-live .bs__vraag { font-size: 15px; line-height: 1.35; }
   .bs--d1-live .bs__werk { grid-template-columns: 1fr; transition: none; }
   /* Focus-split op de telefoon = geen naast-elkaar: de kaart verdwijnt, de sink
      vult het scherm en draagt zelf `◂ Overzicht` (D1Detail). */
   .bs--d1-live.is-focus .bs__werk { grid-template-columns: 1fr; }
   .bs--d1-live.is-focus .dl-focus { display: none; }
   .dl-detail__terug { display: inline-flex; margin-right: 10px; }
+  .bs__balk .dl-terug--balk { display: none; }
   .bs--d1-live .dl-detail__kop { flex-wrap: wrap; row-gap: 6px; }
   .dl-grid, .dl-rij { display: contents; }
   .dl-grid { display: flex; flex-direction: column; gap: 12px; }

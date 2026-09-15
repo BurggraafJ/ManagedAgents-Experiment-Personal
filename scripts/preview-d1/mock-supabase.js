@@ -34,6 +34,9 @@ const VIEWS = {
   v_d1_ontleding: [],
   v_d1_waarde: prod.deals,
   v_d9_forecast_blokkers: prod.blokkers,
+  // De ene pipeline die v_d1_deals leest; het label zoals HubSpot hem noemt
+  // (kolom `pipeline` in het kennismakingen-detail, v1.211).
+  hubspot_pipelines: [{ pipeline_id: 'default', label: 'Sales Pipeline' }],
 }
 
 // Minimale query-builder: select → eq/gte/or → order → maybeSingle/then.

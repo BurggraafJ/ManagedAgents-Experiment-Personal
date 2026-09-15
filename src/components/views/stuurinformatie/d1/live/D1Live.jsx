@@ -17,9 +17,11 @@ import { eenheid as maakEenheid, snedeKort } from './labels'
  * **Focus-split (v1.210, Jelle 2026-09-15: "zoals jij het voorstelde").** Is er
  * een snede gekozen, dan laat het bord de grid los: alleen de kaart waar die
  * snede op staat blijft over en krijgt de hele master (≈ 52 % van het werk),
- * de sink ernaast wordt breed (≈ 48 %). Terug via `◂ Overzicht` in de kaartkop,
- * Esc (D1View), of een tweede klik op dezelfde snede. Een klik op een ándere
- * snede van dezelfde kaart wisselt alleen de sink — de kaart blijft in focus.
+ * de sink ernaast wordt breed (≈ 48 %). Terug via `◂ Overzicht` in de witte
+ * standaardbalk of Esc — beide in D1View. Een klik op een ándere snede van
+ * dezelfde kaart wisselt alleen de sink; een tweede klik op dezélfde snede doet
+ * niets meer (v1.211, Jelle 15-09-2026: "geen tweede klik om te wissen" — een
+ * klik die soms selecteert en soms wist is een klik die je niet durft).
  * Geen modal, geen overlay: de zes andere kaarten zijn er gewoon even niet.
  *
  * De kaarten kiezen alleen; ze tellen niet. Elke som die je hier ziet komt uit
@@ -28,9 +30,9 @@ import { eenheid as maakEenheid, snedeKort } from './labels'
  */
 const KAART_VAN_SOORT = { week: 'kenn', fase: 'aging', maand: 'landt', waarde: 'waarde', beweging: 'beweging', kanaal: 'kanaal', band: 'grootte' }
 
-export default function D1Live({ data, modus, periode, gekozen, onKies, onTerug }) {
+export default function D1Live({ data, modus, periode, gekozen, onKies }) {
   const eenheid = maakEenheid(modus)
-  const kies = sel => onKies(gekozen && gekozen.soort === sel.soort && gekozen.sleutel === sel.sleutel ? null : sel)
+  const kies = onKies
   const p = { eenheid, gekozen, onKies: kies }
 
   const kaarten = {
@@ -46,7 +48,7 @@ export default function D1Live({ data, modus, periode, gekozen, onKies, onTerug 
   const focusKaart = gekozen ? KAART_VAN_SOORT[gekozen.soort] : null
   if (focusKaart && kaarten[focusKaart]) {
     return (
-      <KaartFocus.Provider value={{ snede: snedeKort(gekozen), units: eenheid.naam, terug: onTerug }}>
+      <KaartFocus.Provider value={{ snede: snedeKort(gekozen), units: eenheid.naam }}>
         <div className="dl-focus" data-zone="master">
           {kaarten[focusKaart]}
         </div>

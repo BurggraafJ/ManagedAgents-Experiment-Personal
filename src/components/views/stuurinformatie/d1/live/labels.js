@@ -6,16 +6,26 @@ import { getal } from '../../format'
  * eenheid wordt geschreven.
  */
 
-/** Fase in gewone taal (D1-LIVE-INTERACTION.md "Fase-hover"), uit dim_stage_fase. */
+/**
+ * Fase in gewone taal (D1-LIVE-INTERACTION.md "Fase-hover"; Jelle 15-09-2026:
+ * nooit alleen F1/F2/F3). De stages erachter staan in dim_stage_fase:
+ *   1 = Kennismaking plaatsgevonden
+ *   2 = Offerte sturen
+ *   3 = Offerte gestuurd · In afwachting / onderhandeling · Mondeling akkoord ·
+ *       Licentieovereenkomst gestuurd
+ * Eén zin per fase, in elke hover (kop van de Tip), in de focus-split als vaste
+ * regel onder de rijkop (Bereikrijen) en als eerste chip in de sink (D1Detail).
+ */
 export const FASE_UITLEG = {
-  1: 'kennismaking gehad',
+  1: 'kennismaking gehad, nog geen offerte',
   2: 'offerte wordt gemaakt',
   3: 'voorstel ligt bij het kantoor',
 }
+export const FASE_UITLEG_12 = 'kennismaking gehad of offerte in de maak'
 export const FASE_KORT = { 1: 'Fase 1', 2: 'Fase 2', 3: 'Fase 3' }
 export const faseZin = f => `${FASE_KORT[f] || `Fase ${f}`} · ${FASE_UITLEG[f] || ''}`.trim()
 
-/** hs_analytics_source → NL. Onbekend = leeg veld; nooit verborgen (gatregel). */
+/** hs_analytics_source → NL (UI-woord: Leadsource). Onbekend = leeg veld; nooit verborgen (gatregel). */
 const KANAAL = {
   OFFLINE: 'Offline', DIRECT_TRAFFIC: 'Direct', PAID_SEARCH: 'Betaald', PAID_SOCIAL: 'Betaald social',
   ORGANIC_SEARCH: 'Organisch', ORGANIC_SOCIAL: 'Social', SOCIAL_MEDIA: 'Social', EMAIL_MARKETING: 'E-mail',
