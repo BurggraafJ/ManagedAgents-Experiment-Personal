@@ -193,7 +193,9 @@ export default function D1View() {
             <b>De metric-laag staat nog niet (volledig) in de database.</b>
             <p>
               Dit bord leest <code>v_d1_kanaal</code>, <code>v_d1_fase_aging</code>, <code>v_d1_kantoorgrootte</code> en{' '}
-              <code>v_d1_aanvoer_gepland</code> uit migratie <code>20260915130000_d1_live_ronde5</code>, naast de basis uit{' '}
+              <code>v_d1_aanvoer_gepland</code> uit migratie <code>20260915130000_d1_live_ronde5</code>,{' '}
+              <code>v_d1_aanvoer_deals</code> + <code>v_d1_km_pipelines</code> uit{' '}
+              <code>20260915210000_d1_lead_gepland</code>, naast de basis uit{' '}
               <code>20260913100000</code> / <code>20260913101000</code>. Rol die uit, dan vult dit bord zichzelf.
             </p>
           </div>

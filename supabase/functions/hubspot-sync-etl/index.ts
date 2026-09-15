@@ -16,7 +16,13 @@
 //   - hubspot_contacts (contact_id PK, email, firstname, lastname, company, ...)
 //   - hubspot_sync_state (singleton id=1)
 //
-// Trigger: pg_cron `*/30 * * * *` (elke 30 min).
+// Trigger: pg_cron (delta elke 15 min; full elke 24 u of via `?mode=full`).
+//
+// Paginabudget: zie MAX_PAGES hieronder. Companies mogen sinds 15-09-2026 tot
+// 10.000 records per full run halen in plaats van 2.000; elke afkapping wordt
+// als `stats.truncated.<object>` en als warning opgeschreven, zodat een
+// onvolledige ronde nooit meer als volledige telling in `hubspot_sync_state`
+// belandt.
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
 import { matchesAnySecret } from "../_shared/edge-auth.ts";
 
@@ -24,6 +30,39 @@ const SKILL_VERSION = "hubspot-edge-fn-v1";
 const PAGE_SIZE = 100;
 const MAX_PAGES_PER_OBJECT = 20; // 2000 records max per object per run (safety)
 const FULL_SYNC_INTERVAL_HOURS = 24;
+
+// ── Paginabudget per object (backfill-audit 15-09-2026) ─────────────────────
+// `MAX_PAGES_PER_OBJECT = 20` gold voor álle objecten en betekende een harde
+// muur op 2.000 records per full run. Deals (~1.155) en contacts (~1.573)
+// passen daar ruim onder; companies raakten hem exact — `total_companies` stond
+// op precies 2000, en dat is geen telling maar een afkapping. Gevolg: een deel
+// van de mirror droeg de property `totale_omvang` niet eens, waardoor D1 de
+// kantoorgrootte-ontleding als "niet bruikbaar" moest markeren zonder te kunnen
+// zeggen waarom.
+//
+// Companies krijgen daarom 100 pagina's (10.000 records) — precies het plafond
+// dat HubSpot's search-API zelf hanteert; verder pagineren levert een 400, dus
+// méér budget zou alleen een andere fout opleveren. Deals en contacts houden
+// hun 20: die zijn niet stuk, en elke extra pagina is wandkloktijd die de
+// gateway niet heeft.
+//
+// Een groter budget kán alleen omdat `walkSearch` per pagina wegschrijft. De
+// eerste poging (15-09-2026 20:09 UTC) verhoogde alleen dit getal en verzamelde
+// nog steeds alles in geheugen: de worker viel om met `WORKER_RESOURCE_LIMIT`
+// (HTTP 546) en er kwam geen enkele company bij. Zie de noot bij `walkSearch`.
+const MAX_PAGES: Record<"deals" | "companies" | "contacts", number> = {
+  deals: MAX_PAGES_PER_OBJECT,
+  companies: 100,
+  contacts: MAX_PAGES_PER_OBJECT,
+};
+
+// De Supabase-gateway kapt een request af rond 150 s. Een full run die daar
+// overheen gaat wordt gedood vóór de state-update, en dan staat `last_full_sync`
+// nog op gisteren: de volgende ronde probeert opnieuw een full, valt opnieuw om,
+// en de mirror bevriest stil. Daarom een eigen deadline ruim daarvóór: pagineren
+// stopt, de run maakt zichzelf netjes af en meldt `truncated: true`. Liever een
+// zichtbaar onvolledige ronde dan een onzichtbaar afgebroken ronde.
+const RUN_SOFT_DEADLINE_MS = 110_000;
 
 const DEAL_PROPERTIES = [
   "dealname", "amount", "dealstage", "pipeline", "closedate", "createdate",
@@ -64,6 +103,30 @@ const DEAL_PROPERTIES = [
   "hs_v2_date_entered_3206386937",   // Afgevallen na demo
   "hs_v2_date_entered_3206387898",   // Backburner (na demo)
   "hs_v2_date_entered_3504650455",   // Afgesloten – Beëindigd na gebruik
+  // ── Stond alleen op prod (deploy 15-09-2026 04:42 UTC), niet in git ───────
+  // Teruggehaald uit de gedeployde eszip bij deze deploy (geheugen
+  // `prod-runs-ahead-of-main-v1146` / `edge-bundle-source-recovery`). Zonder
+  // deze regels zou een deploy vanaf de repo D1 stilzwijgend slopen: zonder de
+  // `hs_v2_date_entered_*`-props is er geen `fase_sinds` en dus geen kaart Tijd
+  // in fase, en zonder `hs_analytics_source` valt de kaart Leadsource terug op
+  // UNKNOWN voor élke deal.
+  //
+  // Stage-entry-timestamps actieve sales-pipeline (Fase 2 D1, 2026-09-15).
+  // Preflight filtert onbestaande weg — nul risico.
+  "hs_v2_date_entered_appointmentscheduled",  // Fase 1 · Kennismaking plaatsgevonden
+  "hs_v2_date_entered_4077073627",            // Fase 2 · Offerte sturen
+  "hs_v2_date_entered_3206386936",            // Fase 3a · Offerte gestuurd
+  "hs_v2_date_entered_5732535537",            // Fase 3b · In afwachting / onderhandeling
+  "hs_v2_date_entered_contractsent",          // Fase 3c · Mondeling/mail akkoord
+  "hs_v2_date_entered_4075158742",            // Fase 3d · Licentieovereenkomst gestuurd
+  "hs_v2_date_entered_3453858021",            // Gewonnen · Gesloten & Gescoord
+  // Activiteit + kanaal (D1 aging + bron-signaal, Fase 2 D1, 2026-09-15)
+  "hs_last_activity_date",
+  "hs_analytics_source",
+  "hs_analytics_source_data_1",
+  // deal_bron — custom HubSpot property (LS-1, Jelle must create in portal).
+  // Preflight drops unknown props safely; once created, ETL picks it up.
+  "deal_bron",
 ];
 const COMPANY_PROPERTIES = [
   "name", "domain", "industry", "lifecyclestage", "numberofemployees", "city", "country",
@@ -307,22 +370,54 @@ async function resolveProperties(
   };
 }
 
-async function searchObjects(
+interface SearchWalk {
+  /** Hoeveel records de callback heeft weggeschreven. */
+  upserted: number;
+  /** Er was nog een volgende pagina toen we stopten — de uitkomst is onvolledig. */
+  truncated: boolean;
+  /** Waaróm we stopten; null als HubSpot zelf klaar was. */
+  truncated_reason: "page_budget" | "deadline" | null;
+  pages: number;
+}
+
+type HsItem = { id: string; properties: Record<string, string | null> };
+
+/**
+ * Paginateer door de search-API en geef elke pagina meteen door aan `onPage`.
+ *
+ * **Pagina voor pagina, niet alles-dan-één-upsert.** De eerste versie van deze
+ * functie verzamelde álle records in één array en gaf die aan de aanroeper.
+ * Dat werkte tot 2.000 records en viel om zodra het budget voor companies naar
+ * 10.000 ging: de worker werd afgeschoten met `WORKER_RESOURCE_LIMIT` (546,
+ * gemeten 15-09-2026 20:09 UTC), de run bleef op `running` staan en er kwam
+ * geen enkele company bij. Een edge-worker heeft een paar honderd MB; 6.000
+ * HubSpot-objecten mét hun volledige `properties`-jsonb passen daar niet in,
+ * en de upsert-payload eroverheen al helemaal niet.
+ *
+ * Nu houdt de lus per moment één pagina van honderd vast. Het geheugen groeit
+ * niet meer met het aantal records, dus het paginabudget is weer een keuze over
+ * tijd in plaats van over geheugen.
+ */
+async function walkSearch(
   ctx: HubSpotContext,
   objectType: "deals" | "companies" | "contacts",
   properties: string[],
   modifiedSinceMs: number | null,
-): Promise<Array<{ id: string; properties: Record<string, string | null> }>> {
-  const all: Array<{ id: string; properties: Record<string, string | null> }> = [];
+  deadlineAt: number,
+  onPage: (items: HsItem[]) => Promise<number>,
+): Promise<SearchWalk> {
   let after: string | null = null;
-  let safety = 0;
+  let pages = 0;
+  let upserted = 0;
+  let truncatedReason: "page_budget" | "deadline" | null = null;
+  const budget = MAX_PAGES[objectType];
 
   // Filter: hs_lastmodifieddate >= since (ms timestamp). Bij full sync: geen filter.
   const filterGroups = modifiedSinceMs !== null
     ? [{ filters: [{ propertyName: "hs_lastmodifieddate", operator: "GTE", value: String(modifiedSinceMs) }] }]
     : [];
 
-  while (safety++ < MAX_PAGES_PER_OBJECT) {
+  while (pages < budget) {
     const body = {
       filterGroups,
       properties,
@@ -334,15 +429,22 @@ async function searchObjects(
       method: "POST",
       body: JSON.stringify(body),
     }) as HsSearchResponse;
-    const batch = res.results ?? [];
+    pages++;
+    const batch = (res.results ?? []).map((r) => ({ id: r.id, properties: r.properties }));
     if (batch.length === 0) break;
-    for (const r of batch) all.push({ id: r.id, properties: r.properties });
+    upserted += await onPage(batch);
 
     const nextAfter = res.paging?.next?.after;
     if (!nextAfter) break;
+    // Stoppen mét een volgende pagina in de hand = afkapping, en die hoort
+    // opgeschreven te worden. Precies dit gebeurde stil bij companies: 2.000
+    // records, geen fout, geen waarschuwing, en `total_companies = 2000` las
+    // als een telling.
+    if (pages >= budget) { truncatedReason = "page_budget"; break; }
+    if (Date.now() >= deadlineAt) { truncatedReason = "deadline"; break; }
     after = nextAfter;
   }
-  return all;
+  return { upserted, truncated: truncatedReason !== null, truncated_reason: truncatedReason, pages };
 }
 
 function tsParse(v: string | null | undefined): string | null {
@@ -387,102 +489,109 @@ async function batchReadAssociations(
   return result;
 }
 
-interface SyncResult { upserted: number; missing: string[] }
+interface SyncResult {
+  upserted: number;
+  missing: string[];
+  /** De zoekopdracht is afgekapt (paginabudget of deadline) — de ronde is onvolledig. */
+  truncated: boolean;
+  truncated_reason: "page_budget" | "deadline" | null;
+  pages: number;
+}
 
-async function syncDeals(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null): Promise<SyncResult> {
+async function syncDeals(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null, deadlineAt: number): Promise<SyncResult> {
   const { props, missing } = await resolveProperties(ctx, "deals", DEAL_PROPERTIES);
-  const items = await searchObjects(ctx, "deals", props, modifiedSinceMs);
-  if (items.length === 0) return { upserted: 0, missing };
-  const now = new Date().toISOString();
-
-  // Fetch associations: deals → contacts, deals → companies (parallel)
-  const dealIds = items.map((it) => it.id);
-  const [contactAssoc, companyAssoc] = await Promise.all([
-    batchReadAssociations(ctx, "deals", "contacts", dealIds),
-    batchReadAssociations(ctx, "deals", "companies", dealIds),
-  ]);
-
-  const rows = items.map((it) => ({
-    deal_id: it.id,
-    dealname: it.properties.dealname,
-    amount: numParse(it.properties.amount),
-    dealstage: it.properties.dealstage,
-    pipeline_id: it.properties.pipeline,
-    closedate: tsParse(it.properties.closedate),
-    hubspot_owner_id: it.properties.hubspot_owner_id,
-    dealtype: it.properties.dealtype,
-    hs_created_at: tsParse(it.properties.createdate),
-    hs_lastmodifieddate: tsParse(it.properties.hs_lastmodifieddate),
-    associated_contact_ids: contactAssoc.get(it.id) ?? [],
-    associated_company_ids: companyAssoc.get(it.id) ?? [],
-    properties: it.properties,
-    is_archived: false,
-    synced_at: now,
-  }));
-  const { error } = await supabase.from("hubspot_deals").upsert(rows, { onConflict: "deal_id" });
-  if (error) throw new Error(`hubspot_deals_upsert_failed: ${error.message}`);
-  return { upserted: rows.length, missing };
-}
-
-async function syncCompanies(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null): Promise<SyncResult> {
-  const { props, missing } = await resolveProperties(ctx, "companies", COMPANY_PROPERTIES);
-  const items = await searchObjects(ctx, "companies", props, modifiedSinceMs);
-  if (items.length === 0) return { upserted: 0, missing };
-  const now = new Date().toISOString();
-  const rows = items.map((it) => ({
-    company_id: it.id,
-    name: it.properties.name,
-    domain: it.properties.domain,
-    industry: it.properties.industry,
-    lifecyclestage: it.properties.lifecyclestage,
-    num_employees: numParse(it.properties.numberofemployees) !== null ? Math.round(numParse(it.properties.numberofemployees)!) : null,
-    city: it.properties.city,
-    country: it.properties.country,
-    hubspot_owner_id: it.properties.hubspot_owner_id,
-    hs_created_at: tsParse(it.properties.createdate),
-    hs_lastmodifieddate: tsParse(it.properties.hs_lastmodifieddate),
-    properties: it.properties,
-    is_archived: false,
-    synced_at: now,
-  }));
-  const { error } = await supabase.from("hubspot_companies").upsert(rows, { onConflict: "company_id" });
-  if (error) throw new Error(`hubspot_companies_upsert_failed: ${error.message}`);
-  return { upserted: rows.length, missing };
-}
-
-async function syncContacts(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null): Promise<SyncResult> {
-  const { props, missing } = await resolveProperties(ctx, "contacts", CONTACT_PROPERTIES);
-  const items = await searchObjects(ctx, "contacts", props, modifiedSinceMs);
-  if (items.length === 0) return { upserted: 0, missing };
-  const now = new Date().toISOString();
-
-  // Primary company association per contact
-  const contactIds = items.map((it) => it.id);
-  const companyAssoc = await batchReadAssociations(ctx, "contacts", "companies", contactIds);
-
-  const rows = items.map((it) => {
-    const cmpIds = companyAssoc.get(it.id) ?? [];
-    return {
-      contact_id: it.id,
-      email: it.properties.email,
-      firstname: it.properties.firstname,
-      lastname: it.properties.lastname,
-      company: it.properties.company,
-      jobtitle: it.properties.jobtitle,
-      phone: it.properties.phone,
-      lifecyclestage: it.properties.lifecyclestage,
+  const walk = await walkSearch(ctx, "deals", props, modifiedSinceMs, deadlineAt, async (items) => {
+    const now = new Date().toISOString();
+    // Associaties per pagina: honderd id's is precies één batch-call, dus dit
+    // is niet méér werk dan de oude verzamel-dan-vraag-aanpak — alleen eerder.
+    const dealIds = items.map((it) => it.id);
+    const [contactAssoc, companyAssoc] = await Promise.all([
+      batchReadAssociations(ctx, "deals", "contacts", dealIds),
+      batchReadAssociations(ctx, "deals", "companies", dealIds),
+    ]);
+    const rows = items.map((it) => ({
+      deal_id: it.id,
+      dealname: it.properties.dealname,
+      amount: numParse(it.properties.amount),
+      dealstage: it.properties.dealstage,
+      pipeline_id: it.properties.pipeline,
+      closedate: tsParse(it.properties.closedate),
       hubspot_owner_id: it.properties.hubspot_owner_id,
-      associated_company_id: cmpIds[0] ?? null,
+      dealtype: it.properties.dealtype,
+      hs_created_at: tsParse(it.properties.createdate),
+      hs_lastmodifieddate: tsParse(it.properties.hs_lastmodifieddate),
+      associated_contact_ids: contactAssoc.get(it.id) ?? [],
+      associated_company_ids: companyAssoc.get(it.id) ?? [],
+      properties: it.properties,
+      is_archived: false,
+      synced_at: now,
+    }));
+    const { error } = await supabase.from("hubspot_deals").upsert(rows, { onConflict: "deal_id" });
+    if (error) throw new Error(`hubspot_deals_upsert_failed: ${error.message}`);
+    return rows.length;
+  });
+  return { ...walk, missing };
+}
+
+async function syncCompanies(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null, deadlineAt: number): Promise<SyncResult> {
+  const { props, missing } = await resolveProperties(ctx, "companies", COMPANY_PROPERTIES);
+  const walk = await walkSearch(ctx, "companies", props, modifiedSinceMs, deadlineAt, async (items) => {
+    const now = new Date().toISOString();
+    const rows = items.map((it) => ({
+      company_id: it.id,
+      name: it.properties.name,
+      domain: it.properties.domain,
+      industry: it.properties.industry,
+      lifecyclestage: it.properties.lifecyclestage,
+      num_employees: numParse(it.properties.numberofemployees) !== null ? Math.round(numParse(it.properties.numberofemployees)!) : null,
+      city: it.properties.city,
+      country: it.properties.country,
+      hubspot_owner_id: it.properties.hubspot_owner_id,
       hs_created_at: tsParse(it.properties.createdate),
       hs_lastmodifieddate: tsParse(it.properties.hs_lastmodifieddate),
       properties: it.properties,
       is_archived: false,
       synced_at: now,
-    };
+    }));
+    const { error } = await supabase.from("hubspot_companies").upsert(rows, { onConflict: "company_id" });
+    if (error) throw new Error(`hubspot_companies_upsert_failed: ${error.message}`);
+    return rows.length;
   });
-  const { error } = await supabase.from("hubspot_contacts").upsert(rows, { onConflict: "contact_id" });
-  if (error) throw new Error(`hubspot_contacts_upsert_failed: ${error.message}`);
-  return { upserted: rows.length, missing };
+  return { ...walk, missing };
+}
+
+async function syncContacts(supabase: SupabaseClient, ctx: HubSpotContext, modifiedSinceMs: number | null, deadlineAt: number): Promise<SyncResult> {
+  const { props, missing } = await resolveProperties(ctx, "contacts", CONTACT_PROPERTIES);
+  const walk = await walkSearch(ctx, "contacts", props, modifiedSinceMs, deadlineAt, async (items) => {
+    const now = new Date().toISOString();
+    // Primary company association per contact
+    const contactIds = items.map((it) => it.id);
+    const companyAssoc = await batchReadAssociations(ctx, "contacts", "companies", contactIds);
+    const rows = items.map((it) => {
+      const cmpIds = companyAssoc.get(it.id) ?? [];
+      return {
+        contact_id: it.id,
+        email: it.properties.email,
+        firstname: it.properties.firstname,
+        lastname: it.properties.lastname,
+        company: it.properties.company,
+        jobtitle: it.properties.jobtitle,
+        phone: it.properties.phone,
+        lifecyclestage: it.properties.lifecyclestage,
+        hubspot_owner_id: it.properties.hubspot_owner_id,
+        associated_company_id: cmpIds[0] ?? null,
+        hs_created_at: tsParse(it.properties.createdate),
+        hs_lastmodifieddate: tsParse(it.properties.hs_lastmodifieddate),
+        properties: it.properties,
+        is_archived: false,
+        synced_at: now,
+      };
+    });
+    const { error } = await supabase.from("hubspot_contacts").upsert(rows, { onConflict: "contact_id" });
+    if (error) throw new Error(`hubspot_contacts_upsert_failed: ${error.message}`);
+    return rows.length;
+  });
+  return { ...walk, missing };
 }
 
 // ── Main handler ────────────────────────────────────────────────────────────
@@ -501,6 +610,10 @@ Deno.serve(async (req) => {
 
   const triggeredBy = req.headers.get("x-trigger-source") || "edge_cron";
   const startedAt = new Date().toISOString();
+  // Eén deadline voor de hele ronde, doorgegeven aan elke pagineerlus. Zo telt
+  // de tijd die deals al opmaakten mee wanneer companies aan de beurt zijn —
+  // een deadline per object zou samen alsnog over de gateway-limiet gaan.
+  const deadlineAt = Date.now() + RUN_SOFT_DEADLINE_MS;
   const stats = {
     schema_version: "1",
     skill_version: "hubspot-sync-etl",
@@ -508,6 +621,10 @@ Deno.serve(async (req) => {
     sync_mode: "delta" as "delta" | "full",
     owners_upserted: 0, pipelines_upserted: 0,
     deals_upserted: 0, companies_upserted: 0, contacts_upserted: 0,
+    // Per object: is de zoekopdracht afgekapt, en waarom. Stond dit er eerder
+    // wel, dan was de companies-muur van 2.000 op de dag zelf opgevallen in
+    // plaats van pas bij een audit (backfill-audit 15-09-2026).
+    truncated: {} as Record<string, { truncated: boolean; reason: string | null; pages: number; upserted: number }>,
     warnings: [] as string[],
   };
 
@@ -552,16 +669,28 @@ Deno.serve(async (req) => {
     (stats as Record<string, unknown>).pipelines_skipped_unchanged = pipesResult.skipped;
 
     // 3. Deals
-    const dealsResult = await syncDeals(supabase, ctx, modifiedSinceMs);
+    const dealsResult = await syncDeals(supabase, ctx, modifiedSinceMs, deadlineAt);
     stats.deals_upserted = dealsResult.upserted;
 
     // 4. Companies
-    const companiesResult = await syncCompanies(supabase, ctx, modifiedSinceMs);
+    const companiesResult = await syncCompanies(supabase, ctx, modifiedSinceMs, deadlineAt);
     stats.companies_upserted = companiesResult.upserted;
 
     // 5. Contacts
-    const contactsResult = await syncContacts(supabase, ctx, modifiedSinceMs);
+    const contactsResult = await syncContacts(supabase, ctx, modifiedSinceMs, deadlineAt);
     stats.contacts_upserted = contactsResult.upserted;
+
+    // 5a. Afkapping expliciet maken. Een onvolledige ronde is geen fout — de
+    // volgende ronde haalt de rest op — maar hij mag niet als volledige telling
+    // in `hubspot_sync_state` belanden zonder dat iemand het kan zien.
+    for (const [obj, r] of Object.entries({ deals: dealsResult, companies: companiesResult, contacts: contactsResult })) {
+      stats.truncated[obj] = { truncated: r.truncated, reason: r.truncated_reason, pages: r.pages, upserted: r.upserted };
+      if (r.truncated) {
+        stats.warnings.push(
+          `${obj}: afgekapt na ${r.pages} pagina's (${r.upserted} records, reden ${r.truncated_reason}) — HubSpot had nog meer`,
+        );
+      }
+    }
 
     // 5b. Welke gevraagde properties kent deze portal niet? Dit is de enige
     // plek waar dat zichtbaar wordt — D9 leest het niet, want een veld dat
@@ -606,7 +735,9 @@ Deno.serve(async (req) => {
 
     const ownersLabel = ownersResult.skipped ? `${ownersResult.total_seen} owners (unchanged)` : `${ownersResult.upserted} owners`;
     const pipesLabel = pipesResult.skipped ? `${pipesResult.total_seen} pipelines (unchanged)` : `${pipesResult.upserted} pipelines`;
-    const summary = `${stats.sync_mode}: ${ownersLabel}, ${pipesLabel}, ${stats.deals_upserted} deals, ${stats.companies_upserted} companies, ${stats.contacts_upserted} contacts`;
+    const afgekapt = Object.entries(stats.truncated).filter(([, v]) => v.truncated).map(([k]) => k);
+    const summary = `${stats.sync_mode}: ${ownersLabel}, ${pipesLabel}, ${stats.deals_upserted} deals, ${stats.companies_upserted} companies, ${stats.contacts_upserted} contacts`
+      + (afgekapt.length > 0 ? ` — afgekapt: ${afgekapt.join(", ")}` : "");
     await supabase.from("agent_runs").update({
       status: "success", completed_at: new Date().toISOString(), summary, stats,
     }).eq("id", runId);

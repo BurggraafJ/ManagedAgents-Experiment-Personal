@@ -9,10 +9,16 @@
 // het ongemak dat elke week onder het doel van 8 zit en dat zeven fase-3-deals
 // geen fasedatum hebben.
 //
-// Wat wél is aangepast, en waarom: dealnamen zijn 'Kantoor NN', eigenaren
-// leeg, deal-ids d01…d46, HubSpot-links '#'. Deze repo is publiek en een
-// screenshot is een publicatie; wat de lijst moet laten zien is de vórm, niet
-// wie erop staat. Tellingen, data, licenties, kanalen en banden zijn onaangeraakt.
+// Wat wél is aangepast, en waarom: dealnamen zijn 'Kantoor NN' (Sales) en
+// 'Kantoor LNN' (Lead-pipelines), eigenaren leeg, deal-ids d01…d46 / l01…l21,
+// HubSpot-links '#'. Deze repo is publiek en een screenshot is een publicatie;
+// wat de lijst moet laten zien is de vórm, niet wie erop staat. Tellingen,
+// data, licenties, kanalen, banden en pipelinenamen zijn onaangeraakt.
+//
+// v1.215: `gepland` en `meta.kennismaking_gepland` komen uit migratie
+// 20260915210000 (5 · 2 · 3 · 1 in de vier weken, 14 in totaal), en
+// `aanvoerDeals` is er als aparte lijst bij gekomen — 45 Sales-rijen plus de
+// 21 Lead-rijen die vóór deze migratie nergens op het bord stonden.
 import prod from './prod-2026-09-15.json'
 
 export const SUPABASE_URL = 'https://preview.invalid'
@@ -33,9 +39,12 @@ const VIEWS = {
   v_d1_win_rate: [],
   v_d1_ontleding: [],
   v_d1_waarde: prod.deals,
+  // De deals achter een weekstaaf (v1.215): de Sales-rijen plus de Lead-deals
+  // uit de allowlist, met `pipeline_label` en `is_sales` per rij.
+  v_d1_aanvoer_deals: prod.aanvoerDeals,
   v_d9_forecast_blokkers: prod.blokkers,
-  // De ene pipeline die v_d1_deals leest; het label zoals HubSpot hem noemt
-  // (kolom `pipeline` in het kennismakingen-detail, v1.211).
+  // De pipeline waarop de telkaarten filteren; het label zoals HubSpot hem
+  // noemt. Terugval voor een rij zonder eigen pipeline_label (v1.215).
   hubspot_pipelines: [{ pipeline_id: 'default', label: 'Sales Pipeline' }],
 }
 
