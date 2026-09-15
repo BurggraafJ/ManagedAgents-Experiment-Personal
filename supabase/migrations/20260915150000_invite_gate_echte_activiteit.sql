@@ -89,6 +89,8 @@ grant  execute on function public.user_last_active_at(uuid) to service_role;
 -- `list_users_for_admin()` leest nu dezelfde definitie in plaats van zijn eigen
 -- kopie. Alleen die ene expressie wijzigt; de returns-lijst is ongemoeid, dus
 -- `create or replace` volstaat en de proacl blijft staan.
+-- Poort blijft `capability_gate('organisatie.gebruikers')` (M2, 20260914181000),
+-- niet de `is_admin_or_higher()` van v4 — alleen de last_active_at-expressie wijzigt.
 create or replace function public.list_users_for_admin()
 returns table(
   user_id uuid,
@@ -110,7 +112,7 @@ stable security definer
 set search_path to 'public', 'pg_catalog'
 as $function$
 begin
-  if not public.is_admin_or_higher() then
+  if not public.capability_gate('organisatie.gebruikers') then
     raise exception 'forbidden: admin role required';
   end if;
   return query
