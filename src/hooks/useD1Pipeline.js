@@ -13,26 +13,32 @@ import { supabase } from '../lib/supabase'
  *   v_d1_meta                peildatum, zichtbaarheid, de constateringen
  *   v_d1_aanvoer_kop         het critical number (kennismakingen/week, doel 8)
  *   v_d1_aanvoer             twaalf weken kennismakingen (+ lic mid)
- *   v_d1_aanvoer_gepland     vier weken vooruit: geplande kennismakingen
+ *   v_d1_aanvoer_gepland     vier weken vooruit: geplande kennismakingen, over de
+ *                            allowlist v_d1_km_pipelines (Sales + Lead, v1.215)
  *   v_d1_pipeline_per_fase   fase 1 · 2 · 3, altijd alle drie (Waarde)
  *   v_d1_fase_aging          mediaan · P90 · te lang per fase (Tijd in fase)
  *   v_d1_forecast_per_maand  fase 3 en fase 1–2 per maand op beslisdatum (Landt het?)
  *   v_d1_beweging_week       instroom · gewonnen · verloren per week (Beweging)
  *   v_d1_kanaal              open deals per hs_analytics_source (Leadsource)
  *   v_d1_kantoorgrootte      open deals per advocaten-band × fase (Kantoorgrootte)
- *   hubspot_pipelines        het label van de ene pipeline die D1 leest ('default',
- *                            de Sales Pipeline) — de kolom `pipeline` in het
- *                            kennismakingen-detail (v1.211). Eén rij, géén
- *                            kolom op v_d1_waarde: de view filtert al op die
- *                            pipeline, dus per deal zou het hetzelfde woord zijn.
- *                            Mislukt deze read, dan blijft het bord staan en
- *                            toont de kolom `?`.
+ *   hubspot_pipelines        het label van de pipeline waarop álle telkaarten
+ *                            filteren ('default', de Sales Pipeline). Sinds
+ *                            v1.215 draagt elke rij in het kennismakingen-detail
+ *                            zijn eigen `pipeline_label` (een geplande
+ *                            kennismaking staat vaak in een Lead-pipeline);
+ *                            deze read is de terugval voor een rij zonder label
+ *                            en het woord in de voet. Mislukt hij, dan blijft
+ *                            het bord staan en toont de kolom `?`.
  *   v_d1_dekking · v_d1_win_rate · v_d1_ontleding   — de Monthly-pagina
- *   v_d1_waarde (3×)         de deals zelf voor het detailpaneel: de open deals
- *                            (fase · maand · kanaal · band · waarde), de deals
- *                            met een kennismaking in het venster (week-staaf,
- *                            open én gesloten) en de deals die in het venster
- *                            binnenkwamen of sloten (Beweging).
+ *   v_d1_waarde (2×)         de deals zelf voor het detailpaneel: de open deals
+ *                            (fase · maand · kanaal · band · waarde) en de deals
+ *                            die in het venster binnenkwamen of sloten (Beweging).
+ *   v_d1_aanvoer_deals       de deals achter een weekstaaf (kennismaking in het
+ *                            venster, open én gesloten). Sinds v1.215 een eigen
+ *                            view in plaats van v_d1_waarde: een geplande
+ *                            kennismaking staat meestal in een Lead-pipeline en
+ *                            die komt in v_d1_waarde niet voor. `is_sales`
+ *                            scheidt de twee — zie D1Detail.
  *   v_d9_forecast_blokkers   hetzelfde blokkergetal als op D9
  *
  * Geen realtime: de pipeline beweegt op het tempo van de HubSpot-sync (delta
@@ -73,6 +79,14 @@ const DEAL_VELDEN = [
   'dagen_open', 'dagen_in_fase', 'totale_omvang', 'segment_bucket', 'kantoorband', 'kanaal', 'hubspot_url',
 ].join(',')
 
+/**
+ * Dezelfde velden plus de twee die alleen `v_d1_aanvoer_deals` heeft: het label
+ * van de pipeline waar de deal in staat (per rij, want een geplande
+ * kennismaking staat vaak in een Lead-pipeline) en `is_sales`, waarop het
+ * detailpaneel kiest welke rijen bij welke staaf horen.
+ */
+const AANVOER_VELDEN = `${DEAL_VELDEN},pipeline_id,pipeline_label,is_sales`
+
 export function useD1Pipeline() {
   const [data, setData] = useState({
     meta: null, aanvoerKop: null, aanvoer: [], gepland: [], perFase: [], aging: [],
@@ -106,8 +120,9 @@ export function useD1Pipeline() {
         .order('dagen_in_fase', { ascending: false, nullsFirst: false }),
       // De deals achter een week-staaf: op kennismakingsdatum, open én gesloten
       // (een kennismaking van week 34 kan intussen gewonnen of verloren zijn),
-      // inclusief de geplande kennismakingen in de komende vier weken.
-      supabase.from('v_d1_waarde').select(DEAL_VELDEN).gte('kennismaking', start)
+      // inclusief de geplande kennismakingen in de komende vier weken — en die
+      // staan meestal in een Lead-pipeline (v1.215, zie v_d1_aanvoer_deals).
+      supabase.from('v_d1_aanvoer_deals').select(AANVOER_VELDEN).gte('kennismaking', start)
         .order('kennismaking', { ascending: true }),
       // De deals achter een bewegingsstaaf: binnengekomen óf gesloten in het venster.
       supabase.from('v_d1_waarde').select(DEAL_VELDEN)

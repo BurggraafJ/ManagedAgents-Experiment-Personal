@@ -56,6 +56,7 @@ shoot desktop            1440,900  desktop
 shoot licenties          1440,900  desktop-licenties
 shoot focus-fase3        1440,900  desktop-focus-fase3
 shoot focus-week         1440,900  desktop-focus-week
+shoot focus-week-gepland 1440,900  desktop-gepland-week
 shoot focus-kanaal       1440,900  desktop-focus-kanaal
 shoot focus-wissel       1440,900  desktop-focus-wissel
 shoot focus-terug        1440,900  desktop-focus-terug
@@ -72,4 +73,5 @@ shoot shell-sync         1440,900  shell-sync
 shoot shell-monthly      1440,1100 shell-monthly
 shoot mobile             390,2400  mobile
 shoot mobile-focus       390,1200  mobile-focus
+shoot mobile-week-gepland 390,1200 mobile-gepland-week
 shoot mobile-focus-terug 390,2400  mobile-focus-terug

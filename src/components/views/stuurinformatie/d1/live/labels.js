@@ -39,6 +39,21 @@ export const KANAAL_SWATCH = ['#dc6f3f', '#8b4628', '#efb08c', '#f9e5dd']
 
 export const BAND_LABEL = { '17+': '17+', '5-16': '5–16 kern', '1-4': '1–4', onbekend: 'onbekend' }
 
+/**
+ * De pipelinenaam in een kolom van 84 px (v1.215). HubSpot's eigen woorden zijn
+ * te lang voor die breedte — "Leads (Sell Me This Pen)" is 24 tekens — en het
+ * onderscheidende deel staat achteraan, dus afkappen zou elke Lead-pipeline
+ * hetzelfde laten lezen. Daarom: het haakje ís de naam ("Paddls",
+ * "non-campaign") en "Sales Pipeline" wordt "Sales". Het volledige label blijft
+ * als `title` op de cel staan — korter tonen mag, weglaten niet.
+ */
+export const pipelineKort = label => {
+  if (!label) return null
+  const haakje = String(label).match(/\(([^)]+)\)/)
+  if (haakje) return haakje[1].trim()
+  return String(label).replace(/\s*pipeline\s*$/i, '').trim() || String(label).trim()
+}
+
 /** Weeknummer zonder W uit een ISO-label "2026-W36" → "36". */
 export const weekNr = label => (label ? String(label).replace(/^.*-W/, '') : '')
 

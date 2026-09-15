@@ -150,7 +150,12 @@ export default function D1Kwartaal() {
           waarde={null}
           leegTekst="niet te snijden"
           reden={meta
-            ? `${getal(meta.companies_met_omvang)} van ${getal(meta.companies_zichtbaar)} companies draagt totale_omvang, en de HubSpot-ETL synchroniseert maximaal 2.000 companies per ronde. Een segment-ontleding zou op een paar procent van de basis rusten.`
+            // Tot v1.215 stond hier ook "de ETL synchroniseert maximaal 2.000
+            // companies per ronde" als tweede oorzaak. Die is weg: de full sync
+            // haalt sinds 15-09-2026 de hele basis op (9.394 companies in één
+            // ronde, niet afgekapt). Wat overblijft is de échte oorzaak — het
+            // veld staat in HubSpot bijna nergens ingevuld.
+            ? `${getal(meta.companies_met_omvang)} van ${getal(meta.companies_zichtbaar)} companies draagt totale_omvang. De mirror is compleet; het veld is in HubSpot gewoon vrijwel nooit ingevuld. Een segment-ontleding zou op een paar procent van de basis rusten.`
             : 'kantoorgrootte ontbreekt op de company'}
           vergelijking="de lege plek is het argument voor het veld"
           basis="zodra de dekking klopt, verschijnt segment als vierde snede op /pipeline"

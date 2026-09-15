@@ -82,6 +82,9 @@ const views = {
   'focus-fase3': <Doe stappen={[{ vind: aria('Fase 3') }]}><Desktop /></Doe>,
   // Week 36 in Kennismakingen (3 gehouden) → focus-split met de kennismakingen.
   'focus-week': <Doe stappen={[{ vind: aria('36 ·') }]}><Desktop /></Doe>,
+  // v1.215: W39 is een gepláánde week (5). Vier van de vijf rijen staan nog in
+  // een Lead-pipeline — de kolom `pipeline` en de chip moeten dat zeggen.
+  'focus-week-gepland': <Doe stappen={[{ vind: aria('39 ·') }]}><Desktop /></Doe>,
   // Legenda-rij Onbekend van de donut → focus-split Kanaal met de hygiënelijst.
   'focus-kanaal': <Doe stappen={[{ vind: legenda('Onbekend') }]}><Desktop /></Doe>,
   // Andere snede op dezelfde kaart: Fase 3 → Fase 1. De kaart blijft in focus, alleen de sink wisselt.
@@ -107,6 +110,7 @@ const views = {
   mobile: <Mobile />,
   // Mobiel: geen naast-elkaar — de sink vult het scherm, met `◂ Overzicht` in de kop.
   'mobile-focus': <Mobile><Doe stappen={[{ vind: aria('Fase 3') }]}><D1View /></Doe></Mobile>,
+  'mobile-week-gepland': <Mobile><Doe stappen={[{ vind: aria('39 ·') }]}><D1View /></Doe></Mobile>,
   'mobile-focus-terug': <Mobile><Doe stappen={[{ vind: aria('Fase 3') }, { vind: terug }]}><D1View /></Doe></Mobile>,
 }
 

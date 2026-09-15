@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import DetailPaneel from '../../../../ui/DetailPaneel'
 import WorkTable from '../../../../ui/WorkTable'
 import { getal, datumKort } from '../../format'
-import { eenheid as maakEenheid, FASE_KORT, FASE_UITLEG, kanaalLabel, BAND_LABEL, bereikKort, euroK, dagMaandKort } from './labels'
+import { eenheid as maakEenheid, FASE_KORT, FASE_UITLEG, kanaalLabel, BAND_LABEL, bereikKort, euroK, dagMaandKort, pipelineKort } from './labels'
 
 /**
  * D1Detail — zone 4, de gedeelde sink van het Live-bord (D1-LIVE-INTERACTION.md).
@@ -16,10 +16,18 @@ import { eenheid as maakEenheid, FASE_KORT, FASE_UITLEG, kanaalLabel, BAND_LABEL
  *
  * **Kennismakingen (v1.211, Jelle 15-09-2026).** Achter een weekstaaf staan
  * altijd kantoorgrootte (advocaten, `totale_omvang`), de kennismakingdatum en
- * de pipeline. Die laatste komt uit `hubspot_pipelines` voor de ene pipeline
- * die dit bord leest (prop `pipeline`); v_d1_deals filtert al op de Sales
- * Pipeline, dus de kolom zegt op elke rij hetzelfde — dat is de constatering,
- * niet een bug. Fase en licentieband blijven staan.
+ * de pipeline. Fase en licentieband blijven staan.
+ *
+ * **Twee soorten weken (v1.215).** Een *gemeten* of lopende week telt gehouden
+ * kennismakingen in de Sales Pipeline — dat is het critical number, en de lijst
+ * toont dus precies die rijen (`is_sales`). Een *geplande* week telt over de
+ * hele allowlist `v_d1_km_pipelines`: de SDR plant een kennismaking meestal in
+ * een Lead-pipeline en verhuist de deal pas daarna naar Sales. Daarom draagt
+ * elke rij hier zijn eigen `pipeline_label` in plaats van het ene woord van het
+ * bord — precies die kolom maakt zichtbaar dat het grootste deel van de aanvoer
+ * nog niet in Sales staat. Zonder die splitsing zou de voet "11 van 5" zeggen
+ * op een week die er vijf telt, en dat leest als een bug in plaats van als twee
+ * verschillende vragen.
  *
  * **De selectie rekent niet, hij kiest.** Alle sleutels komen uit de view-rij
  * die links is aangeklikt (bucket, fase, kanaal, kantoorband, week_start) en
@@ -56,9 +64,16 @@ const KOL = {
   bron: { key: 'bron', label: 'leadsource', breedte: '70px', klasse: 'wt__rechts dl-cel__s', render: d => <span className={d.kanaal && d.kanaal !== 'UNKNOWN' ? '' : 'dl-cel__gat'}>{kanaalLabel(d.kanaal)}</span> },
 }
 const KOL_BREED = { eigenaar: KOL.eigenaar, eur: KOL.eur, bron: KOL.bron }
-/** De pipeline van het bord — één label voor alle rijen (zie kop); `?` als de read mislukte. */
+/**
+ * De pipeline waar déze deal in staat (v1.215). `pipeline_label` komt per rij
+ * uit v_d1_aanvoer_deals; het bordlabel uit `hubspot_pipelines` is de terugval
+ * voor een rij zonder label, en `?` als ook die read mislukte.
+ */
 const pipelineKol = pipeline => ({ key: 'pipeline', label: 'pipeline', breedte: '84px', klasse: 'wt__rechts dl-cel__s',
-  render: () => (pipeline?.label ? pipeline.label : <span className="dl-cel__leeg">?</span>) })
+  render: d => {
+    const vol = d.pipeline_label || pipeline?.label || null
+    return vol ? <span title={vol}>{pipelineKort(vol)}</span> : <span className="dl-cel__leeg">?</span>
+  } })
 /** Basiskolommen + de extra's van de brede sink, de link altijd achteraan. */
 const breed = (kolommen, extra) => [...kolommen.slice(0, -1), ...extra.map(k => KOL_BREED[k]).filter(k => !kolommen.includes(k)), KOL.link]
 const dagen = (veld, drempel) => ({ key: veld, label: 'dagen', breedte: '44px', klasse: 'wt__rechts wt__mono',
@@ -79,19 +94,27 @@ export default function D1Detail({ gekozen, deals, aanvoerDeals, bewegingDeals, 
     switch (gekozen.soort) {
       case 'week': {
         const w = gekozen.week
-        const rijen = (aanvoerDeals || []).filter(d => d.kennismaking && d.kennismaking >= w.week_start && d.kennismaking <= w.week_eind)
+        // Een geplande week telt over de allowlist (Sales + Lead), een gemeten
+        // of lopende week telt de Sales-staaf. De lijst volgt de staaf.
+        const inWeek = (aanvoerDeals || []).filter(d => d.kennismaking && d.kennismaking >= w.week_start && d.kennismaking <= w.week_eind)
+        const rijen = (gekozen.gepland ? inWeek : inWeek.filter(d => d.is_sales !== false))
           .sort((a, b) => String(a.kennismaking).localeCompare(String(b.kennismaking)))
         const uitView = gekozen.gepland ? w.kennismakingen_gepland : w.kennismakingen
+        const buitenSales = gekozen.gepland ? rijen.filter(d => d.is_sales === false).length : 0
         return {
-          chips: [`${eenheid.fmt(lic ? som(rijen) : uitView)} ${gekozen.gepland ? 'gepland' : gekozen.lopend ? 'gehouden · loopt nog' : 'gehouden'}`, ...(gekozen.gepland || lic ? [] : ['doel 8', { t: `${uitView - 8 >= 0 ? '+' : '−'}${Math.abs(uitView - 8)} ${uitView - 8 >= 0 ? 'op/boven' : 'onder'} doel`, warn: uitView < 8 }])],
+          chips: [`${eenheid.fmt(lic ? som(rijen) : uitView)} ${gekozen.gepland ? 'gepland' : gekozen.lopend ? 'gehouden · loopt nog' : 'gehouden'}`,
+            ...(buitenSales > 0 ? [{ t: `${getal(buitenSales)} nog in een Lead-pipeline`, titel: 'de SDR plant de kennismaking daar; de deal verhuist pas daarna naar Sales' }] : []),
+            ...(gekozen.gepland || lic ? [] : ['doel 8', { t: `${uitView - 8 >= 0 ? '+' : '−'}${Math.abs(uitView - 8)} ${uitView - 8 >= 0 ? 'op/boven' : 'onder'} doel`, warn: uitView < 8 }])],
           kolommen: [
-            KOL.kantoor(d => <> · {kanaalLabel(d.kanaal)}{!d.is_open ? ` · ${d.fase === 'gewonnen' ? 'gewonnen' : 'afgevallen'}` : ''}</>),
+            KOL.kantoor(d => <> · {kanaalLabel(d.kanaal)}{d.is_open === false ? ` · ${d.fase === 'gewonnen' ? 'gewonnen' : 'afgevallen'}` : ''}</>),
             KOL.grootte, datum('kennismaking', 'kennismaking', '78px'), pipelineKol(pipeline), KOL.fase, KOL.lic, KOL.link,
           ],
           // Geen brede extra's: de drie vaste kolommen van Jelle nemen die ruimte al (eigenaar staat in de rij-tooltip).
           extra: [],
           rijen, uitView: gekozen.gepland || gekozen.lopend ? rijen.length : uitView, sort: 'kennismaking ↑',
-          voet: `bron HubSpot-mirror · kennismaking_datum · kantoorgrootte = totale_omvang (advocaten) · pipeline = ${pipeline?.label || '?'}${gekozen.gepland ? ' · nog niet gehouden' : ''}`,
+          voet: gekozen.gepland
+            ? 'bron HubSpot-mirror · kennismaking_datum · kantoorgrootte = totale_omvang (advocaten) · pipeline per deal · nog niet gehouden'
+            : `bron HubSpot-mirror · kennismaking_datum · kantoorgrootte = totale_omvang (advocaten) · gehouden telt ${pipeline?.label || 'Sales'}`,
           leeg: gekozen.gepland ? 'Geen kennismakingen gepland in deze week.' : 'Geen kennismakingen in deze week. Dat is een gemeten nul, geen ontbrekende meting.',
         }
       }
