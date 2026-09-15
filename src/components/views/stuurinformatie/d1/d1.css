@@ -28,78 +28,11 @@
   --d1-accent: "Host Grotesk", var(--d1-font);
 }
 
-/* Zone 2 · Optie B (v1.197). HeroStrip full-width boven drie contextkaarten.
-   HeroStrip is een eigen component, geen MetricCard-grid-hack meer. */
-.bs--d1 .bs__antwoord { grid-template-columns: 1fr 1fr 1fr; }
-.bs--d1 .bs__antwoord > .hs { grid-column: 1 / -1; }
-
-/* ───── Aanvoerstrip ─────
-   Sinds v1.184 de gedeelde C1 Periodestrip (`ui/charts/periodestrip.css`);
-   D1 levert alleen de data (AanvoerStrip.jsx). Geen eigen strip-CSS meer. */
-
-/* d1-metrics verwijderd in v1.197 — metric-pairs zitten nu in HeroStrip
-   als echte vakjes (hero-strip.css), niet als telegram-regels. */
-
-/* Fase-splits in "Actieve pipeline": verplaatst naar gedeelde MetricPairs
-   (v1.198, bib-rollout). De oude .d1-faseregel is verwijderd. */
-
-/* ───── Zone 3 · een regel met zijn bandbreedte ─────
-   Vijf kolommen: naam+grondslag · balk · aantal · bedrag · caret.
-   De balk is sinds v1.186 de gedeelde C5 Bereikstaaf
-   (`ui/charts/bereikstaaf.css`, 8 px); hier alleen de kolom waarin hij staat. */
-.d1-rij { grid-template-columns: minmax(96px, 1fr) minmax(70px, 1.5fr) 40px 108px 14px; height: 46px; }
-.d1-rij__balk { display: flex; align-items: center; min-width: 0; }
-.d1-rij .bs-rij__n { font-size: 14px; }
-.d1-rij__waarde {
-  text-align: right; font-size: 12px; color: var(--d1-n600);
-  font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-.d1-rij__leegwaarde { color: var(--d1-n400); }
-/* De stand van een deal in het weekpaneel: één regel, ook bij een lange
-   stagenaam. De rijhoogte van dit paneel ligt vast op 36 px; een stand die
-   afbreekt maakt van een lijst van tien regels een lijst van vijftien. */
-.d1-rij__stand { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.d1-rij__vlag {
-  font-size: 11.5px; color: var(--d1-warn-ink);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.d1-rij--warn { background: var(--d1-warning-subtle); }
-.d1-rij--warn:hover:not(.is-gekozen) { background: #fbeed5; }
-.d1-rij--warn .bs-rij__naam { color: var(--d1-warn-ink); }
-
-/* De tweede tabel in het detailpaneel (fase 1–2) erft de kolommen van de
-   eerste en herhaalt zijn kop niet: de groepskop erboven zegt al wat er staat,
-   en een tweede kolomrij kost precies de regels waar hij boven hoort. */
-.d1-detail--vervolg .wt__head { display: none; }
-
-/* ───── De werktellers onder de lijst ─────
-   Ze staan in de vaste strook, dus ze scrollen nooit weg: wat je kúnt doen mag
-   niet het diepst begraven liggen. */
-.d1-tellers {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 7px;
-  padding: 9px 16px 10px;
-  border-top: 1px solid var(--d1-border-soft); background: var(--d1-paper-2);
-}
-.d1-tellers__label {
-  font: 500 10px var(--d1-mono); letter-spacing: .11em; text-transform: uppercase;
-  color: var(--d1-n600); margin-right: 3px;
-}
-.d1-teller {
-  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px;
-  border: 1px solid var(--d1-border); border-radius: 8px; background: var(--d1-paper);
-  font: 400 11.5px var(--d1-font); color: var(--d1-n600);
-  white-space: nowrap; cursor: pointer;
-}
-.d1-teller:hover { border-color: var(--d1-border-strong); background: var(--d1-paper-2); }
-.d1-teller b { font: 600 12px var(--d1-mono); color: var(--d1-ink); }
-/* Een gemeten nul is rustig, maar blijft staan: verdween de teller, dan zag je
-   het verschil niet tussen "opgeruimd" en "niet gemeten". */
-.d1-teller.is-schoon b { color: var(--d1-n400); }
-.d1-teller.is-gekozen {
-  background: var(--d1-orange-subtle); border-color: #ecc9b8; color: var(--d1-orange-deep);
-}
-.d1-teller.is-gekozen b { color: var(--d1-orange-deep); }
-.d1-teller .bs-rij__caret { font-size: 9px; }
+/* Het Live-bord (v1.209, Design ronde 5) heeft zijn eigen blad:
+   `live/d1live.css`. HeroStrip, Aanvoerstrip, de sneden-lijst en de
+   werktellers uit v1.181–v1.208 bestaan niet meer; hun CSS is met ze
+   meegegaan. Hieronder alleen wat de Monthly-pagina en de meldingen
+   nog delen. */
 
 /* ==========================================================
    /pipeline/kwartaal — de kwartaaldiagnose.
@@ -171,33 +104,10 @@
    aan moet bijstellen.
    ========================================================== */
 @media (max-width: 1240px) {
-  .bs--d1 .bs__antwoord { grid-template-columns: 1fr 1fr; }
-  .bs--d1 .bs__antwoord > .hs { grid-column: 1 / -1; }
-  .bs--d1 .bs__antwoord > .mc:last-child { grid-column: 1 / -1; }
   .d1-kwartaal__kaarten { grid-template-columns: repeat(2, 1fr); }
-  .d1-rij { grid-template-columns: minmax(90px, 1fr) minmax(50px, 1fr) 38px 100px 14px; }
 }
 
 @media (max-width: 1000px) {
-  .bs--d1 .bs__antwoord > .mc:last-child { grid-column: auto; }
-  /* C5 op mobiel: de balk blijft en komt onder de naam (chart-catalogus §C5),
-     op de volle breedte van de rij — in een kolom van 40 px ernaast was hij
-     geen vergelijking meer. Tot v1.185 verdween hij hier; het contract zegt
-     dat hij blijft. De "geen beslisdatum"-regel draagt op dezelfde tweede
-     regel zijn vlag: die weglaten is geen optie — hij is de hele reden dat
-     deze regel bestaat. */
-  .d1-rij {
-    grid-template-columns: minmax(0, 1fr) 38px 100px 14px;
-    grid-template-rows: auto auto; height: auto; row-gap: 6px;
-    padding-top: 8px; padding-bottom: 9px;
-  }
-  .d1-rij .bs-rij__cel    { grid-area: 1 / 1 / 2 / 2; }
-  .d1-rij .bs-rij__n      { grid-area: 1 / 2 / 2 / 3; }
-  .d1-rij .d1-rij__waarde { grid-area: 1 / 3 / 2 / 4; }
-  .d1-rij .bs-rij__caret  { grid-area: 1 / 4 / 2 / 5; }
-  .d1-rij .d1-rij__balk   { grid-area: 2 / 1 / 3 / 4; }
-  .d1-rij .d1-rij__vlag   { grid-area: 2 / 1 / 3 / 5; white-space: normal; }
-  .d1-tellers { padding: 10px 14px; }
   .d1-wr__raster { grid-template-columns: 1fr 1fr; }
   .d1-wr__hoekkop:first-child, .d1-wr__rijkop { grid-column: 1 / -1; }
   .d1-blok { padding: 14px 14px; }
@@ -207,6 +117,4 @@
 @media (max-width: 620px) {
   .d1-kwartaal__kaarten { grid-template-columns: 1fr; }
   .d1-wr__raster { grid-template-columns: 1fr; }
-  .d1-rij { grid-template-columns: minmax(0, 1fr) 34px 92px 14px; }
-  .d1-rij__waarde { font-size: 11.5px; }
 }

@@ -7,130 +7,91 @@ import D1View from '../../src/components/views/stuurinformatie/d1/D1View'
 import D1Kwartaal from '../../src/components/views/stuurinformatie/d1/D1Kwartaal'
 import InShell from '../preview-shared/InShell'
 
-// Preview-harnas voor docs/previews/d1-*.png.
+// Preview-harnas voor docs/previews/d1-*.png (Live-bord, Design ronde 5).
 //
 // Dit rendert de ECHTE view én de echte hook (useD1Pipeline); alleen de
 // netwerklaag is gestubt (vite.preview.config.js aliast lib/supabase naar
-// ./mock-supabase.js). Een preview kan dus niet naast de code komen te staan:
-// verandert de hook van view-naam of kolom, dan valt de screenshot om.
-//
-// MemoryRouter omdat D1View `useNavigate` gebruikt voor de sprong naar D9 en
-// naar de kwartaaldiagnose; zonder router-context klapt de render eruit.
+// ./mock-supabase.js, gevoed met de prod-rijen van 15-09-2026). Verandert de
+// hook van view-naam of kolom, dan valt de screenshot om — en dat is de
+// bedoeling.
 //
 // Draaien:  npm run preview:d1   →  scripts/preview-d1/capture.sh
-const view = new URLSearchParams(location.search).get('view') || 'desktop'
+const params = new URLSearchParams(location.search)
+const view = params.get('view') || 'desktop'
 document.documentElement.classList.add('theme-light')
 
-function Desktop() {
+function Desktop({ children }) {
   return (
     <div className="theme-maestro" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <D1View />
+      {children || <D1View />}
     </div>
   )
 }
 
-function Mobile() {
+function Mobile({ children }) {
   return (
     <div className="shell shell--m theme-maestro">
       <main className="m-main" style={{ display: 'flex', flexDirection: 'column' }}>
-        <D1View />
+        {children || <D1View />}
       </main>
     </div>
   )
 }
 
 /**
- * Klik op het eerste element dat aan `vind` voldoet, zodra het bestaat.
- *
- * Blijven proberen en niet één setTimeout: met --virtual-time-budget loopt de
- * klok sneller dan de (echte) microtasks van de hook, dus een enkele timer
- * vuurt soms vóór de eerste render met data — en dan mist de shot stil zijn
- * hele punt.
+ * Klik (of focus) achtereenvolgens de elementen die `stappen` opleveren, zodra
+ * ze bestaan. Blijven proberen en niet één setTimeout: met
+ * --virtual-time-budget loopt de klok sneller dan de microtasks van de hook.
  */
-function Klik({ vind, children }) {
+function Doe({ stappen, children }) {
   useEffect(() => {
+    let i = 0
     const id = setInterval(() => {
-      const el = vind()
-      if (el) { el.click(); clearInterval(id) }
-    }, 60)
+      const stap = stappen[i]
+      if (!stap) { clearInterval(id); return }
+      const el = stap.vind()
+      // SVG-elementen hebben geen .click(): een echte MouseEvent bubbelt naar
+      // React's delegatie, voor <rect> en <path> net zo goed als voor <button>.
+      if (el) {
+        if ((stap.actie || 'click') === 'focus') el.focus()
+        else el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
+        i += 1
+      }
+    }, 80)
     return () => clearInterval(id)
-  }, [vind])
+  }, [stappen])
   return children
 }
 
-const maandrij = () => Array.from(document.querySelectorAll('.d1-rij'))
-  .find(el => el.textContent.includes('nov'))
-
-const legeTeller = () => Array.from(document.querySelectorAll('.d1-teller'))
-  .find(el => el.textContent.includes('Verlopen beslisdatum'))
-
-const ontbreekt = () => document.querySelector('.dsb__sync')
-
-/**
- * Zet focus op één slot van de C1-periodestrip: focus is het toetsenbord-
- * equivalent van hover en toont dezelfde tooltip (onder de tijdas). Zo staat
- * de hover-staat van de strip op de shot zonder muis.
- */
-function Focus({ vind, children }) {
-  useEffect(() => {
-    const id = setInterval(() => {
-      const el = vind()
-      if (el) { el.focus(); clearInterval(id) }
-    }, 60)
-    return () => clearInterval(id)
-  }, [vind])
-  return children
-}
-const stripSlot = () => document.querySelectorAll('.c1__slot')[9] || null
-// De staaf van week 36 (drie kennismakingen, de hoogste in de reeks): een klik
-// erop is de derde ingang van het detailpaneel (G7, v1.188).
-const stripStaaf = () => document.querySelectorAll('.c1__slot.is-klikbaar')[10] || null
+const knop = tekst => () => Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === tekst)
+const aria = prefix => () => Array.from(document.querySelectorAll('[aria-label]')).find(el => el.getAttribute('aria-label').startsWith(prefix))
+const legenda = tekst => () => Array.from(document.querySelectorAll('.dl-klegenda__rij')).find(el => el.textContent.includes(tekst))
+const sync = () => document.querySelector('.dsb__sync')
 
 const views = {
-  // Zoals je het bord binnenkomt: leeg detailpaneel, want het detail is een
-  // vervolgvraag en er wordt nooit automatisch een regel gekozen.
+  // Zoals je het bord binnenkomt: Deals, lege sink.
   desktop: <Desktop />,
-  // Gedrilld: november gekozen, de deals staan in het paneel ernaast en de
-  // lijst links is niet uit elkaar geduwd.
-  'desktop-drill': <Klik vind={maandrij}><Desktop /></Klik>,
-  // De lege werklijst ("Verlopen beslisdatum · 0"), zodat op de shot te zien is
-  // dat een lege lijst een gemeten nul is en geen verdwenen teller.
-  'desktop-werk': <Klik vind={legeTeller}><Desktop /></Klik>,
-  // De vertrouwensregel opengeklapt: wat ontbreekt er, en hoeveel.
-  'desktop-ontbreekt': <Klik vind={ontbreekt}><Desktop /></Klik>,
-  // De C1-strip met een week in focus: de tooltip valt onder de tijdas, het
-  // cijfer op de waarderij kleurt mee met de staaf.
-  'desktop-strip': <Focus vind={stripSlot}><Desktop /></Focus>,
-  // De C1-staaf als drill-target: klik op week 36 en het detailpaneel toont de
-  // kennismakingen van díé week — hetzelfde paneel dat een snederegel vult.
-  // Dat is wat een hero-chart een klikpad geeft zonder tweede route.
-  'desktop-week': <Klik vind={stripStaaf}><Desktop /></Klik>,
-  // De kwartaaldiagnose op /pipeline/kwartaal: de bestemming van de win-rate-
-  // hoeken, de dekking, de stage-ontleding en de salescyclus.
-  kwartaal: (
-    <div className="theme-maestro" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <D1Kwartaal />
-    </div>
-  ),
-  // Door de echte desktop-chrome: topbalk met `◂ Dashboard` vóór de titel en
-  // daaronder de witte standaardbalk van het bord (v1.189). Review-shot, geen
-  // meetbasis.
+  // Toggle Licenties: units wisselen, Waarde-kaart erbij.
+  licenties: <Doe stappen={[{ vind: knop('Licenties') }]}><Desktop /></Doe>,
+  // Fase 3 in Tijd in fase geklikt → sink `Fase 3 · aging` (Design detail-fase3).
+  'detail-fase3': <Doe stappen={[{ vind: aria('Fase 3') }]}><Desktop /></Doe>,
+  // Legenda-rij Onbekend van de donut → hygiënelijst.
+  kanaal: <Doe stappen={[{ vind: legenda('Onbekend') }]}><Desktop /></Doe>,
+  // Week 36 in Kennismakingen (3 gehouden) → sink met de kennismakingen.
+  week: <Doe stappen={[{ vind: aria('36 ·') }]}><Desktop /></Doe>,
+  // Hover-tooltip: focus op de W36-staaf toont dezelfde tip als de muis.
+  hover: <Doe stappen={[{ vind: aria('36 ·'), actie: 'focus' }]}><Desktop /></Doe>,
+  // Door de echte desktop-chrome (sidebar + topbalk), Deals en Licenties.
   shell: <InShell title="Pipeline & forecast" activeView="pipeline"><D1View /></InShell>,
-  // Het Sync-paneel open door de shell (v1.190): peildatum, bronnen, de
-  // waarschuwing, Wat ontbreekt en Ververs — alles wat in v1.189 nog als
-  // losse tekst in de balk stond. Klik en hover openen hetzelfde paneel.
-  'shell-sync': <InShell title="Pipeline & forecast" activeView="pipeline"><Klik vind={ontbreekt}><D1View /></Klik></InShell>,
-  // Ingesprongen pagina: de topbalk wijst naar de ouder (`◂ Pipeline`) en de
-  // kruimel draagt het spoor — zoals Dashboard.jsx het via parentFor geeft.
-  'shell-kwartaal': <InShell title="Pipeline · kwartaaldiagnose" activeView="pipeline_kwartaal" back="Pipeline" crumb="Pipeline / Kwartaaldiagnose"><D1Kwartaal /></InShell>,
+  'shell-licenties': <InShell title="Pipeline & forecast" activeView="pipeline"><Doe stappen={[{ vind: knop('Licenties') }]}><D1View /></Doe></InShell>,
+  'shell-detail': <InShell title="Pipeline & forecast" activeView="pipeline"><Doe stappen={[{ vind: aria('Fase 3') }]}><D1View /></Doe></InShell>,
+  'shell-sync': <InShell title="Pipeline & forecast" activeView="pipeline"><Doe stappen={[{ vind: sync }]}><D1View /></Doe></InShell>,
+  'shell-monthly': <InShell title="Pipeline · Monthly" activeView="pipeline_kwartaal" back="Pipeline" crumb="Pipeline / Monthly"><D1Kwartaal /></InShell>,
   mobile: <Mobile />,
+  'mobile-detail': <Mobile><Doe stappen={[{ vind: aria('Fase 3') }]}><D1View /></Doe></Mobile>,
 }
 
-// ?meet=1 — de budgetten uit bouwproces.md stap 8 gemeten in plaats van
-// geschat (zelfde harnas als preview-d9, Pass A): hoogte kop + antwoord vanaf
-// de bovenrand van het bord, documenthoogte, woorden per zone, rijhoogtes.
-// Schrijft JSON in <pre id="meet"> zodat `chrome --dump-dom` het meeneemt.
-// Alleen harnas, geen productcode.
+// ?meet=1 — budgetten gemeten in plaats van geschat (bouwproces.md stap 8).
 function Meet({ children }) {
   useEffect(() => {
     const t = setTimeout(() => {
@@ -143,49 +104,22 @@ function Meet({ children }) {
         scrollHeight: document.documentElement.scrollHeight,
         paginaScrollt: document.documentElement.scrollHeight > window.innerHeight,
         kopBottom: Math.round((rect('.bs__kop')?.bottom ?? 0) - top),
-        antwoordBottom: Math.round((rect('.bs__antwoord')?.bottom ?? 0) - top),
-        kernzinBottom: Math.round((rect('.bs__kernzin')?.bottom ?? 0) - top),
         werkTop: Math.round((rect('.bs__werk')?.top ?? 0) - top),
-        kaartHoogtes: Array.from(document.querySelectorAll('.bs__antwoord > .mc')).map(k => Math.round(k.getBoundingClientRect().height)),
-        c1Hoogte: Math.round(rect('.c1')?.height ?? 0),
-        rijHoogtes: [...new Set(Array.from(document.querySelectorAll('.bs-rij')).map(r => Math.round(r.getBoundingClientRect().height)))],
+        kaarten: Array.from(document.querySelectorAll('.dl-kaart')).map(k => [k.className.replace('dl-kaart ', ''), Math.round(k.getBoundingClientRect().width), Math.round(k.getBoundingClientRect().height), k.scrollHeight > k.clientHeight + 1]),
+        lijven: Array.from(document.querySelectorAll(".dl-kaart__lijf")).map(l => [Math.round(l.getBoundingClientRect().height), l.querySelector("svg")?.getAttribute("height") ?? null]),
         woordenPerZone: Array.from(document.querySelectorAll('[data-zone]')).map(z => [z.dataset.zone, woorden(z)]),
-        zone2Tekst: (document.querySelector('.bs__antwoord')?.innerText || '').replace(/\n+/g, ' | '),
-        kernzin: document.querySelector('.bs__kernzin')?.innerText || '',
       }
       const pre = document.createElement('pre')
       pre.id = 'meet'
       pre.textContent = JSON.stringify(uit, null, 2)
       document.body.appendChild(pre)
-    }, 600)
+    }, 900)
     return () => clearTimeout(t)
   }, [])
   return children
 }
 
-// ?variant=breed — VOORSTEL, geen productcode: de C1-strip náást het getal in
-// een bredere herokaart in plaats van eronder. Alleen om de keuze zichtbaar te
-// maken: de gelockte C1 (94 px) past gestapeld niet in de 224 px eerste blik
-// (v1.186, IMPLEMENT-NOTES). Wordt dit gekozen, dan verhuist deze CSS naar
-// d1.css; tot dan bestaat hij alleen in dit harnas.
-if (new URLSearchParams(location.search).get('variant') === 'breed') {
-  const s = document.createElement('style')
-  s.textContent = `
-    .bs--d1 .bs__antwoord { grid-template-columns: 2.7fr 1fr 1fr 1fr; }
-    .bs--d1 .bs__antwoord > .mc:first-child {
-      display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 1.25fr);
-      grid-template-areas: "kop kop" "waarde strip" "context strip";
-      grid-template-rows: auto auto 1fr; column-gap: 20px; row-gap: 7px; align-content: start;
-    }
-    .bs--d1 .bs__antwoord > .mc:first-child > .mc__kop { grid-area: kop; }
-    .bs--d1 .bs__antwoord > .mc:first-child > .mc__waarde { grid-area: waarde; align-self: start; }
-    .bs--d1 .bs__antwoord > .mc:first-child > .c1 { grid-area: strip; margin-top: 0; }
-    .bs--d1 .bs__antwoord > .mc:first-child > .mc__context { grid-area: context; align-self: end; }
-  `
-  document.head.appendChild(s)
-}
-
-const meet = new URLSearchParams(location.search).get('meet') === '1'
+const meet = params.get('meet') === '1'
 const boom = views[view] || views.desktop
 createRoot(document.getElementById('root')).render(
   <MemoryRouter initialEntries={['/pipeline']}>

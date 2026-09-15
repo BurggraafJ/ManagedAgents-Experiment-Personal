@@ -93,14 +93,19 @@ export default function BordShell({ className = '', kop, antwoord, kernzin, mast
  * `terug` en `kruimel` bestaan niet meer als prop. Wie ze toch meegeeft, krijgt
  * niets: de weg terug is van de topbalk (Dashboard.jsx via parentFor).
  */
-export function BordKop({ vraag, meta, vertrouwen, filters, acties }) {
-  const heeftBalk = !!(filters || vertrouwen || acties)
+export function BordKop({ vraag, meta, vertrouwen, filters, acties, rechts = null }) {
+  const heeftBalk = !!(filters || vertrouwen || acties || rechts)
   return (
     <div className="bs__kop" data-zone="kop">
       {heeftBalk && (
         <div className="bs__balk" role="toolbar" aria-label="Paginabalk">
           {filters && <div className="bs__balk-filters">{filters}</div>}
           <span className="bs__balk-spacer" />
+          {/* `rechts` (v1.209): een bordbrede weergavestand vóór de vertrouwens-
+              groep — de toggle Deals | Licenties op D1. Geen filter (hij
+              vernauwt niets) en geen actie (hij handelt niet): hij wisselt de
+              eenheid van élke kaart. */}
+          {rechts && <div className="bs__balk-rechts">{rechts}</div>}
           {vertrouwen && <div className="bs__kop-trust">{vertrouwen}</div>}
           {acties && (
             <>
@@ -206,6 +211,32 @@ export function BordTabs({ tabs }) {
           onClick={t.actief ? undefined : t.onClick}
         >
           {t.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * BordToggle — een segmentknop in de balk die de weergavestand van het héle
+ * bord wisselt (Deals | Licenties op D1, v1.209). De actieve stand staat in
+ * ink; de knop zegt niets over de bron en vernauwt de populatie niet — het is
+ * dezelfde pipeline in een andere eenheid.
+ *
+ * Props: label (aria) · opties [{ id, label }] · actief · onKies(id)
+ */
+export function BordToggle({ label, opties = [], actief, onKies }) {
+  return (
+    <div className="bs-toggle" role="group" aria-label={label} title={label}>
+      {opties.map(o => (
+        <button
+          key={o.id}
+          type="button"
+          className={`bs-toggle__knop${o.id === actief ? ' is-actief' : ''}`}
+          aria-pressed={o.id === actief}
+          onClick={() => o.id !== actief && onKies(o.id)}
+        >
+          {o.label}
         </button>
       ))}
     </div>
