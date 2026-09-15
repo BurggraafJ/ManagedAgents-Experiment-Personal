@@ -17,7 +17,8 @@
     "preview:rechten": "bash scripts/preview-rechten/capture.sh",
     "meet": "bash scripts/meet-eerste-blik.sh",
     "preview:postvak": "bash scripts/preview-postvak/capture.sh",
-    "preview:postvak-prio": "bash scripts/preview-postvak/capture-prio.sh"
+    "preview:postvak-prio": "bash scripts/preview-postvak/capture-prio.sh",
+    "preview:nav": "bash scripts/preview-mobile-nav/capture.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

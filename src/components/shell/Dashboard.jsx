@@ -343,11 +343,16 @@ export default function Dashboard({ auth, isOwner, isLoadingRole, isMobile }) {
       <div className="shell shell--m">
         <ToastHost />
         <main className="m-main">{content}</main>
+        {/* v1.204: de Admin-tab werd Agenda en Administratie zakte naar de
+            Meer-drawer. De adminPending-teller stond op die tab en zou daarmee
+            onzichtbaar worden tot je de drawer opent — hij staat nu op "Meer",
+            zodat het signaal blijft. In de drawer zelf staat dezelfde teller
+            nog eens op de rij Administratie (via nav.count). */}
         <MobileTabBar
           activeView={activeNavId}
           onSelect={handleSelect}
           onOpenMore={() => setMoreOpen(true)}
-          counts={{ admin: badges.adminPending || 0, task: nav.find(v => v.id === 'taken')?.count || 0 }}
+          counts={{ more: badges.adminPending || 0, task: nav.find(v => v.id === 'taken')?.count || 0 }}
         />
         <MobileMoreDrawer
           open={moreOpen}
