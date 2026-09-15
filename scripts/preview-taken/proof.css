@@ -1,0 +1,10 @@
+/* Alleen voor de review-shots: de regel onderaan die laat zien wát er is
+   weggeschreven. Hoort niet in de app en zit dus in het harnas. */
+.proof {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 99;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 14px;
+  background: #121212; color: #f5f4f0;
+  font: 500 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.proof b { font-weight: 600; color: #ff8a3d; letter-spacing: .04em; text-transform: uppercase; font-size: 10px; }

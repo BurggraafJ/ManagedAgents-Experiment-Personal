@@ -533,6 +533,34 @@ button.m-tkrow__main { cursor: pointer; }
 }
 .m-tkgroup--backlog { margin-top: 10px; border-top: 1px solid var(--m-border-soft); }
 
+/* ── Slepen tussen prio-groepen (v1.205) ──────────────────────────────────
+   Ingedrukt houden tilt de rij op; de groep waar je boven zweeft licht op.
+   `html.m-dragging` zet selectie en de iOS-callout uit voor de duur van het
+   gebaar — zonder dat krijg je halverwege een tekstselectie of een "kopieer"-
+   ballonnetje in plaats van een sleep. De ghost mag niet meedoen aan het
+   raken van elementen, anders vindt elementFromPoint altijd zichzelf. */
+.m-dragging, .m-dragging body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.m-tkrow.is-dragging { opacity: .35; }
+.m-tkgroup.is-target .m-tkgroup__head { outline: 1px dashed var(--m-n300); outline-offset: -2px; }
+/* De ring staat búiten de sectie (`position: relative` + z-index zodat de
+   volgende sectie er niet overheen schildert). Een inset-schaduw was
+   onzichtbaar: de rijen hebben een eigen witte achtergrond en die schildert
+   er overheen. */
+.m-tkgroup.is-over { position: relative; z-index: 1; box-shadow: 0 0 0 2px var(--m-orange); }
+.m-tkgroup.is-over .m-tkgroup__head { outline: 0; background: var(--m-orange-subtle); color: var(--m-orange-deep); }
+.m-tkgroup.is-over .m-tkgroup__mark { background: var(--m-orange); }
+.m-tk__backlog.is-target { border-color: var(--m-n400); color: var(--m-n700); }
+.m-tk__backlog.is-over { border-style: solid; border-color: var(--m-orange); background: var(--m-orange-subtle); color: var(--m-orange-deep); font-weight: 600; }
+.m-tkghost {
+  position: fixed; z-index: 42; pointer-events: none; max-width: calc(100vw - 20px);
+  display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+  border-radius: 12px; background: var(--m-paper); border: 1px solid var(--m-border);
+  box-shadow: 0 12px 28px rgba(var(--m-shadow-rgb),.22), 0 2px 6px rgba(var(--m-shadow-rgb),.12);
+  transform: scale(1.02); transform-origin: center left;
+}
+.m-tkghost__title { flex: 1; min-width: 0; font: 500 15px/1.3 var(--m-sans); color: var(--m-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-tkghost__hint { flex-shrink: 0; font: 600 11px var(--m-mono); letter-spacing: .04em; color: var(--m-orange-deep); }
+
 /* Projectrij (lijst) */
 .m-projrow {
   width: 100%; display: flex; align-items: center; gap: 14px; padding: 14px 16px 14px 18px; min-height: 84px;
@@ -585,6 +613,34 @@ button.m-tkrow__main { cursor: pointer; }
 .m-tksheet__opt em { flex: 1; font: 500 12px var(--m-sans); color: var(--m-n500); font-style: normal; }
 .m-tksheet__opt.is-current { border-color: var(--m-ink); background: var(--m-paper2); }
 .m-tksheet__done { width: 100%; height: 48px; margin-top: 8px; border-radius: 12px; border: 0; cursor: pointer; background: var(--m-success); color: var(--m-on-accent); font: 600 14.5px var(--m-sans); display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+/* ── Taakdetail-sheet (tik op een rij in Mijn taken, v1.205) ──────────────
+   De mobiele tegenhanger van het desktop-zijpaneel. Zelfde velden, andere
+   vorm: de beschrijving staat bovenaan want daarvoor open je hem. */
+.m-tkdetail { max-height: calc(88dvh - var(--m-kb, 0px)); }
+.m-tkdetail .m-sheet__head { padding-top: 0; gap: 8px; }
+.m-tkdetail__prio { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 9999px; font: 600 11px var(--m-sans); text-transform: uppercase; letter-spacing: .05em; background: var(--m-paper2); color: var(--m-n700); border: 1px solid var(--m-border); }
+.m-tkdetail__prio--hoog { background: var(--m-error-sub); color: var(--m-error-ink); border-color: var(--m-error); }
+.m-tkdetail__prio--middel { background: var(--m-warn-sub); color: var(--m-warn-ink); border-color: var(--m-warning); }
+.m-tkdetail__prio--laag { background: var(--m-info-sub); color: var(--m-info-ink); border-color: var(--m-info); }
+.m-tkdetail__flag { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 9999px; border: 1px dashed var(--m-n300); font: 500 11px var(--m-sans); color: var(--m-n500); }
+.m-tkdetail .m-drawer__close { margin-left: auto; }
+.m-tkdetail__body { padding-bottom: 4px; }
+.m-tkdetail__title {
+  display: block; width: calc(100% - 40px); margin: 0 20px 2px; padding: 0; border: 0; outline: none; resize: none;
+  background: transparent; font: 600 19px/1.28 var(--m-accent); letter-spacing: -.015em; color: var(--m-ink);
+}
+.m-tkdetail__notes {
+  width: 100%; border: 1px solid var(--m-border); border-radius: 12px; padding: 12px 14px; outline: none; resize: vertical;
+  background: var(--m-paper2); font: 400 15px/1.55 var(--m-sans); color: var(--m-ink);
+}
+.m-tkdetail__notes:focus { border-color: var(--m-ink); background: var(--m-paper); }
+.m-tkdetail__notes::placeholder { color: var(--m-n400); }
+.m-tkdetail__hint { margin: 8px 0 0; font: 500 12px/1.4 var(--m-sans); color: var(--m-n500); }
+.m-tkdetail__ai { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--m-paper2); font: 400 13px/1.5 var(--m-sans); color: var(--m-n700); }
+.m-tkdetail__acties { display: flex; gap: 8px; padding-bottom: 12px; }
+.m-tkdetail__acties .m-admbtn { flex: 1; }
+.m-tkdetail__done { background: var(--m-success); }
 
 .m-fab {
   position: fixed; right: 16px; bottom: calc(var(--m-tabbar-h) + 18px); z-index: 30;

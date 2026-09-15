@@ -169,9 +169,12 @@
 .detailClose:hover { background: var(--tv2-paper-2); color: var(--tv2-ink); }
 .detailSection { background: #fff; border: 1px solid var(--tv2-border-soft); border-radius: 12px; padding: 18px 20px; margin: 14px 22px 0; box-shadow: var(--tv2-shadow-sm); }
 .detailSection + .detailSection { margin-top: 12px; }
+/* Een <textarea>, geen <input>: een taaktitel van tien woorden schoof in het
+   invoerveld uit beeld en dan lees je in het paneel niet waar je naar kijkt. */
 .detailTitle {
-  width: 100%; font: 600 24px var(--tv2-font-accent); letter-spacing: -.018em; color: var(--tv2-ink);
+  display: block; width: 100%; font: 600 24px/1.25 var(--tv2-font-accent); letter-spacing: -.018em; color: var(--tv2-ink);
   border: 0; outline: 0; background: transparent; padding: 2px 0 6px; margin: 0; border-bottom: 1px solid transparent; transition: border-color .12s;
+  resize: none; overflow: hidden;
 }
 .detailTitle:focus { border-bottom-color: var(--tv2-orange); }
 .detailTitle:hover:not(:focus) { background: rgba(0,0,0,0.02); border-radius: 4px; padding-left: 4px; }

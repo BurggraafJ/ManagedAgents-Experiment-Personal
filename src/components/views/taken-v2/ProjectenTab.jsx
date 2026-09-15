@@ -112,7 +112,7 @@ function StageColumn({ stage, rows, onDropTask, onInsert, applyOptimistic, onOpe
     <section
       className={`${styles.col} ${styles['col_' + stage]} ${dragOver ? styles.dragOver : ''}`}
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true) }}
-      onDragLeave={() => setDragOver(false)}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(false) }}
       onDrop={(e) => { e.preventDefault(); setDragOver(false); const id = e.dataTransfer.getData('text/plain'); if (id) onDropTask(id) }}
     >
       <header className={`${styles.groupHead} ${styles.stageHead} ${styles['stageHead_' + stage]}`}>
