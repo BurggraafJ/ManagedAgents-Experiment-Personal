@@ -1,19 +1,21 @@
 import MetricCard from '../../../ui/MetricCard'
 import MetricPairs, { MetricPair } from '../../../ui/MetricPairs'
-import { Kernzin } from '../../../ui/BordShell'
+import { ContextChip, Kernzin } from '../../../ui/BordShell'
 import HeroStrip from './HeroStrip'
+import BewegingStrip from './BewegingStrip'
+import { kanaalLabel } from './kanaalLabels'
 import { getal, bereik, euroKort } from '../format'
 
 /**
- * D1Antwoord — zone 2. Optie B (design-lock 2026-09-14): HeroStrip
- * full-width boven drie contextkaarten.
- *
- * HeroStrip draagt het critical number (Aanvoer · kennismakingen) met
- * het getal linksboven, drie echte metric-vakjes rechtsboven en de
- * C1-strip full-width eronder. MetricCard wordt alleen nog gebruikt
- * voor de drie contextkaarten.
+ * D1Antwoord — zone 2. Optie B (design-lock 2026-09-14) + Fase-4-chips
+ * (klantvraag-reset 2026-09-15): HeroStrip full-width, bewegingsstrip,
+ * drie contextkaarten met ICP- en kanaal-chips, licenties naast €.
  */
-export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokkers, onKiesWeek, gekozenWeek }) {
+export default function D1Antwoord({
+  aanvoerKop, aanvoer, perFase, meta, blokkers,
+  kanaal, icp, beweging,
+  onKiesWeek, gekozenWeek, onKiesKanaal, onKiesIcp,
+}) {
   const fase = Object.fromEntries((perFase || []).map(f => [f.fase, f]))
   const f3 = fase['3']
   const actief = (perFase || []).reduce((n, f) => n + (f.aantal || 0), 0)
@@ -23,6 +25,11 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
   const blind = (blokkers?.blind_voor || []).filter(Boolean)
   const isBlind = blind.length > 0
   const nBlok = blokkers?.aantal
+
+  const icpTekst = (icp || []).map(r => `${r.segment} ${getal(r.aantal)}`).join(' · ')
+  const kanaalTekst = (kanaal || []).slice(0, 4).map(r =>
+    `${kanaalLabel(r.kanaal)} ${getal(r.aantal)}`).join(' · ')
+  const kanaalOnbekend = (kanaal || []).find(r => r.kanaal === 'UNKNOWN')
 
   return (
     <>
@@ -35,7 +42,10 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         gekozenWeek={gekozenWeek}
       />
 
-      {/* 2 · Actieve pipeline — absolute aantallen, fase-splits als vakjes. */}
+      {/* 1b · Beweging — pipeline in- en uitstroom per week. */}
+      <BewegingStrip beweging={beweging} />
+
+      {/* 2 · Actieve pipeline + ICP-chip. */}
       <MetricCard
         label="Actieve pipeline"
         waarde={getal(actief)}
@@ -52,9 +62,19 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
             />
           ))}
         </MetricPairs>
+        {icp.length > 0 && (
+          <ChipStrook
+            label="ICP"
+            items={icp}
+            renderItem={r => r.segment}
+            renderN={r => getal(r.aantal)}
+            onClick={onKiesIcp}
+            titel={`ICP-segmenten open deals: ${icpTekst}`}
+          />
+        )}
       </MetricCard>
 
-      {/* 3 · Waarde fase 3 — nooit één getal, altijd bodem–plafond. */}
+      {/* 3 · Waarde fase 3 — bodem–plafond € + licenties ernaast. */}
       <MetricCard
         label="Waarde fase 3"
         waarde={bereik(f3?.mrr_bodem, f3?.mrr_plafond, euroKort)}
@@ -63,7 +83,21 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         reden="Geen enkele fase-3-deal draagt minimumafname, contractomvang én prijs."
         vergelijking={`${getal(f3?.bodem_licenties)} – ${getal(f3?.plafond_licenties)} licenties`}
         basis={`${getal(f3?.aantal_gewaardeerd)} van ${getal(f3?.aantal)} deals gewaardeerd · ongewogen`}
-      />
+      >
+        {kanaal.length > 0 && (
+          <ChipStrook
+            label="Kanaal"
+            items={kanaal.slice(0, 4)}
+            renderItem={r => kanaalLabel(r.kanaal)}
+            renderN={r => getal(r.aantal)}
+            onClick={onKiesKanaal}
+            titel={`Acquisitiekanaal open deals: ${kanaalTekst}`}
+            waarschuwing={kanaalOnbekend
+              ? `${getal(kanaalOnbekend.aantal)} deal${kanaalOnbekend.aantal === 1 ? '' : 's'} zonder bron`
+              : null}
+          />
+        )}
+      </MetricCard>
 
       {/* 4 · Blokkers — hetzelfde getal als op D9, inclusief de ondergrens. */}
       <MetricCard
@@ -84,6 +118,30 @@ export default function D1Antwoord({ aanvoerKop, aanvoer, perFase, meta, blokker
         toon={isBlind ? 'waarschuwing' : 'normaal'}
       />
     </>
+  )
+}
+
+/**
+ * ChipStrook — een compacte rij tags in een kaart: ICP of kanaal.
+ * Geen berekening: labels en aantallen komen uit de view.
+ */
+function ChipStrook({ label, items, renderItem, renderN, onClick, titel, waarschuwing }) {
+  return (
+    <div className="d1-chips" title={titel || undefined}>
+      <span className="d1-chips__label">{label}</span>
+      {items.map((r, i) => (
+        <button
+          key={i}
+          type="button"
+          className="d1-chip"
+          onClick={onClick ? () => onClick(r) : undefined}
+        >
+          <span className="d1-chip__naam">{renderItem(r)}</span>
+          <span className="d1-chip__n">{renderN(r)}</span>
+        </button>
+      ))}
+      {waarschuwing && <span className="d1-chips__warn">{waarschuwing}</span>}
+    </div>
   )
 }
 

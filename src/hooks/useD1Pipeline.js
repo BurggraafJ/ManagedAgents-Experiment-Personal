@@ -36,6 +36,11 @@ import { supabase } from '../lib/supabase'
  *                            zodat "N van 32 open deals heeft een blokkerende
  *                            fout" op beide borden hetzelfde getal is.
  *
+ * Fase-4-views (v1.207, apart opgehaald zodat het bord werkt zonder ze):
+ *   v_d1_kanaal             open deals per acquisitiekanaal (hs_analytics_source)
+ *   v_d1_icp                open deals per ICP-segment (kantoorgrootte)
+ *   v_d1_beweging_week      pipeline-beweging per week: nieuw, gewonnen, verloren
+ *
  * Geen realtime: de pipeline beweegt op het tempo van de HubSpot-sync (delta
  * elke 30 minuten), dus een poll van vijf minuten is ruim genoeg en scheelt een
  * channel. Zou dit ooit realtime worden, dan via `createRealtimeChannel('d1-live')`
@@ -82,6 +87,9 @@ export function useD1Pipeline() {
   const [werkbordTellers, setWerkbordTellers] = useState([])
   const [werkbord, setWerkbord] = useState([])
   const [blokkers, setBlokkers] = useState(null)
+  const [kanaal, setKanaal] = useState([])
+  const [icp, setIcp] = useState([])
+  const [beweging, setBeweging] = useState([])
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -102,7 +110,7 @@ export function useD1Pipeline() {
       // Honderd rijen van acht velden; de selectie gebeurt in de component,
       // maar geen enkel getál — elke som blijft in de view staan.
       supabase.from('v_d1_waarde')
-        .select('deal_id,dealname,fase,fase_label,hubspot_owner_id,eigenaar,beslisdatum,mrr_bodem,mrr_plafond,bodem_lic,waardeerbaar,dagen_open,totale_omvang,segment_bucket,hubspot_url')
+        .select('deal_id,dealname,fase,fase_label,hubspot_owner_id,eigenaar,beslisdatum,mrr_bodem,mrr_plafond,bodem_lic,waardeerbaar,dagen_open,totale_omvang,segment_bucket,kanaal,hubspot_url')
         .eq('is_open', true)
         .order('mrr_plafond', { ascending: false, nullsFirst: false }),
       // De deals achter een staaf van de aanvoerstrip (C1 → zone 4, G7). Een
@@ -113,7 +121,7 @@ export function useD1Pipeline() {
       // afwijking dat niemand opmerkt. Twaalf weken terug plus de lopende week
       // dekt exact het venster van v_d1_aanvoer.
       supabase.from('v_d1_waarde')
-        .select('deal_id,dealname,fase,fase_label,stage_label,is_open,eigenaar,kennismaking,beslisdatum,mrr_bodem,mrr_plafond,totale_omvang,segment_bucket,hubspot_url')
+        .select('deal_id,dealname,fase,fase_label,stage_label,is_open,eigenaar,kennismaking,beslisdatum,mrr_bodem,mrr_plafond,totale_omvang,segment_bucket,kanaal,hubspot_url')
         .gte('kennismaking', vensterStart())
         .order('kennismaking', { ascending: false }),
       supabase.from('v_d1_werkbord_tellers').select('*').order('lijst_volgnummer', { ascending: true }),
@@ -152,6 +160,16 @@ export function useD1Pipeline() {
     setBlokkers(bl.data || null)
     setRefreshedAt(new Date())
     setLoading(false)
+
+    // Fase-4-views apart: een ontbrekende migratie breekt het bord niet.
+    const ext = await Promise.all([
+      supabase.from('v_d1_kanaal').select('*'),
+      supabase.from('v_d1_icp').select('*'),
+      supabase.from('v_d1_beweging_week').select('*').order('week_start', { ascending: true }),
+    ])
+    if (!ext[0].error) setKanaal(ext[0].data || [])
+    if (!ext[1].error) setIcp(ext[1].data || [])
+    if (!ext[2].error) setBeweging(ext[2].data || [])
   }, [])
 
   useEffect(() => {
@@ -163,6 +181,7 @@ export function useD1Pipeline() {
   return {
     meta, aanvoerKop, aanvoer, perFase, dekking, winRate, forecast,
     ontleding, deals, aanvoerDeals, werkbordTellers, werkbord, blokkers,
+    kanaal, icp, beweging,
     loading, error, schemaMissing, refreshedAt, refresh: fetchAll,
   }
 }
