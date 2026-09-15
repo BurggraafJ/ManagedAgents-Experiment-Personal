@@ -257,6 +257,11 @@ export async function sendInvite({ email, displayName, dryRun = false }) {
 // iemand die nog nooit een mail had gehad. De edge function blijft de poort —
 // komt er onverhoopt toch een 409, dan is dat een nette fout en geen kapotte
 // knop.
+//
+// v1.213: die edge-poort stond zelf nog wél op `last_sign_in_at` en weigerde
+// dus precies de gevallen waarvoor de knop hier aanstond ("al eens ingelogd",
+// 409). Sinds de migratie 20260915150000 lezen knop en poort dezelfde meting:
+// `user_last_active_at()`.
 export function canInvite(u) {
   return !!u && !ooitGebruikt(u) && u.app_role !== 'owner'
 }
