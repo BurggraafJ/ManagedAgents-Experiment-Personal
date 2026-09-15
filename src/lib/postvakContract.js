@@ -90,8 +90,15 @@ export const TAB_SOURCES = Object.freeze({
 })
 
 /**
- * Target sort for Outlook sticky pins (F4). F0 does not change sort behaviour
- * in callers yet — document only.
+ * Outlook's volgorde: vastgemaakte mails plakken bovenaan, daarna op
+ * ontvangsttijd.
+ *
+ * Tot v1.205 was dit documentatie zonder aanroeper: `is_pinned` kwam uit een
+ * categorie-heuristiek (paarse categorie / "Pinned") en daar wilde je de lijst
+ * niet op herordenen. Sinds v1.205 leest en schrijft Maestro de échte
+ * pin-property van Outlook (PidTagPinTimestamp 0x6204, via outlook-live
+ * `set_pin`), dus het signaal is nu goed genoeg om de lijst op te sorteren —
+ * en `buildInboxRows` doet dat.
  */
 export function compareOutlookListOrder(a, b) {
   const ap = a?.is_pinned === true ? 1 : 0
@@ -228,10 +235,11 @@ export function mergeListRow(m, ad, opts = {}) {
  * decoreert (categorie, concept, voorstel) en filtert nooit: `audience`
  * (`for_you` / `not_for_you`) mag een rij nooit uit deze lijst houden.
  *
- * Sorteren blijft `received_at` DESC — de pin-eerst-volgorde uit
- * `compareOutlookListOrder` is F4 en wacht op een betrouwbaar pin-signaal
- * (vandaag komt `is_pinned` uit een categorie-heuristiek, zie
- * OUTLOOK-PARITY-RESEARCH §1.2).
+ * Sorteren is sinds v1.205 `compareOutlookListOrder`: **vastgemaakt eerst**,
+ * daarna `received_at` DESC — de sticky-sectie die Outlook ook toont (F4). Dat
+ * kon pas toen `is_pinned` een echt signaal werd: tot v1.204 kwam het uit een
+ * categorie-heuristiek ("paarse categorie", 📌) en dan herorden je de lijst op
+ * een gok. Zie OUTLOOK-PARITY-RESEARCH §1.2 en RESEARCH-PIN-STATUS.md.
  *
  * @param {object[]} mailMessages  mail_messages-rijen (mag andere mappen bevatten)
  * @param {object[]} autodraftMails autodraft_mails-rijen (overlay)
@@ -249,7 +257,7 @@ export function buildInboxRows(mailMessages, autodraftMails, opts = {}) {
     seen.add(m.id)
     out.push(mergeListRow(m, adByMailId.get(m.id), opts))
   }
-  return out.sort((a, b) => new Date(b.received_at) - new Date(a.received_at))
+  return out.sort(compareOutlookListOrder)
 }
 
 /**

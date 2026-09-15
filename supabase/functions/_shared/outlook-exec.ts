@@ -11,7 +11,18 @@
 // 1. **De allowlist.** Een slug die hier niet in staat wordt niet uitgevoerd,
 //    ook niet als een caller hem meegeeft. De toolkit bevat
 //    OUTLOOK_OUTLOOK_SEND_EMAIL en OUTLOOK_OUTLOOK_REPLY_EMAIL; die verstúren,
-//    en het product zegt: Maestro zet klaar, Jelle drukt zelf op verzenden.
+//    en `ALLOWED` hieronder kent ze niet.
+//
+//    **v1.205: er is één tweede lijst, in `./outlook-send.ts`.** Die bevat
+//    precies één slug (SEND_EMAIL) en is alleen bereikbaar via
+//    `sendMailAsUser()`, die alleen wordt aangeroepen door `outlook-live` →
+//    action `send_mail`: verify_jwt, capability-poort, domeincontrole,
+//    uurteller, en een mens die op Verstuur tikt. Twee lijsten en niet één lijst
+//    met een vlag erbij: met een vlag kan een agent-pad de send-slug alsnog
+//    meegeven, met twee lijsten niet. `auto-draft-execute-now` importeert
+//    `outlook-send.ts` niet en kan dus niet versturen, ook niet per ongeluk.
+//    Beide lijsten delen wél dit transport (`execAllowlisted`), zodat ze niet
+//    uit elkaar kunnen lopen — precies de fout die dit bestand kwam oplossen.
 //
 // 2. **`user_id` hard op 'me'.** Alle Outlook-tools accepteren een `user_id`
 //    met een willekeurige UPN, en de Entra-grant bevat
@@ -93,13 +104,29 @@ export interface ToolResponse {
  * `error`-veld, en dat stil doorlaten is hoe een halve schrijfactie een
  * "geslaagde" run wordt.
  */
-export async function execOutlookTool(
+export function execOutlookTool(
   ctx: OutlookCtx,
   tool: string,
   args: Record<string, unknown>,
   retry = 0,
 ): Promise<ToolResponse> {
-  if (!ALLOWED.has(tool)) {
+  return execAllowlisted(ctx, tool, args, ALLOWED, retry);
+}
+
+/**
+ * Hetzelfde transport, met een MEEGEGEVEN lijst. Alleen voor de tweede
+ * allowlist in `./outlook-send.ts` (slot 1 hierboven); voor al het andere is
+ * `execOutlookTool` de ingang. `allowed` is verplicht, dus er is geen pad naar
+ * Composio zonder lijst.
+ */
+export async function execAllowlisted(
+  ctx: OutlookCtx,
+  tool: string,
+  args: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+  retry = 0,
+): Promise<ToolResponse> {
+  if (!allowed.has(tool)) {
     throw new Error(`outlook_tool_not_allowed:${tool}`);
   }
   const res = await fetch(`${COMPOSIO_API_BASE}/tools/execute/${encodeURIComponent(tool)}`, {
@@ -115,7 +142,7 @@ export async function execOutlookTool(
   });
   if (res.status === 429 && retry < 2) {
     await new Promise((r) => setTimeout(r, [3000, 9000][retry]));
-    return execOutlookTool(ctx, tool, args, retry + 1);
+    return execAllowlisted(ctx, tool, args, allowed, retry + 1);
   }
   const text = await res.text();
   let body: ToolResponse;

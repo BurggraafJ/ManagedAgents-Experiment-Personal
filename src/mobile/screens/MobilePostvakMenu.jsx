@@ -11,6 +11,11 @@ import { useSheetDrag } from '../../hooks/useSheetDrag'
 // gelijkwaardige tab náást Inbox en trok daarmee evenveel aandacht als het
 // postvak zelf, terwijl je er hooguit een paar keer per dag in kijkt.
 //
+// v1.203: de **sync-tijd** staat hier, onderaan, in plaats van permanent in de
+// kop. "3 min geleden" is een antwoord op een vraag die je een paar keer per dag
+// stelt; in de kop stond het de hele dag te wachten op dat moment. De regel is
+// meteen de knop om nú te synchroniseren — tijd en actie horen bij elkaar.
+//
 // Portal naar `.shell--m`, niet naar <body>: alle --m-*-tokens staan op die
 // shell en één lege var() maakt de hele declaratie ongeldig. En niet naar de
 // header, want die is sticky en dan wint de tabbar van de sheet.
@@ -20,7 +25,9 @@ const sheetHost = () => (typeof document === 'undefined'
   ? null
   : document.querySelector('.shell--m') || document.body)
 
-export default function MobilePostvakMenu({ open, mode, query, onQuery, onMode, onClose, sentCount }) {
+export default function MobilePostvakMenu({
+  open, mode, query, onQuery, onMode, onClose, sentCount, syncLabel, syncing, onSync,
+}) {
   const [draft, setDraft] = useState(query || '')
   useEffect(() => { setDraft(query || '') }, [query, open])
   useEffect(() => {
@@ -73,6 +80,18 @@ export default function MobilePostvakMenu({ open, mode, query, onQuery, onMode, 
               ? <MIcon name="check" size={15} />
               : sentCount != null && <span className="m-pvmenu__count">{sentCount}</span>}
           </button>
+
+          {onSync && (
+            <>
+              <div className="m-pvmenu__label">Synchronisatie</div>
+              <button type="button" className="m-pvmenu__item m-pvmenu__sync" disabled={syncing}
+                      onClick={onSync}>
+                <MIcon name="refresh" size={17} />
+                <span>Nu synchroniseren</span>
+                <span className="m-pvmenu__count">{syncLabel}</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
     </>,

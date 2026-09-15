@@ -1,9 +1,8 @@
 import { useState, useCallback, useMemo } from 'react'
-import { supabase } from '../../lib/supabase'
-import { showToast } from '../../components/Toast'
 import { useAutoDraft } from '../../hooks/useAutoDraft'
-import { usePv2Snoozes, tomorrowNine } from '../../hooks/usePv2Snoozes'
+import { usePv2Snoozes } from '../../hooks/usePv2Snoozes'
 import { usePv2BucketOverrides } from '../../hooks/usePv2Outlook'
+import usePostvakMobileActions from '../../hooks/usePostvakMobileActions'
 import { inferPseudoAudience } from '../../lib/autodraft'
 import {
   buildInboxRows, buildSentRows, splitBuckets, bucketOf, matchesQuery,
@@ -12,7 +11,10 @@ import {
 import MIcon from '../MIcon'
 import MobilePostvakRow from './MobilePostvakRow'
 import MobilePostvakMenu from './MobilePostvakMenu'
+import MobilePostvakCompose from './MobilePostvakCompose'
+import MobilePostvakFolders from './MobilePostvakFolders'
 import MobileMailSheet from './MobileMailSheet'
+import '../mobile-postvak-outlook.css'
 
 // =============================================================================
 // MobilePostvak — de mobiele inbox
@@ -29,6 +31,31 @@ import MobileMailSheet from './MobileMailSheet'
 //  • **Verzonden en zoeken** zitten in het overloopmenu (⋯). Verzonden is geen
 //    gelijke van je postvak.
 //  • Veeg naar links op een rij → Uitstellen · Verplaats · Verwijderen.
+//
+// v1.203 (spoor 10, brief compose-fab):
+//  • **Zwarte plus-FAB** zoals Taken → `MobilePostvakCompose`: nieuwe mail
+//    opstellen, laten schrijven, taalchecken en versturen.
+//  • De ⋯ is een **hamburger** geworden. Drie streepjes zeggen "hier zit een
+//    menu", drie puntjes zeggen "hier zit nog iets".
+//  • **De sync-tijd is uit de kop.** Hij stond daar permanent te vertellen hoe
+//    laat iets gebeurde wat je pas wilt weten als je het je afvraagt — en de
+//    kop is het duurste vastgoed van het scherm. Nu staat hij bovenaan het
+//    menu, mét de knop om nú te synchroniseren.
+//
+// v1.205 (spoor 10, brief mobile-read-move-pin):
+//  • De FAB vraagt eerst **Concept of Mail**. Versturen is sinds dit vel geen
+//    theoretische knop meer, dus de keuze hoort vooraf en niet in de kop van
+//    een scherm waar je al aan het typen bent.
+//  • **Openen markeert gelezen in Outlook**, niet alleen hier. Tot nu bleef een
+//    mail die je op de bank had gelezen vetgedrukt op je laptop staan.
+//  • **Veeg → Verplaats** opent je echte Outlook-mappen (58 stuks) in plaats
+//    van Uitstellen, dat alleen in Maestro bestond.
+//
+// Drie lokale overlays (`actioned`, `readIds`, `pinned`) houden de lijst bij de
+// werkelijkheid vóórdat de mail-sync (±15 min) hem inhaalt. Ze zijn bewust
+// **optimistisch met terugdraaien**: mislukt de Outlook-call, dan gaat de rij
+// terug zoals hij was. Wat er niet gebeurt is een lijst die iets anders toont
+// dan de mailbox en dat volhoudt.
 //
 // De bak-indeling komt uit `lib/postvakContract.bucketOf`, dezelfde functie die
 // desktop gebruikt. Er is dus één regel, niet twee die uit elkaar groeien.
@@ -69,20 +96,22 @@ function formatSyncTime(iso) {
 }
 
 export default function MobilePostvak() {
-  const { mails, mailMessages, categories, mailSyncState, refresh, loading } = useAutoDraft()
-  const { snoozedIds, snooze } = usePv2Snoozes()
+  const { mails, mailMessages, categories, folders, mailSyncState, refresh, loading } = useAutoDraft()
+  const { snoozedIds } = usePv2Snoozes()
   const { bucketOverrides, setBucket } = usePv2BucketOverrides()
+  // Alle mutaties + de drie optimistische overlays zitten in de hook; dit
+  // scherm gaat over wát je ziet, niet over wat er in Outlook gebeurt.
+  const act = usePostvakMobileActions({ bucketOverrides, setBucket, refresh })
 
   const [bucket, setBucketTab] = useState('prio')   // primaire schakelaar
   const [mode, setMode] = useState('inbox')         // 'inbox' | 'sent' (overloop)
   const [query, setQuery] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [fabOpen, setFabOpen] = useState(false)     // Concept | Mail
+  const [compose, setCompose] = useState(null)      // null | 'draft' | 'send'
   const [openId, setOpenId] = useState(null)        // mail-sheet
   const [swipeId, setSwipeId] = useState(null)      // welke rij staat open
-  const [syncing, setSyncing] = useState(false)
-  // Net-beslist: meteen uit de lijst, net als desktop (useInboxOptimistic).
-  // Outlook volgt binnen ~15 min; tot die tijd zou de mail anders terugploppen.
-  const [actioned, setActioned] = useState(() => new Set())
+  const [folderFor, setFolderFor] = useState(null)  // mail die verplaatst wordt
 
   const lastMailSync = useMemo(() => (mailSyncState || []).reduce((acc, r) => (
     !r.last_delta_at ? acc : (!acc || r.last_delta_at > acc ? r.last_delta_at : acc)
@@ -94,15 +123,20 @@ export default function MobilePostvak() {
     return m
   }, [categories])
 
+  // De overlays gaan er meteen overheen, vóór het splitsen en sorteren: anders
+  // zou een mail die je net vastmaakte pas na de volgende sync bovenaan komen.
   const inboxRows = useMemo(
-    () => buildInboxRows(mailMessages, mails, { inferAudience: inferPseudoAudience }),
-    [mailMessages, mails])
+    () => act.applyOverlays(buildInboxRows(mailMessages, mails, { inferAudience: inferPseudoAudience })),
+    [mailMessages, mails, act])
 
+  // `snoozedIds` staat er nog in voor wie vóór v1.205 iets heeft uitgesteld:
+  // die mails horen niet ineens terug te komen omdat de knop verdween. Er komt
+  // niets meer bij — Uitstellen is vervangen door Verplaats.
   const hidden = useMemo(() => {
-    const s = new Set(actioned)
+    const s = new Set(act.actioned)
     for (const id of snoozedIds) s.add(id)
     return s
-  }, [actioned, snoozedIds])
+  }, [act.actioned, snoozedIds])
 
   const { prio, overig, counts } = useMemo(
     () => splitBuckets(inboxRows, { bucketOverrides, hidden }),
@@ -124,41 +158,17 @@ export default function MobilePostvak() {
   const openMail = useMemo(
     () => inboxRows.find(m => m.mail_id === openId) || null, [inboxRows, openId])
 
-  const onForceSync = async () => {
-    setSyncing(true)
-    try {
-      const { data, error } = await supabase.rpc('request_mail_sync_now')
-      if (error || (data && data.ok === false)) throw new Error(error?.message || data?.reason || 'Sync mislukt')
-      setTimeout(() => refresh(), 4000)
-    } catch (e) {
-      showToast({ kind: 'error', message: 'Sync mislukt', detail: e.message })
-    } finally {
-      setTimeout(() => setSyncing(false), 4000)
-    }
-  }
+  // Openen doet twee dingen: het vel tonen, en de mail in Outlook als gelezen
+  // markeren. Dat tweede is nieuw in v1.205 — tot dan bleef een mail die je op
+  // de bank had gelezen vetgedrukt op je laptop staan.
+  const openMailRow = useCallback((mailId) => {
+    setOpenId(mailId)
+    act.openAndRead(inboxRows.find(m => m.mail_id === mailId))
+  }, [act, inboxRows])
 
-  // ── De drie veegacties. Dezelfde RPC's die desktop al gebruikt. ───────────
-  const doDelete = useCallback(async (m) => {
-    setActioned(prev => new Set(prev).add(m.mail_id))
-    try {
-      const { data, error } = await supabase.rpc('submit_autodraft_decision', {
-        p_mail_id: m.mail_id, p_action: 'ignore',
-        p_target_folder: 'Verwijderde items', p_decision_kind: 'delete',
-      })
-      if (error || (data && data.ok === false)) throw new Error(error?.message || data?.reason || 'geweigerd')
-      showToast({ kind: 'info', message: 'Mail verwijderd', detail: 'Naar Verwijderde items.' })
-    } catch (e) {
-      setActioned(prev => { const n = new Set(prev); n.delete(m.mail_id); return n })
-      showToast({ kind: 'error', message: 'Verwijderen mislukt', detail: e.message })
-    }
-  }, [])
-
-  const doMoveBucket = useCallback((m) => {
-    const now = bucketOf(m, { bucketOverrides })
-    setBucket(m.mail_id, now === 'overig' ? 'prio' : 'overig')
-  }, [bucketOverrides, setBucket])
-
-  const doSnooze = useCallback((m) => snooze(m.mail_id, tomorrowNine(), 'morgen 09:00'), [snooze])
+  const pickFolder = useCallback(async (target) => {
+    if (await act.moveMail(folderFor, target)) setFolderFor(null)
+  }, [act, folderFor])
 
   const BUCKETS = [
     { key: 'prio', label: 'Prioriteit', count: counts.prio },
@@ -170,12 +180,9 @@ export default function MobilePostvak() {
       <header className="m-pv__head">
         <div className="m-tk__head-top">
           <div className="m-pv__headacts">
-            <button type="button" onClick={onForceSync} disabled={syncing} className="m-sync-btn">
-              {syncing ? '...' : formatSyncTime(lastMailSync)}
-            </button>
-            <button type="button" className="m-iconbtn m-pv__more" aria-label="Meer"
+            <button type="button" className="m-iconbtn m-pv__more" aria-label="Menu"
                     onClick={() => setMenuOpen(true)}>
-              <MIcon name="more" size={18} />
+              <MIcon name="menu" size={18} />
             </button>
           </div>
         </div>
@@ -243,20 +250,59 @@ export default function MobilePostvak() {
               key={m.mail_id} mail={m}
               bucket={bucketOf(m, { bucketOverrides })}
               cat={catLabel.get(m.category_key) || m.category_key || null}
+              unread={m.is_read === false}
               open={swipeId === m.mail_id}
               onSwipe={setSwipeId}
-              onOpen={setOpenId}
-              onDelete={doDelete} onMoveBucket={doMoveBucket} onSnooze={doSnooze}
+              onOpen={openMailRow}
+              onDelete={act.remove} onMoveBucket={act.swapBucket} onMoveFolder={setFolderFor}
             />
           ))
         )}
       </div>
 
+      {/* De FAB vraagt wát je maakt. Versturen en een concept wegzetten zijn
+          sinds v1.205 twee echte uitkomsten; die keuze hoort vooraf, niet in de
+          kop van een scherm waar je al aan het typen bent. */}
+      {fabOpen && <div className="m-scrim m-scrim--soft" onClick={() => setFabOpen(false)} aria-hidden />}
+      {fabOpen && (
+        <div className="m-fabmenu" role="menu" aria-label="Nieuwe mail">
+          <button type="button" className="m-fabmenu__item" role="menuitem"
+                  onClick={() => { setFabOpen(false); setCompose('draft') }}>
+            <MIcon name="pen" size={16} /><span>Concept</span>
+            <em>Alleen in Outlook zetten</em>
+          </button>
+          <button type="button" className="m-fabmenu__item" role="menuitem"
+                  onClick={() => { setFabOpen(false); setCompose('send') }}>
+            <MIcon name="send" size={16} /><span>Mail</span>
+            <em>Versturen · alleen @legal-mind.nl</em>
+          </button>
+        </div>
+      )}
+      <button type="button" className={`m-fab ${fabOpen ? 'is-open' : ''}`}
+              aria-label={fabOpen ? 'Sluiten' : 'Nieuwe mail'} aria-expanded={fabOpen}
+              onClick={() => setFabOpen(o => !o)}>
+        <MIcon name={fabOpen ? 'close' : 'plus'} size={24} color="#fff" stroke={2.2} />
+      </button>
+
       <MobilePostvakMenu
         open={menuOpen} mode={mode} query={query} sentCount={sentRows.length}
+        syncLabel={act.syncing ? 'Bezig…' : formatSyncTime(lastMailSync)} syncing={act.syncing}
+        onSync={act.forceSync}
         onQuery={setQuery} onMode={setMode} onClose={() => setMenuOpen(false)}
       />
-      {openMail && <MobileMailSheet mail={openMail} catLabel={catLabel} onClose={() => setOpenId(null)} />}
+      <MobilePostvakCompose open={!!compose} mode={compose || 'send'}
+                            onClose={() => setCompose(null)} onSent={refresh} />
+      <MobilePostvakFolders
+        open={!!folderFor} folders={folders} mail={folderFor} busy={act.moving}
+        onPick={pickFolder} onClose={() => { if (!act.moving) setFolderFor(null) }}
+      />
+      {openMail && (
+        <MobileMailSheet mail={openMail} catLabel={catLabel}
+                         pinned={act.isPinned(openMail)}
+                         onTogglePin={() => act.togglePin(openMail)}
+                         onMove={() => { setOpenId(null); setFolderFor(openMail) }}
+                         onClose={() => setOpenId(null)} />
+      )}
     </div>
   )
 }

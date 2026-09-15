@@ -8,16 +8,20 @@ import Postvak2View from '../../src/components/views/postvak2/Postvak2View'
 import MobilePostvak from '../../src/mobile/screens/MobilePostvak'
 import MobilePostvakRow from '../../src/mobile/screens/MobilePostvakRow'
 import MobilePostvakMenu from '../../src/mobile/screens/MobilePostvakMenu'
+import MobilePostvakCompose from '../../src/mobile/screens/MobilePostvakCompose'
+import MobilePostvakFolders from '../../src/mobile/screens/MobilePostvakFolders'
+import MobileMailSheet from '../../src/mobile/screens/MobileMailSheet'
 import { buildInboxRows, bucketOf } from '../../src/lib/postvakContract'
 import { inferPseudoAudience } from '../../src/lib/autodraft'
-import { MAIL_MESSAGES, AUTODRAFT_MAILS } from './mock-data.js'
+import { MAIL_MESSAGES, AUTODRAFT_MAILS, FOLDERS } from './mock-data.js'
 
 // Preview-harnas Postvak. Desktop en mobiel lopen door hun éígen code; alleen
 // `useAutoDraft` en de supabase-client zijn gestubt. De data is verzonnen — zie
 // mock-data.js — maar heeft de verdeling van de echte mailbox: 16 Inbox-mails,
 // 7 daarvan door Outlook op Overige gezet, 1 met een openstaand voorstel.
 //
-// ?view=desktop|mobile|swipe  ?opt=a|b|c  ?rule=oud
+// ?view=desktop|mobile|swipe|menu|compose|taalcheck|verstuur|extern|fabmenu|mappen|mail
+//        ?opt=a|b|c
 //   opt  = designoptie voor de kop (v1.202). a = wat er in de code staat,
 //          b en c zijn CSS-overlays over dezelfde DOM (chrome-opties.css).
 //   swipe= de veegstrook open, met de échte rij-component.
@@ -29,7 +33,7 @@ document.documentElement.classList.add('theme-light')
 // Headless shots kunnen midden in een animatie vallen.
 const st = document.createElement('style')
 st.textContent = `
-  .m-mailsheet, .m-scrim, .pvk2 .dd { animation: none !important; transform: none !important; }
+  .m-mailsheet, .m-compose, .m-sheet, .m-scrim, .pvk2 .dd { animation: none !important; transform: none !important; }
   .pvk2 .pvk2-loader { display: none !important; }
 `
 document.head.appendChild(st)
@@ -95,12 +99,121 @@ function Menu() {
         <MobilePostvak />
       </main>
       <MobilePostvakMenu open={open} mode="inbox" query="" sentCount={2}
+                         syncLabel="3 min geleden" syncing={false} onSync={() => {}}
                          onQuery={() => {}} onMode={() => {}} onClose={() => {}} />
     </div>
   )
 }
 
-const views = { desktop: <Desktop />, mobile: <Mobile />, swipe: <Swipe />, menu: <Menu /> }
+// ── Compose-shots (v1.203) ──────────────────────────────────────────────────
+// De sheet is de échte component; alleen de vingers zijn nagebootst. Een React-
+// gestuurde <input> negeert een directe `.value =`, dus gaat het via de native
+// setter + een 'input'-event — precies wat een toetsaanslag ook doet. Zo loopt
+// de shot door dezelfde state-machine als een gebruiker, inclusief de taalcheck
+// (mock-supabase levert de gecorrigeerde tekst) en de verstuur-blokkade.
+function type(el, value) {
+  if (!el) return
+  const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+  Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value)
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+const DEMO_BODY = 'Hoi Marieke,\n\nDank voor je bericht. Ik kan ff kijken naar de '
+  + 'licentie-opzet; mischien kan je me laten weten welke modules jullie nu '
+  + 'gebruiken?\n\nlaat maar weten wat schikt.'
+
+function Compose({ step }) {
+  const [open, setOpen] = useState(false)
+  useEffect(() => { setOpen(true) }, [])
+  useEffect(() => {
+    if (!open) return undefined
+    const timers = []
+    timers.push(setTimeout(() => {
+      const ins = document.querySelectorAll('.m-compose__in')
+      // Intern vs. extern is sinds v1.205 een zichtbaar verschil: bij een adres
+      // buiten @legal-mind.nl verdwijnt de Verstuur-knop en komt de reden
+      // eronder te staan. `?view=extern` schiet precies dat.
+      type(ins[0], step === 'extern' ? 'marieke@voorbeeldadvocaten.nl' : 'jay@legal-mind.nl')
+      type(ins[1], 'Licentie-opzet 2027')
+      type(document.querySelector('.m-compose__ta'), DEMO_BODY)
+    }, 120))
+    if (step === 'taalcheck' || step === 'verstuur') {
+      timers.push(setTimeout(() => {
+        const sel = step === 'taalcheck' ? '.m-compose__chip--tc' : '.m-compose__send'
+        document.querySelector(sel)?.click()
+      }, 400))
+    }
+    return () => timers.forEach(clearTimeout)
+  }, [open, step])
+  return (
+    <div className="shell shell--m theme-maestro" style={{ height: '100vh', background: '#f5f4f0' }}>
+      <main className="m-main" style={{ display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+        <MobilePostvak />
+      </main>
+      <MobilePostvakCompose open={open} onClose={() => {}} onSent={() => {}} />
+    </div>
+  )
+}
+
+// ── v1.205-shots ───────────────────────────────────────────────────────────
+// De FAB-keuze en de mapkiezer zijn allebei een tik ver; in een headless shot
+// is er geen vinger, dus de tik wordt geprogrammeerd op de échte knop. Niets
+// nagebouwd: wat je ziet is wat de component rendert.
+function FabMenu() {
+  useEffect(() => {
+    const t = setTimeout(() => document.querySelector('.m-fab')?.click(), 250)
+    return () => clearTimeout(t)
+  }, [])
+  return <Mobile />
+}
+
+function Mappen() {
+  const [mail, setMail] = useState(null)
+  useEffect(() => {
+    const rows = buildInboxRows(MAIL_MESSAGES, AUTODRAFT_MAILS, { inferAudience: inferPseudoAudience })
+    setMail(rows[1] || null)
+  }, [])
+  return (
+    <div className="shell shell--m theme-maestro" style={{ height: '100vh', background: '#f5f4f0' }}>
+      <main className="m-main" style={{ display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+        <MobilePostvak />
+      </main>
+      <MobilePostvakFolders open={!!mail} folders={FOLDERS} mail={mail} busy={false}
+                            onPick={() => {}} onClose={() => {}} />
+    </div>
+  )
+}
+
+// De mail zelf, met de twee nieuwe kopknoppen: vastmaken en verplaatsen.
+function MailSheet() {
+  const [mail, setMail] = useState(null)
+  useEffect(() => {
+    const rows = buildInboxRows(MAIL_MESSAGES, AUTODRAFT_MAILS, { inferAudience: inferPseudoAudience })
+    setMail(rows[0] || null)
+  }, [])
+  return (
+    <div className="shell shell--m theme-maestro" style={{ height: '100vh', background: '#f5f4f0' }}>
+      <main className="m-main" style={{ display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+        <MobilePostvak />
+      </main>
+      {mail && (
+        <MobileMailSheet mail={mail} catLabel={new Map()} pinned
+                         onTogglePin={() => {}} onMove={() => {}} onClose={() => {}} />
+      )}
+    </div>
+  )
+}
+
+const views = {
+  desktop: <Desktop />, mobile: <Mobile />, swipe: <Swipe />, menu: <Menu />,
+  compose: <Compose step="leeg" />,
+  taalcheck: <Compose step="taalcheck" />,
+  verstuur: <Compose step="verstuur" />,
+  extern: <Compose step="extern" />,
+  fabmenu: <FabMenu />,
+  mappen: <Mappen />,
+  mail: <MailSheet />,
+}
 
 createRoot(document.getElementById('root')).render(
   <MemoryRouter initialEntries={['/postvak']}>

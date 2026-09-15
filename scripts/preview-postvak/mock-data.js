@@ -150,11 +150,36 @@ export const CATEGORIES = [
   { category_key: 'nieuwsbrief', label: 'Nieuwsbrief', color: '#8a8a8a', sort_order: 3, default_target_folder: 'Inbox/General Storage' },
 ]
 
+// De mappenboom voor de kiezer (v1.205). De échte mailbox heeft er 58, zes
+// niveaus diep; dit zijn er 16 met dezelfde vórm — top-level naast een diepe
+// Inbox-tak — zodat de inspringing, het pad-regeltje en het zoekveld in de shot
+// doen wat ze live ook doen.
+//
+// ⚠ Verzonnen namen, met opzet. De echte boom staat vol klantnamen en deze repo
+// is openbaar (incident PR #44). Wat de shot moet laten zien is de stríjd met
+// diepte en aantal, niet wie Jelle's klanten zijn.
+const folder = (id, path, count = 0) => ({
+  id, folder_id: id, full_path: path, display_name: path.split('/').pop(),
+  well_known_name: null, item_count: count,
+})
+
 export const FOLDERS = [
-  { id: INBOX_FOLDER, display_name: 'Inbox', full_path: 'Inbox', well_known_name: 'inbox' },
-  { id: 'f-klanten', display_name: 'Klanten', full_path: 'Inbox/Klanten', well_known_name: null },
-  { id: 'f-storage', display_name: 'General Storage', full_path: 'Inbox/General Storage', well_known_name: null },
-  { id: 'f-archief', display_name: 'Archive', full_path: 'Archive', well_known_name: 'archive' },
+  { ...folder(INBOX_FOLDER, 'Inbox', 19), well_known_name: 'inbox' },
+  { ...folder('f-archief', 'Archive', 10), well_known_name: 'archive' },
+  { ...folder('f-deleted', 'Deleted Items', 9829), well_known_name: 'deleteditems' },
+  { ...folder('f-drafts', 'Drafts', 35), well_known_name: 'drafts' },
+  { ...folder('f-sentitems', 'Sent Items', 6277), well_known_name: 'sentitems' },
+  { ...folder('f-junk', 'Junk Email', 131), well_known_name: 'junkemail' },
+  folder('f-storage', 'Inbox/General Storage', 2729),
+  folder('f-afd', 'Inbox/General Storage/Afdelingen', 0),
+  folder('f-afd-acq', 'Inbox/General Storage/Afdelingen/Acquisitie', 143),
+  folder('f-afd-cs', 'Inbox/General Storage/Afdelingen/Customer Succes', 171),
+  folder('f-afd-it', 'Inbox/General Storage/Afdelingen/Information Technology', 195),
+  folder('f-afd-mkt', 'Inbox/General Storage/Afdelingen/Marketing', 52),
+  folder('f-klanten', 'Inbox/Klanten', 1514),
+  folder('f-projecten', 'Inbox/Projecten', 9),
+  folder('f-proj-jira', 'Inbox/Projecten/JIRA', 95),
+  folder('f-todo', "Inbox/Todo's", 50),
 ]
 
 // Vers — de Edge-ETL draait elke 5 minuten. De pil toont dan "nu".

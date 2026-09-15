@@ -1,0 +1,147 @@
+/* ───────────────────────────────────────────────────────────────────────
+   Postvak mobiel — nieuwe mail opstellen (v1.203, spoor 10)
+   Hoort bij `screens/MobilePostvakCompose.jsx`. Apart bestand om dezelfde
+   reden als mobile-agenda/-admin/-settings: mobile.css is de gedeelde shell,
+   een scherm-eigen vel hoort bij dat scherm.
+   Alles uit --m-*-tokens (de shell definieert ze op `.shell--m`) — één kleur
+   die daarbuiten valt maakt de hele declaratie ongeldig.
+   ─────────────────────────────────────────────────────────────────────── */
+.m-compose {
+  position: fixed; top: 0; left: 0; right: 0; bottom: var(--m-kb, 0px); z-index: 41;
+  background: var(--m-paper); display: flex; flex-direction: column;
+  animation: m-rise .24s cubic-bezier(.32,.72,0,1);
+  transition: bottom .22s ease;
+}
+.m-compose__head {
+  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  padding: calc(6px + env(safe-area-inset-top)) 12px 8px;
+  border-bottom: 1px solid var(--m-border-soft);
+}
+.m-compose__title { flex: 1; min-width: 0; font: 600 15px var(--m-accent); letter-spacing: -.005em; color: var(--m-ink); }
+.m-compose__ghost {
+  flex-shrink: 0; height: 34px; padding: 0 13px; border-radius: 9999px; cursor: pointer;
+  border: 1px solid var(--m-border); background: var(--m-paper); color: var(--m-n700);
+  font: 600 13px var(--m-sans); -webkit-tap-highlight-color: transparent;
+}
+.m-compose__send {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+  height: 34px; padding: 0 14px; border-radius: 9999px; border: 0; cursor: pointer;
+  background: var(--m-ink); color: var(--m-on-ink); font: 600 13px var(--m-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+.m-compose__ghost:disabled, .m-compose__send:disabled { opacity: .45; cursor: default; }
+
+.m-compose__body {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  padding: 4px 16px 12px; overscroll-behavior: contain;
+}
+/* Niet verstuurd — de enige plek in dit vel waar een oorzaak staat. Bewust een
+   blok en geen toast: een toast is weg vóór je hem gelezen hebt, en dit is
+   precies het bericht dat je wél wilt kunnen naslaan. */
+.m-compose__blocked {
+  margin: 10px 0 2px; padding: 11px 13px; border-radius: 12px;
+  background: var(--m-error-tint); border: 1px solid var(--m-error-line);
+  font: 400 12.5px/1.5 var(--m-sans); color: var(--m-error-ink);
+}
+.m-compose__blocked strong { font-weight: 700; }
+.m-compose__blocked span { display: block; margin-top: 5px; color: var(--m-n700); }
+
+/* De beleidsregel onder het Aan-veld (v1.205). Bewust NIET rood: er is niets
+   misgegaan, er is iets niet toegestaan. Rood zou lezen als een storing en dan
+   gaat iemand hem melden in plaats van een concept maken. */
+.m-compose__policy {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 8px 0 2px; padding: 10px 12px; border-radius: 12px;
+  background: var(--m-info-sub); border: 1px solid var(--m-info-line);
+  font: 400 12.5px/1.45 var(--m-sans); color: var(--m-info-ink);
+}
+.m-compose__policy > svg { flex-shrink: 0; margin-top: 1px; }
+
+.m-compose__row {
+  display: flex; align-items: center; gap: 10px; min-height: 46px;
+  border-bottom: 1px solid var(--m-border-soft);
+}
+/* 78px: breed genoeg voor "Onderwerp", zodat de twee invoervelden op dezelfde
+   kolom beginnen. Smaller en het langste label duwt zijn eigen veld opzij. */
+.m-compose__lbl { flex: 0 0 78px; font: 500 12.5px var(--m-sans); color: var(--m-n500); }
+.m-compose__in {
+  flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
+  /* 16px: alles daaronder laat iOS Safari bij focus inzoomen. */
+  font: 500 16px var(--m-sans); color: var(--m-ink);
+}
+.m-compose__ta {
+  width: 100%; min-height: 190px; margin-top: 12px; resize: none;
+  border: 0; outline: none; background: transparent;
+  font: 400 16px/1.6 var(--m-sans); color: var(--m-ink);
+}
+.m-compose__sign {
+  margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--m-border);
+  font: 400 13px/1.5 var(--m-sans); color: var(--m-n500); white-space: pre-wrap;
+}
+.m-compose__aiload {
+  display: flex; align-items: center; gap: 7px; margin-top: 12px;
+  font: 500 12.5px var(--m-sans); color: var(--m-orange-deep);
+}
+
+/* Taalcheck: balk met de telling en de twee knoppen, daaronder dezelfde
+   track-changes als desktop (rood vervalt, groen komt erbij). De kleuren komen
+   uit de status-tokens, niet uit de oklch-regels van postvak2.css — die zijn
+   gescopeerd onder .pvk2 en bestaan hier niet. */
+.m-compose__tcbar {
+  display: flex; align-items: center; gap: 6px; margin-top: 12px; padding: 9px 10px;
+  border: 1px solid var(--m-info-line); background: var(--m-info-sub); border-radius: 11px;
+}
+.m-compose__tctxt { flex: 1; min-width: 0; font: 500 11.5px/1.35 var(--m-sans); color: var(--m-info-ink); }
+.m-compose__tcok, .m-compose__tcno {
+  flex-shrink: 0; height: 30px; padding: 0 11px; border-radius: 9999px; cursor: pointer;
+  font: 600 12px var(--m-sans); display: inline-flex; align-items: center; gap: 4px;
+}
+.m-compose__tcok { border: 0; background: var(--m-ink); color: var(--m-on-ink); }
+.m-compose__tcno { border: 1px solid var(--m-border); background: var(--m-paper); color: var(--m-n700); }
+.m-compose__tcview {
+  margin-top: 12px; font: 400 16px/1.6 var(--m-sans); color: var(--m-ink); white-space: pre-wrap;
+}
+.m-compose__tcview .tc-del {
+  color: var(--m-error-ink2); background: var(--m-error-sub);
+  text-decoration: line-through; text-decoration-thickness: 1.5px; border-radius: 3px; padding: 0 1px;
+}
+.m-compose__tcview .tc-ins {
+  color: var(--m-success-ink); background: var(--m-success-sub); border-radius: 3px; padding: 0 1px;
+}
+
+.m-compose__foot {
+  flex-shrink: 0; border-top: 1px solid var(--m-border-soft); background: var(--m-paper);
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+}
+.m-compose__chips { display: flex; gap: 6px; padding: 0 14px 8px; overflow-x: auto; }
+.m-compose__chips::-webkit-scrollbar { display: none; }
+.m-compose__chip {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 12px;
+  border-radius: 9999px; cursor: pointer; border: 1px solid var(--m-border);
+  background: var(--m-paper2); color: var(--m-n700); font: 500 12.5px var(--m-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+.m-compose__chip svg { color: var(--m-orange); }
+.m-compose__chip--tc { border-color: var(--m-info-line); background: var(--m-info-sub); color: var(--m-info-ink); }
+.m-compose__chip--tc svg { color: var(--m-info); }
+/* Het niveau is één pil die doorloopt (Foutloos → Vloeiend → Beter verwoord).
+   Een slider zoals op desktop is met een duim niet te mikken op 3 standen. */
+.m-compose__lvl {
+  flex-shrink: 0; height: 32px; padding: 0 11px; border-radius: 9999px; cursor: pointer;
+  border: 1px dashed var(--m-border-strong); background: transparent; color: var(--m-n600);
+  font: 500 11.5px var(--m-mono); -webkit-tap-highlight-color: transparent;
+}
+.m-compose__chip:disabled, .m-compose__lvl:disabled { opacity: .45; cursor: default; }
+.m-compose__ask { display: flex; align-items: center; gap: 8px; padding: 0 14px; }
+.m-compose__askin {
+  flex: 1; min-width: 0; height: 42px; padding: 0 13px; border-radius: 11px;
+  border: 1px solid var(--m-border); background: var(--m-paper2); outline: none;
+  font: 500 16px var(--m-sans); color: var(--m-ink);
+}
+.m-compose__askin:focus { border-color: var(--m-ink); }
+.m-compose__asksend {
+  flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; height: 42px; padding: 0 14px;
+  border-radius: 11px; border: 0; cursor: pointer; background: var(--m-orange); color: var(--m-on-accent);
+  font: 600 13px var(--m-sans);
+}
+.m-compose__askin:disabled, .m-compose__asksend:disabled { opacity: .45; cursor: default; }

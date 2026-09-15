@@ -9,7 +9,16 @@ import MIcon from '../MIcon'
 // MobileMailSheet — de mail zelf, met het concept van Maestro eronder.
 // Tot v1.201 stond dit als tweede component in MobilePostvak.jsx; door de
 // veegacties en het overloopmenu liep dat bestand tegen de 400-regel-cap, dus
-// het sheet staat nu apart. Gedrag ongewijzigd.
+// het sheet staat nu apart.
+//
+// v1.205: twee knoppen in de kop — **vastmaken** en **verplaatsen**. Allebei
+// raken ze Outlook zelf (`outlook-live`), niet alleen deze app; de ouder regelt
+// dat en geeft hier alleen de stand en de handlers door.
+//
+// Let op wat de punaise **niet** is: de follow-up-vlag. Die twee waren tot
+// v1.205 in de Pin-tab één ding, en dat zijn in Outlook twee verschillende
+// dingen (OUTLOOK-PARITY-RESEARCH §1.2). Deze knop schrijft de echte
+// pin-property.
 
 const initials = (n) => (n || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()
 
@@ -20,7 +29,7 @@ function mailHtml(html) {
   return sanitizeHtml(html).replace(/<img[^>]+src="cid:[^"]*"[^>]*>/gi, '')
 }
 
-export default function MobileMailSheet({ mail, catLabel, onClose }) {
+export default function MobileMailSheet({ mail, catLabel, pinned = false, onTogglePin, onMove, onClose }) {
   const variants = Array.isArray(mail.draft_variants) ? mail.draft_variants : []
   const initialIdx = Math.max(0, Math.min(mail.selected_variant_index || 0, Math.max(0, variants.length - 1)))
   const initialBody = (variants[initialIdx]?.body) || mail.draft_body || ''
@@ -84,7 +93,20 @@ export default function MobileMailSheet({ mail, catLabel, onClose }) {
         <div className="m-mailsheet__head">
           <button type="button" className="m-iconbtn" onClick={onClose} aria-label="Terug"><MIcon name="chevron" size={18} /></button>
           <span className="m-mailsheet__crumb">{fromNameOf(mail)}</span>
-          <span style={{ width: 36 }} />
+          <div className="m-mailsheet__acts">
+            {onTogglePin && (
+              <button type="button" className={`m-iconbtn ${pinned ? 'is-on' : ''}`} onClick={onTogglePin}
+                      aria-pressed={pinned}
+                      aria-label={pinned ? 'Losmaken in Outlook' : 'Vastmaken bovenaan in Outlook'}>
+                <MIcon name="pinned" size={17} />
+              </button>
+            )}
+            {onMove && (
+              <button type="button" className="m-iconbtn" onClick={onMove} aria-label="Verplaats naar map">
+                <MIcon name="folder" size={17} />
+              </button>
+            )}
+          </div>
         </div>
         <div className="m-mailsheet__body">
           <div className="m-thread__chips" style={{ marginBottom: 6 }}>
