@@ -36,7 +36,12 @@ export default defineConfig({
       // popup. Zo hoeft niemand meer blind te refreshen na een release.
       registerType: 'prompt',
       injectRegister: 'auto',
-      includeAssets: ['favicon.svg', 'pwa-icon.svg', 'pwa-icon-maskable.svg'],
+      // PNG's zijn gegenereerd uit de SVG's (scripts/gen-pwa-icons.cjs); iOS
+      // wil 180×180 PNG voor het beginscherm, Android 192/512 + maskable.
+      includeAssets: [
+        'favicon.svg', 'pwa-icon.svg', 'pwa-icon-maskable.svg',
+        'apple-touch-icon.png', 'pwa-192.png', 'pwa-512.png', 'pwa-maskable-512.png',
+      ],
       manifest: {
         name: 'Maestro',
         short_name: 'Maestro',
@@ -49,9 +54,10 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         icons: [
-          { src: '/pwa-icon.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
-          { src: '/pwa-icon.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
-          { src: '/pwa-icon-maskable.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'maskable' },
+          { src: '/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: '/pwa-icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
       workbox: {
