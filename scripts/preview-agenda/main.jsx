@@ -1,3 +1,4 @@
+import { Profiler } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { createRoot } from 'react-dom/client'
 import '../../src/index.css'
@@ -49,6 +50,15 @@ const CASES = {
   wijzig: { mode: 'edit', subject: 'Demo Van Dijk Advocaten' },
   verwijder: { mode: 'delete', subject: 'Intern: sprintplanning' },
   geblokkeerd: { mode: 'detail', subject: 'Partneroverleg Jira' },
+  // v1.216 — de annuleer-kaart mét genodigden: de Outlook-keuze "Zonder
+  // bericht" / "Met bericht". `verwijder` hierboven blijft de kaart zónder
+  // genodigden (één knop). En `detail`: de detail-stand met de nieuwe
+  // Annuleren-snelknop naast Wijzigen.
+  annuleer: { mode: 'delete', subject: 'Demo Van Dijk Advocaten' },
+  detail: { mode: 'detail', subject: 'Demo Van Dijk Advocaten' },
+  // De Teams-schakelaar AAN, zodat de shot ook de "aan"-tekst toont; `nieuw`
+  // toont de standaard (uit).
+  teams: { mode: 'create', subject: null, toggleTeams: true },
   // v1.203 — het genodigden-veld met het suggestie-menu open. Zie `typeahead()`
   // onderaan: een statische shot heeft geen toetsaanslagen, dus die zet de
   // zoekterm er na het renderen zelf in.
@@ -119,9 +129,30 @@ function Mobile({ pop }) {
 }
 
 const [platform, pop] = view.split('-')
+
+// v1.216 — meetstand (`&perf=1`, zie perf.sh). Een React-Profiler om de hele
+// agenda telt commits en de tijd die React erin doorbrengt, en schrijft de
+// stand elke seconde in <title>, zodat `--dump-dom` na een virtuele-tijd-budget
+// het getal kan lezen zonder CDP. Meet de re-renders die de klok (30 s) en de
+// "nu"-tikken veroorzaken — precies wat de memo's in v1.216 moeten wegnemen.
+const PERF = new URLSearchParams(location.search).get('perf') === '1'
+// mountMs = de eerste paint (React-tijd); updateMs = alle commits daarna bij
+// elkaar, met `updates` als aantal. Apart, want de mount is in dit fixture
+// (25 events) veruit het grootste getal en zou de tik-kosten anders verbergen.
+const perf = { mounts: 0, mountMs: 0, updates: 0, updateMs: 0 }
+function onRender(_id, phase, actualDuration) {
+  if (phase === 'mount') { perf.mounts += 1; perf.mountMs += actualDuration }
+  else { perf.updates += 1; perf.updateMs += actualDuration }
+}
+if (PERF) {
+  const r2 = (x) => Math.round(x * 100) / 100
+  const write = () => { document.title = `PERF ${JSON.stringify({ ...perf, mountMs: r2(perf.mountMs), updateMs: r2(perf.updateMs), t: Math.round(performance.now()) })}` }
+  setInterval(write, 1000)
+}
+const tree = platform === 'mobile' ? <Mobile pop={pop} /> : <Desktop pop={pop} />
 createRoot(document.getElementById('root')).render(
   <MemoryRouter initialEntries={['/agenda']}>
-    {platform === 'mobile' ? <Mobile pop={pop} /> : <Desktop pop={pop} />}
+    {PERF ? <Profiler id="agenda" onRender={onRender}>{tree}</Profiler> : tree}
   </MemoryRouter>
 )
 
@@ -145,5 +176,15 @@ function typeahead(term) {
   }
   tick(20)
 }
+/** v1.216 — de Teams-schakelaar omzetten ná het renderen (zelfde reden als typeahead). */
+function toggleTeams() {
+  const tick = (tries) => {
+    const el = document.querySelector('.ag-pop__toggle input, .m-agsheet__toggle input')
+    if (!el) { if (tries > 0) setTimeout(() => tick(tries - 1), 60); return }
+    el.click()
+  }
+  tick(20)
+}
 const CASE = CASES[pop]
 if (CASE?.typeahead) typeahead(CASE.typeahead)
+if (CASE?.toggleTeams) toggleTeams()

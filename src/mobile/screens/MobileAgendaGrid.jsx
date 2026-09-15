@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import MIcon from '../MIcon'
 import { packLanes, dedupeEvents } from '../../lib/agenda'
+import { useScrollToNow } from '../../hooks/useScrollToNow'
 
 /* MobileAgendaGrid — dag-tijdgrid in de taal van design A "Luchtlijn"
  * (2026-09-12): haarlijn per uur, veel wit, platte blokken met een gekleurde
@@ -38,12 +39,17 @@ function rangeOf(e) {
   return { start, end }
 }
 
-export default function MobileAgendaGrid({ day, events, now, onPickEvent, onPickSlot }) {
+/* v1.216: memo + stabiele afgeleiden. `timed`/`allDay` waren kale filters in
+ * de render-body, dus `packed` (dat op `timed` leunt) pakte de banen bij élke
+ * render opnieuw in — ook als alleen de sheet openging. */
+export default memo(MobileAgendaGrid)
+
+function MobileAgendaGrid({ day, events, now, onPickEvent, onPickSlot }) {
   // Dezelfde Outlook-afspraak kan twee keer in de spiegel staan (org-mailbox
   // én per-user koppeling): dan lagen twee identieke blokken over elkaar.
   const uniq = useMemo(() => dedupeEvents(events), [events])
-  const timed = uniq.filter(e => !e.is_all_day)
-  const allDay = uniq.filter(e => e.is_all_day)
+  const timed = useMemo(() => uniq.filter(e => !e.is_all_day), [uniq])
+  const allDay = useMemo(() => uniq.filter(e => e.is_all_day), [uniq])
   const { start: h0, end: h1 } = useMemo(() => hours(timed), [timed])
   const rows = Array.from({ length: h1 - h0 }, (_, i) => h0 + i)
   const packed = useMemo(() => packLanes(timed, rangeOf), [timed])
@@ -54,6 +60,15 @@ export default function MobileAgendaGrid({ day, events, now, onPickEvent, onPick
   const minsFromTop = (t) => (t - dayStart.getTime()) / 60000
   const isToday = now >= dayStart && minsFromTop(now.getTime()) <= (h1 - h0) * 60
   const nowTop = isToday ? (minsFromTop(now.getTime()) / 60) * M_AG_ROW : null
+
+  // v1.216 — open met "nu" in het midden van de scrollport (.m-main), één keer
+  // per dag die je bekijkt; niet bij elke minuut-tik van de nu-lijn.
+  const nowRef = useRef(null)
+  const dayKey = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`
+  // De sticky kop van MobileAgenda dekt de bovenkant van .m-main af; het
+  // midden geldt voor wat je daaronder ziet. Op meetmoment gelezen, want de
+  // kop is zelf ook nog aan het layouten bij de eerste paint.
+  useScrollToNow(nowRef, dayKey, nowTop != null, { insetTop: stickyHeadHeight })
 
   const onSlot = (e) => {
     if (!onPickSlot) return
@@ -133,15 +148,19 @@ export default function MobileAgendaGrid({ day, events, now, onPickEvent, onPick
             )
           })}
 
-          {nowTop != null && <div className="m-agl__now" style={{ top: `${nowTop}px` }} aria-hidden />}
+          {nowTop != null && <div ref={nowRef} className="m-agl__now" style={{ top: `${nowTop}px` }} aria-hidden />}
         </div>
       </div>
 
-      <p className="m-agl__hint">Tik op een leeg tijdvak voor een nieuw event.</p>
+      <p className="m-agl__hint">Tik op een leeg tijdvak voor een nieuw event · veeg voor een andere dag.</p>
     </div>
   )
 }
 
 function fmt(d) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function stickyHeadHeight() {
+  return document.querySelector('.m-ag__head')?.offsetHeight || 0
 }

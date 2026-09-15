@@ -410,3 +410,50 @@
 @media (max-width: 900px) {
   .ag-app.ag-app--lucht { padding: 8px 12px 14px; }
 }
+
+/* ── Teams-schakelaar (v1.216) ─────────────────────────────────────────────
+   Standaard UIT. Een echte checkbox (toetsenbord, voorleessoftware) met een
+   getekend spoor erover; de tekst ernaast zegt in één regel wat de stand doet,
+   zodat je niet hoeft te raden of "aan" een link oplevert. Kleuren hard, geen
+   var(--orange): die bestaat alleen binnen .theme-maestro. */
+.ag-pop__toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #e7e5df;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.ag-pop__toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px; height: 1px;
+  pointer-events: none;
+}
+.ag-pop__toggle-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px; height: 18px;
+  border-radius: 9999px;
+  background: #d9d7d0;
+  transition: background .15s ease;
+}
+.ag-pop__toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .18);
+  transition: transform .15s ease;
+}
+.ag-pop__toggle input:checked + .ag-pop__toggle-track { background: #4b53bc; }
+.ag-pop__toggle input:checked + .ag-pop__toggle-track::after { transform: translateX(12px); }
+.ag-pop__toggle input:focus-visible + .ag-pop__toggle-track { outline: 2px solid #4b53bc; outline-offset: 2px; }
+.ag-pop__toggle input:disabled ~ * { opacity: .5; }
+.ag-pop__toggle-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ag-pop__toggle-text strong { font: 500 12.5px "Instrument Sans", system-ui, sans-serif; color: #121212; }
+.ag-pop__toggle-text em { font: 400 11px "Instrument Sans", system-ui, sans-serif; font-style: normal; color: #737373; }
