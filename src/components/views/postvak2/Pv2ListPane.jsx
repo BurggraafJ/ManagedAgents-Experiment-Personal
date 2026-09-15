@@ -57,7 +57,7 @@ function LogRows({ decisions, mails }) {
 }
 
 export default function Pv2ListPane({
-  activeTab, groups, loading, hasMore, onLoadMore,
+  activeTab, groups, loading, syncing, hasMore, onLoadMore,
   filter, setFilter, catFilters,
   inboxSub, setInboxSub, inboxCounts,
   listW, navCollapsed, onToggleNav,
@@ -173,6 +173,14 @@ export default function Pv2ListPane({
             </div>
           )}
           <span style={{ flex: 1 }}/>
+          {/* v1.223 — stale-while-revalidate, zichtbaar: de lijst uit de vorige
+              sessie staat er al, de verse ronde loopt. Geen overlay, geen
+              skeleton over rijen die er zijn. */}
+          {syncing && (
+            <span className="list-sync" role="status" aria-live="polite">
+              <span className="loader-spin"/>Bijwerken…
+            </span>
+          )}
         </div>
       </div>
       <div className="list-scroll">

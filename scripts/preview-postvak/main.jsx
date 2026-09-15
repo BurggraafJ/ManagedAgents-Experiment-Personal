@@ -26,6 +26,11 @@ import { MAIL_MESSAGES, AUTODRAFT_MAILS, FOLDERS } from './mock-data.js'
 //   opt  = designoptie voor de kop (v1.202). a = wat er in de code staat,
 //          b en c zijn CSS-overlays over dezelfde DOM (chrome-opties.css).
 //   swipe= de veegstrook open, met de échte rij-component.
+//        ?swr=warm|koud                                                (v1.223)
+//   swr  = de open-ervaring bevroren: warm = cache in beeld + "Bijwerken…",
+//          koud = nog niets (skeleton; desktop mét boot-overlay, die pas op
+//          data weggaat). Wordt in mock-useautodraft.js gelezen; desktop en
+//          mobiel lopen door hun eigen code.
 const qs = new URLSearchParams(location.search)
 const view = qs.get('view') || 'desktop'
 const opt = (qs.get('opt') || 'a').toLowerCase()

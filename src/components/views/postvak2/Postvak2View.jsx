@@ -45,7 +45,7 @@ export default function Postvak2View() {
   const {
     mails, decisions, categories: rawCategories, folders, mailMessages,
     ignoreRules, awaitingDismissed, hubspotCustomerEmails,
-    awaitingReplyIndex, manualCategoryOverrides, mailSyncState, loading, refresh,
+    awaitingReplyIndex, manualCategoryOverrides, mailSyncState, loading, stale, revalidating, refresh,
   } = useAutoDraft()
   const { data: recentRuns } = useSupabaseQuery('agent_runs', {
     select: 'id,agent_name,status,started_at,completed_at',
@@ -83,7 +83,16 @@ export default function Postvak2View() {
   const [showActions, setShowActions] = useState(false)
   const [showNewMail, setShowNewMail] = useState(false)
   const [showSignature, setShowSignature] = useState(false)
-  const [booting, setBooting] = useState(() => { try { return sessionStorage.getItem('pvk2-loaded') !== '1' } catch { return true } })
+  // Boot-overlay alleen bij een KOUDE start (v1.223). Staat de SWR-cache van
+  // useAutoDraft al vol Outlook-rijen, dan is de lijst er en blokkeren we de
+  // chrome niet voor een animatie; het "Bijwerken…"-chipje in de lijstkop
+  // vertelt dat er op de achtergrond wordt ververst. Eén keer per tab-sessie.
+  const [booting, setBooting] = useState(() => {
+    if ((mailMessages || []).length > 0) return false
+    try { return sessionStorage.getItem('pvk2-loaded') !== '1' } catch { return true }
+  })
+  // Zacht SWR-signaal: cache in beeld én de eerste verse ronde loopt nog.
+  const syncing = !!(stale && revalidating)
   const [dockOpen, setDockOpen] = useState(false)
   const [dockIn, setDockIn] = useState(false)
   const [splitMode, setSplitMode] = useState(false)
@@ -378,8 +387,8 @@ export default function Postvak2View() {
                 </div>
               </div>
               <div className="topbar-right">
-                <span className="sync-pill" title={`Laatste mail-sync: ${lastMailSync || 'onbekend'}`}>
-                  <span className="sync-dot"/><span>{formatSyncTime(lastMailSync)}</span>
+                <span className={`sync-pill ${syncing ? 'is-syncing' : ''}`} title={`Laatste mail-sync: ${lastMailSync || 'onbekend'}`}>
+                  <span className="sync-dot"/><span>{syncing ? 'Bijwerken…' : formatSyncTime(lastMailSync)}</span>
                 </span>
                 <div className="settings-wrap">
                   <button className={`btn btn-icon btn-ghost ${settingsOpen ? 'is-open' : ''}`} title="Instellingen" onClick={() => setSettingsOpen(v => !v)}>
@@ -407,6 +416,7 @@ export default function Postvak2View() {
           <div className="card" ref={cardRef} style={{ gridTemplateColumns: `${listW}px 6px 1fr` }}>
             <Pv2ListPane activeTab={activeTab} groups={groups}
                          loading={loading || (activeTab === 'drafts' && draftsLoading && drafts === null)}
+                         syncing={syncing}
                          hasMore={pools.hasMore} onLoadMore={pools.loadMore}
                          filter={filter} setFilter={setFilter} catFilters={catFilters}
                          inboxSub={inboxSub} setInboxSub={setInboxSub} inboxCounts={inboxCounts}
@@ -439,8 +449,13 @@ export default function Postvak2View() {
             )}
           </div>
         </main>
-        {/* Boot-loader op app-niveau = full-page overlay (review-ronde 1). */}
-        {booting && <Pv2Loader counts={{ mails: (mailMessages || []).length, categorized: (mails || []).length, drafts: tabCounts['voor-jou'] }} onDone={() => setBooting(false)}/>}
+        {/* Boot-loader op app-niveau = full-page overlay (review-ronde 1);
+            sinds v1.223 alleen koud, en weg zodra de eerste data er staat. */}
+        {booting && (
+          <Pv2Loader ready={!loading || (mailMessages || []).length > 0}
+                     counts={{ folders: (folders || []).length, inbox: tabCounts['voor-jou'], threads: threadCounts.size }}
+                     onDone={() => setBooting(false)}/>
+        )}
         {(dockOpen || splitMode) && <div className="focus-scrim" onClick={() => { if (splitMode) toggleSplit(); else closeDock() }}/>}
         {showNewMail && (
           <Pv2Boundary onClose={() => setShowNewMail(false)}>

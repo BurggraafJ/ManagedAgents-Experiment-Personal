@@ -18,7 +18,11 @@ import { MAIL_LIST_SELECT, INBOX_ROOT_OR, INBOX_FETCH_LIMIT } from '../lib/postv
  *    lessonProposals / mailMessages / ignoreRules / awaitingDismissed /
  *    hubspotCustomerEmails / agentInstructions / awaitingReplyIndex /
  *    manualCategoryOverrides
- *  - loading / error / refresh()
+ *  - loading / stale / revalidating / error / refresh()
+ *
+ * V1.223 — de warme poort kijkt naar `mailMessages` (Outlook-spiegel), niet
+ * meer naar `autodraft_mails`; `stale`/`revalidating` maken de SWR-toestand
+ * zichtbaar; koud landt de Inbox-mapquery als eerste op het scherm.
  */
 const POLL_MS = 2 * 60 * 1000
 const REALTIME_DEBOUNCE_MS = 1500
@@ -113,12 +117,43 @@ export function useAutoDraft() {
   // loading=false zodra we cache hebben — UI toont meteen oude data terwijl
   // de fetch op de achtergrond loopt. Alleen bij een lege/expired cache zien
   // we het traditionele 'laden…'-scherm.
-  const [loading, setLoading] = useState(() => !(cached.mails && cached.mails.length > 0))
+  //
+  // v1.223 — de warme poort kijkt naar `mailMessages`, niet naar `mails`.
+  // Sinds F0 (productlock 2026-09-12) is de lijst een kopie van de Outlook-
+  // Inbox uit `mail_messages`; `autodraft_mails` decoreert alleen. Als de
+  // AutoDraft-skill stilstaat is `mails` leeg terwijl de Inbox-spiegel vol
+  // zit — en dan stond hier `loading=true` en zag je een skeleton (desktop)
+  // of een leeg scherm (mobiel) óver een cache vol Outlook-rijen heen.
+  const warm = Array.isArray(cached.mailMessages) && cached.mailMessages.length > 0
+  const [loading, setLoading] = useState(() => !warm)
+  // stale-while-revalidate, zichtbaar gemaakt: `stale` = je kijkt naar de
+  // cache van de vorige sessie en er is nog geen verse ronde geland;
+  // `revalidating` = er loopt een fetch. Samen sturen ze het zachte
+  // "Bijwerken…"-chipje; los van elkaar zeggen ze niets over de lijst.
+  const [stale, setStale] = useState(() => warm)
+  const [revalidating, setRevalidating] = useState(false)
   const [error, setError] = useState(null)
   const debounceRef = useRef(null)
+  // Koud (geen cache): zodra de Inbox-mapquery landt tonen we die alvast, nog
+  // vóór de andere vijftien queries klaar zijn (zie fetchAll).
+  const coldRef = useRef(!warm)
 
   const fetchAll = useCallback(async () => {
     const safeQ = (q) => Promise.resolve(q).then(r => r).catch(e => ({ data: [], error: e }))
+    // Eerste bruikbare verf bij een koude start: de Inbox-mapquery is de
+    // lijst. Landt die vóór de rest (awaitingReplyIndex haalt tot 2.000
+    // rijen), dan gaat hij meteen het scherm op; de volledige merge hieronder
+    // overschrijft hem daarna. Alleen zolang er nog niets staat — bij een
+    // warme cache zou dit een dubbele repaint zijn zonder winst.
+    const inboxFirst = (q) => safeQ(q).then(r => {
+      if (coldRef.current && Array.isArray(r.data) && r.data.length > 0) {
+        coldRef.current = false
+        setMailMessages(mergeById(r.data))
+        setLoading(false)
+      }
+      return r
+    })
+    setRevalidating(true)
     try {
       const [m, d, c, cp, fo, le, lp, mm, ir, ad, hc, ai, ari, mco, mss, ib] = await Promise.all([
         safeQ(supabase.from('autodraft_mails').select('*').order('received_at', { ascending: false }).limit(300)),
@@ -148,7 +183,7 @@ export function useAutoDraft() {
         safeQ(supabase.from('autodraft_mail_category_overrides').select('mail_id,category_key').limit(2000)),
         safeQ(supabase.from('mail_sync_state').select('folder_id,last_delta_at,last_full_scan_at,last_error,total_messages_synced')),
         // De Inbox-root apart, als mapquery (zie mergeById hierboven).
-        safeQ(supabase.from('mail_messages')
+        inboxFirst(supabase.from('mail_messages')
           .select(MAIL_LIST_SELECT)
           .eq('is_deleted', false)
           .or(INBOX_ROOT_OR)
@@ -189,11 +224,14 @@ export function useAutoDraft() {
       setManualCategoryOverrides(fresh.manualCategoryOverrides)
       setMailSyncState(fresh.mailSyncState)
       setError(null)
+      setStale(false)
+      coldRef.current = false
       writeCache(fresh)
     } catch (e) {
       setError(e.message || String(e))
     } finally {
       setLoading(false)
+      setRevalidating(false)
     }
   }, [])
 
@@ -245,6 +283,8 @@ export function useAutoDraft() {
     manualCategoryOverrides,
     mailSyncState,
     loading,
+    stale,
+    revalidating,
     error,
     refresh: fetchAll,
   }

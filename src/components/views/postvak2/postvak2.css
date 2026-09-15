@@ -204,6 +204,10 @@
   .list-meta{ font:500 11.5px var(--font-mono); color:var(--ink-3); letter-spacing:.01em; margin-top:3px; }
   .list-meta b{ color:var(--brand-deep); font-weight:600; }
   .filters{ display:flex; gap:5px; align-items:center; flex-wrap:nowrap; min-width:0; }
+  /* v1.223 — zacht SWR-signaal in de lijstkop: cache in beeld, verse ronde loopt. */
+  .list-sync{ display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 9px; flex-shrink:0; border-radius:9999px; background:var(--bg-2); border:1px solid var(--line-soft); font:500 11.5px var(--font-sans); color:var(--ink-3); white-space:nowrap; animation:pvk2-fadeIn .2s ease; }
+  .list-sync .loader-spin{ width:11px; height:11px; }
+  .sync-pill.is-syncing .sync-dot{ animation:pvk2-pulse 1.2s var(--ease) infinite; }
   /* sidebar-toggle naast de categorieën */
   .list-navtoggle{
     display:flex; align-items:center; justify-content:center; width:30px; height:30px; flex-shrink:0;
