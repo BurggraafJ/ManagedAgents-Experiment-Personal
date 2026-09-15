@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import MIcon from '../MIcon'
 import { useSheetDrag } from '../../hooks/useSheetDrag'
+import { useFolderPickerPrefs } from '../../hooks/useFolderPickerPrefs'
 
 // =============================================================================
 // MobilePostvakFolders — kies een Outlook-map (v1.205, spoor 10)
@@ -13,35 +14,53 @@ import { useSheetDrag } from '../../hooks/useSheetDrag'
 // hier ook, want anders is verplaatsen op de telefoon iets anders dan
 // verplaatsen op de laptop.
 //
-// ── Waarom een zoekveld en geen uitklapboom ─────────────────────────────────
-// Een boom van 58 mappen met 6 niveaus is op 400px vier schermen tikken voordat
-// je bij "Inbox/Projecten/Old/1. DentalGenius" bent. Getypt is het drie letters.
-// De boom is er wel — in de inspringing en in het grijze pad boven de naam —
-// maar als *oriëntatie*, niet als navigatie.
+// ── v1.217: een boom die dicht begint, en drie knoppen die van jou leren ────
+// Tot v1.216 stond de hele boom plat uitgeschreven, 58 rijen, met inspringing
+// als oriëntatie en het zoekveld als navigatie. Jelle (2026-09-15): te veel om
+// doorheen te scrollen. Drie dingen zijn anders:
 //
-// De volgorde is die van Outlook zelf (`full_path` alfabetisch), met één
-// uitzondering: de mappen waar je een mail werkelijk in opbergt (Archief,
-// Verwijderde items) staan bovenaan als snelknoppen. Dat is geen mening over
-// jouw mappen, het is de waarneming dat 90% van elke veeg daarheen gaat.
+//   • **Ingevouwen.** Alleen de hoofdmappen staan er; een chevron ervoor klapt
+//     de submappen open. Wat je openklapt **blijft open** — per gebruiker, op
+//     dit toestel (`useFolderPickerPrefs`, sleutel `postvak.mappen.v1:<uid>`).
+//     Zo groeit de boom naar de vorm van jóuw werk, niet naar die van Outlook.
+//   • **Top 3 meest gebruikt** bovenin: de mappen waar je écht naartoe
+//     verplaatst, geteld bij elke gelukte verplaatsing. Koud (nog niets
+//     geteld) staan daar Archief en Verwijderde items — de waarneming van
+//     v1.205 dat 90 % van elke veeg daarheen gaat, blijft gelden tot de
+//     tellers iets anders zeggen. Ze verdwijnen niet zomaar: pas als drie
+//     ándere mappen vaker gekozen zijn, schuiven ze eruit.
+//   • **Zoeken wint van de boom.** Typ je, dan is het weer de platte lijst met
+//     het pad eronder — drie letters is nog altijd sneller dan drie tikken.
+//
+// Een map met submappen blijft zélf ook een bestemming: de chevron vouwt uit,
+// de naam kiest. Twee doelen in één rij, elk met eigen knop — niet één knop
+// die raadt wat je bedoelde.
 // =============================================================================
 
 const sheetHost = () => (typeof document === 'undefined'
   ? null
   : document.querySelector('.shell--m') || document.body)
 
-// Snelkeuzes. De namen zijn die van de mailbox (Engels); `resolveFolderId` in
-// de Edge Function vertaalt de Nederlandse varianten ook, maar hier kiezen we
-// het pad dat zeker bestaat in `autodraft_folders`.
-const QUICK = [
-  { match: 'Archive', label: 'Archief', icon: 'book' },
-  { match: 'Deleted Items', label: 'Verwijderde items', icon: 'trash' },
-]
+// Koude start voor de snelknoppen, én hun Nederlandse naam. De paden zijn die
+// van de mailbox (Engels); `resolveFolderId` in de Edge Function herkent de
+// Nederlandse varianten ook, maar hier sturen we het pad dat zeker bestaat.
+const QUICK_DEFAULTS = ['Archive', 'Deleted Items']
+const QUICK_LABEL = {
+  Archive: 'Archief', 'Deleted Items': 'Verwijderde items', Inbox: 'Postvak IN',
+  'Sent Items': 'Verzonden items', Drafts: 'Concepten', 'Junk Email': 'Ongewenste e-mail',
+}
+const QUICK_ICON = { Archive: 'book', 'Deleted Items': 'trash' }
+const TOP_N = 3
 
 const depthOf = (path) => Math.max(0, String(path || '').split('/').length - 1)
 const leafOf = (path, fallback) => String(path || '').split('/').pop() || fallback || '—'
 const parentOf = (path) => {
   const parts = String(path || '').split('/')
   return parts.length > 1 ? parts.slice(0, -1).join(' › ') : ''
+}
+const parentPathOf = (path) => {
+  const parts = String(path || '').split('/')
+  return parts.length > 1 ? parts.slice(0, -1).join('/') : null
 }
 
 export default function MobilePostvakFolders({ open, folders, mail, busy, onPick, onClose }) {
@@ -55,6 +74,7 @@ export default function MobilePostvakFolders({ open, folders, mail, busy, onPick
   }, [open])
 
   const drag = useSheetDrag({ onClose, enabled: open })
+  const prefs = useFolderPickerPrefs()
 
   const all = useMemo(() => {
     const rows = (folders || [])
@@ -74,18 +94,87 @@ export default function MobilePostvakFolders({ open, folders, mail, busy, onPick
     return rows
   }, [folders])
 
-  const quick = useMemo(
-    () => QUICK.map(k => ({ ...k, row: all.find(r => r.path === k.match) })).filter(k => k.row),
-    [all])
+  // De boom: kinderen per ouderpad. Een map waarvan de ouder niet in de
+  // spiegel zit (kan, bij een halve sync) telt als hoofdmap — liever zichtbaar
+  // op de verkeerde plek dan onzichtbaar.
+  const { roots, kids } = useMemo(() => {
+    const byPath = new Set(all.map(r => r.path))
+    const kids = new Map()
+    const roots = []
+    for (const r of all) {
+      const parent = parentPathOf(r.path)
+      if (parent && byPath.has(parent)) {
+        if (!kids.has(parent)) kids.set(parent, [])
+        kids.get(parent).push(r)
+      } else {
+        roots.push(r)
+      }
+    }
+    return { roots, kids }
+  }, [all])
 
-  const list = useMemo(() => {
+  // Top 3: eerst wat je zelf het vaakst koos, aangevuld met de koude
+  // standaards — en alleen mappen die in de spiegel bestaan.
+  const quick = useMemo(() => {
+    const byPath = new Map(all.map(r => [r.path, r]))
+    const picked = []
+    for (const path of [...prefs.mostUsed, ...QUICK_DEFAULTS]) {
+      const row = byPath.get(path)
+      if (row && !picked.includes(row)) picked.push(row)
+      if (picked.length >= TOP_N) break
+    }
+    return picked
+  }, [all, prefs.mostUsed])
+  const learned = prefs.mostUsed.length > 0
+
+  const searched = useMemo(() => {
     const needle = q.trim().toLowerCase()
-    if (!needle) return all
+    if (!needle) return null
     return all.filter(r => r.path.toLowerCase().includes(needle))
   }, [all, q])
 
+  const pick = useCallback(async (row) => {
+    const ok = await onPick?.(row.target)
+    // De ouder zegt `false` als Outlook weigerde; alles anders (ook een oud
+    // `undefined`) is een gelukte verplaatsing en telt mee.
+    if (ok !== false) prefs.bumpUsage(row.path)
+  }, [onPick, prefs])
+
   const host = open ? sheetHost() : null
   if (!open || !host) return null
+
+  // Eén rij in de boom. Recursief, want de diepte is die van de mailbox.
+  const renderNode = (r, depth) => {
+    const children = kids.get(r.path) || []
+    const hasKids = children.length > 0
+    const isOpen = hasKids && prefs.isOpen(r.path)
+    return (
+      <div key={r.key} className="m-folders__node">
+        <div className={`m-folders__row ${isOpen ? 'is-open' : ''}`} data-depth={Math.min(depth, 3)}>
+          {hasKids ? (
+            <button type="button" className="m-folders__tgl" aria-expanded={isOpen}
+                    aria-label={`${isOpen ? 'Verberg' : 'Toon'} submappen van ${r.name}`}
+                    onClick={() => prefs.toggleOpen(r.path)}>
+              <MIcon name="chevron" size={14} />
+            </button>
+          ) : (
+            <span className="m-folders__tgl m-folders__tgl--none" aria-hidden />
+          )}
+          <button type="button" className="m-folders__item" disabled={!!busy} onClick={() => pick(r)}>
+            <MIcon name="folder" size={16} />
+            <span className="m-folders__txt">
+              <span className="m-folders__name">{r.name}</span>
+              {hasKids && !isOpen && (
+                <span className="m-folders__path">{children.length} {children.length === 1 ? 'submap' : 'submappen'}</span>
+              )}
+            </span>
+            {r.count != null && <span className="m-folders__count">{r.count}</span>}
+          </button>
+        </div>
+        {isOpen && children.map(c => renderNode(c, depth + 1))}
+      </div>
+    )
+  }
 
   return createPortal(
     <>
@@ -101,14 +190,18 @@ export default function MobilePostvakFolders({ open, folders, mail, busy, onPick
             {mail && <span className="m-folders__sub">{mail.subject || '(geen onderwerp)'}</span>}
           </div>
 
-          {quick.length > 0 && !q && (
-            <div className="m-folders__quick">
-              {quick.map(k => (
-                <button key={k.match} type="button" className="m-folders__q" disabled={!!busy}
-                        onClick={() => onPick(k.row.target)}>
-                  <MIcon name={k.icon} size={16} />{k.label}
-                </button>
-              ))}
+          {quick.length > 0 && !searched && (
+            <div className="m-folders__quickwrap">
+              <span className="m-folders__eyebrow">{learned ? 'Meest gebruikt' : 'Snelkeuze'}</span>
+              <div className="m-folders__quick" data-n={quick.length}>
+                {quick.map(r => (
+                  <button key={r.key} type="button" className="m-folders__q" disabled={!!busy}
+                          title={r.path} onClick={() => pick(r)}>
+                    <MIcon name={QUICK_ICON[r.path] || 'folder'} size={16} />
+                    <span>{QUICK_LABEL[r.path] || r.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -124,21 +217,25 @@ export default function MobilePostvakFolders({ open, folders, mail, busy, onPick
           </div>
 
           <div className="m-folders__list">
-            {list.length === 0 ? (
-              <div className="m-tl__empty">Geen map met “{q}”.</div>
-            ) : list.map(r => (
-              <button key={r.key} type="button" className="m-folders__item" disabled={!!busy}
-                      data-depth={Math.min(depthOf(r.path), 3)}
-                      onClick={() => onPick(r.target)}>
-                <MIcon name="folder" size={16} />
-                <span className="m-folders__txt">
-                  <span className="m-folders__name">{r.name}</span>
-                  {/* Het pad erbij, want deze mailbox heeft "Marketing" twee keer. */}
-                  {parentOf(r.path) && <span className="m-folders__path">{parentOf(r.path)}</span>}
-                </span>
-                {r.count != null && <span className="m-folders__count">{r.count}</span>}
-              </button>
-            ))}
+            {searched ? (
+              searched.length === 0 ? (
+                <div className="m-tl__empty">Geen map met “{q}”.</div>
+              ) : searched.map(r => (
+                <div key={r.key} className="m-folders__row m-folders__row--flat">
+                  <button type="button" className="m-folders__item" disabled={!!busy} onClick={() => pick(r)}>
+                    <MIcon name="folder" size={16} />
+                    <span className="m-folders__txt">
+                      <span className="m-folders__name">{r.name}</span>
+                      {/* Het pad erbij, want deze mailbox heeft "Marketing" twee keer. */}
+                      {parentOf(r.path) && <span className="m-folders__path">{parentOf(r.path)}</span>}
+                    </span>
+                    {r.count != null && <span className="m-folders__count">{r.count}</span>}
+                  </button>
+                </div>
+              ))
+            ) : roots.length === 0 ? (
+              <div className="m-tl__empty">Nog geen mappen gesynchroniseerd.</div>
+            ) : roots.map(r => renderNode(r, 0))}
           </div>
         </div>
       </div>

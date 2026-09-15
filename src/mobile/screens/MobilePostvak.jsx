@@ -166,8 +166,12 @@ export default function MobilePostvak() {
     act.openAndRead(inboxRows.find(m => m.mail_id === mailId))
   }, [act, inboxRows])
 
+  // Geeft terug óf het lukte: de mapkiezer telt alleen gelukte verplaatsingen
+  // mee voor zijn "meest gebruikt"-knoppen (v1.217).
   const pickFolder = useCallback(async (target) => {
-    if (await act.moveMail(folderFor, target)) setFolderFor(null)
+    const ok = await act.moveMail(folderFor, target)
+    if (ok) setFolderFor(null)
+    return ok
   }, [act, folderFor])
 
   const BUCKETS = [
