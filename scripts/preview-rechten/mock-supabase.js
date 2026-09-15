@@ -63,7 +63,8 @@ const MEMBER_PRESET = [
   'analyse', 'data.confluence.spaces', 'modellen.gebruiken',
   'postvak', 'data.mail.eigen', 'mail.versturen',
   'agenda', 'data.agenda.eigen',
-  'administratie', 'kennisbank', 'data.crm.lezen',
+  // administratie eruit tot PR-E (CRM-spiegel); data.crm.lezen blijft (leeg)
+  'kennisbank', 'data.crm.lezen',
 ]
 
 export const ROLE_CAPABILITIES = [
