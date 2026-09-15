@@ -4,7 +4,7 @@ Alleen wijzigingen die het gedrag van de chat raken. Voor het waaróm: `DECISION
 
 ---
 
-## v1.213 — 2026-09-15 · Eval cheap models + hard OpenAI spend caps
+## v1.214 — 2026-09-15 · Eval cheap models + hard OpenAI spend caps
 
 **Judge `gpt-5.6-luna` → `gpt-5-nano`**
 - `rag-eval-cron/judge.ts` `JUDGE_MODEL` → `gpt-5-nano`. Beoordelings-contract

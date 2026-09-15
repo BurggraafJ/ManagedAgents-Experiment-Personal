@@ -8,9 +8,9 @@ wordt dit een archief van goede voornemens.
 
 ---
 
-## 2026-09-15 — Eval cheap models + hard OpenAI spend caps (v1.213)
+## 2026-09-15 — Eval cheap models + hard OpenAI spend caps (v1.214)
 
-**Spoor 01, model `claude-opus-4-6`.** `APP_VERSION` 1.212 → 1.213.
+**Spoor 01, model `claude-opus-4-6`.** `APP_VERSION` 1.213 → 1.214 (#132 nam 1.213).
 
 **Judge → `gpt-5-nano`.** De L2-judge (retrieval + chat) vergelijkt met een referentie;
 nano is gepositioneerd voor classification en JSON-scoring. Gemeten judge-aandeel: ~$0,075
