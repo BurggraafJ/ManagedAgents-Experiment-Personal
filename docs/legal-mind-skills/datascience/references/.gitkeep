@@ -1,0 +1,9 @@
+# This directory contains reference documentation for the datascience skill
+# Populated by the team with:
+# - RAG pipeline architecture and data flow
+# - Chunking strategy and chunk metadata schema
+# - Embedding model selection and refresh procedures
+# - Vector search query patterns and reranking
+# - Knowledge base (kb-*) function reference
+# - RAG chat implementation and context-building
+# - Staleness check and health monitoring
