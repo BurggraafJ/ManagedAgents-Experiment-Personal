@@ -22,7 +22,8 @@
     "preview:postvak-compose": "bash scripts/preview-postvak/capture-compose.sh",
     "preview:postvak-ux": "bash scripts/preview-postvak/capture-ux.sh",
     "preview:postvak-open": "bash scripts/preview-postvak/capture-open.sh",
-    "preview:taken": "bash scripts/preview-taken/capture.sh"
+    "preview:taken": "bash scripts/preview-taken/capture.sh",
+    "preview:analyse": "bash scripts/preview-analyse/capture.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

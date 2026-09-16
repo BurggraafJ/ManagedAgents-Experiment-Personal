@@ -239,8 +239,9 @@ export function PreferencesPopover({ open, styles, tones, focuses, style, tone, 
   )
 }
 
-// Prompt library popover — lijst van voorbeelden uit DB. Klik vult input
-// (verstuurt niet) zodat Jelle zelf nog kan tweaken voor versturen.
+// Promptbibliotheek-popover — de acht uit lib/promptLibrary (v1.226; was een
+// DB-lijst). Klik vult input (verstuurt niet) zodat Jelle zelf nog kan tweaken
+// voor versturen. Stresstests dragen een klein label zodat je ze herkent.
 export function PromptLibraryPopover({ open, items, onPick, onClose, anchorRef }) {
   const popRef = useRef(null)
   useEffect(() => {
@@ -255,8 +256,8 @@ export function PromptLibraryPopover({ open, items, onPick, onClose, anchorRef }
   }, [open, anchorRef, onClose])
   if (!open) return null
   return (
-    <div ref={popRef} className={s.libPopover} role="menu" aria-label="Voorbeeld-prompts">
-      <div className={s.libHeader}>Voorbeeld-prompts</div>
+    <div ref={popRef} className={s.libPopover} role="menu" aria-label="Promptbibliotheek">
+      <div className={s.libHeader}>Promptbibliotheek · {items?.length || 0}</div>
       {(!items || items.length === 0) ? (
         <div style={{ padding: 12, fontSize: 12, color: 'var(--neutral-400)' }}>Geen voorbeelden ingesteld.</div>
       ) : items.map(item => (
@@ -264,11 +265,14 @@ export function PromptLibraryPopover({ open, items, onPick, onClose, anchorRef }
           key={item.id}
           type="button"
           className={s.libItem}
-          onClick={() => onPick(item.prompt_text)}
+          onClick={() => onPick(item.prompt)}
           role="menuitem"
         >
-          <span className={s.libItemLabel}>{item.label}</span>
-          <span className={s.libItemPreview}>{item.prompt_text}</span>
+          <span className={s.libItemLabel}>
+            {item.label}
+            {item.stress && <span className={s.libItemBadge}>stresstest</span>}
+          </span>
+          <span className={s.libItemPreview}>{item.prompt}</span>
         </button>
       ))}
     </div>

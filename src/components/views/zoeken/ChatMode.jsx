@@ -10,6 +10,7 @@ import TurnRow from './ChatTurn'
 // v1.165 — het lege gesprek staat in ChatEmptyState.jsx (400-regelcap).
 import ChatEmptyState from './ChatEmptyState'
 import HistoryPopover from './HistoryPopover'
+import { PROMPT_LIBRARY, PROMPT_LIBRARY_REGULAR } from '../../../lib/promptLibrary'
 import { useSupabaseQuery } from '../../../hooks/useSupabaseQuery'
 import { usePromptHistory } from '../../../hooks/usePromptHistory'
 import { useAutoGrow } from '../../../hooks/useAutoGrow'
@@ -18,7 +19,7 @@ import { useAutoGrow } from '../../../hooks/useAutoGrow'
 // `chat`-prop bevat de gehoiste useRagChat hook: messages/send/sessionId/etc.
 // History-panel + topbar-knop zit in parent RagSearchView.
 export default function ChatMode({ chat, isOwner = false }) {
-  const { messages, loading, send, sendFeedback, cancel, resume, answerInput } = chat
+  const { messages, loading, restoring, send, sendFeedback, cancel, resume, answerInput } = chat
   // v1.151 — de drie eigenaarsacties op een run, in één stabiel object zodat de
   // memo van TurnRow niet bij elke render breekt.
   const run = useMemo(() => ({ cancel, resume, answerInput }), [cancel, resume, answerInput])
@@ -95,13 +96,8 @@ export default function ChatMode({ chat, isOwner = false }) {
   const prefsAnchor = useRef(null)
   const libraryAnchor = useRef(null)
 
-  // Prompt library — uit DB, klik vult input zonder versturen.
-  const { data: libraryData } = useSupabaseQuery('rag_prompt_library', {
-    select: 'id, label, prompt_text, sort_order',
-    orderBy: ['sort_order', { ascending: true }],
-    initialData: [],
-  })
-  const library = useMemo(() => (Array.isArray(libraryData) ? libraryData : []), [libraryData])
+  // Promptbibliotheek — v1.226: de acht uit lib/promptLibrary (was een query op
+  // rag_prompt_library). Klik vult input zonder versturen.
   const onPickPrompt = useCallback((text) => {
     setInput(text || '')
     setOpenPop(null)
@@ -189,8 +185,8 @@ export default function ChatMode({ chat, isOwner = false }) {
   return (
     <section className={s.chat}>
       <div className={s.chatScroll}>
-        {messages.length === 0 ? (
-          <ChatEmptyState onPick={(q) => submit(q)} suggestions={library.length ? library.slice(0, 6).map(l => l.prompt_text).filter(Boolean) : null} />
+        {restoring ? null : messages.length === 0 ? (
+          <ChatEmptyState onPick={(q) => submit(q)} suggestions={PROMPT_LIBRARY_REGULAR.map(l => l.prompt)} />
         ) : (
           <div className={s.thread}>
             {messages.map((m, i) => (
@@ -280,7 +276,7 @@ export default function ChatMode({ chat, isOwner = false }) {
               </div>
               <div style={{ position: 'relative' }}>
                 <ChatFilterTag
-                  icon={Ico.sparkle}
+                  icon={Ico.book}
                   label="Voorbeelden"
                   active={false}
                   onClick={() => setOpenPop(openPop === 'library' ? null : 'library')}
@@ -288,7 +284,7 @@ export default function ChatMode({ chat, isOwner = false }) {
                 />
                 <PromptLibraryPopover
                   open={openPop === 'library'}
-                  items={library}
+                  items={PROMPT_LIBRARY}
                   onPick={onPickPrompt}
                   onClose={() => setOpenPop(null)}
                   anchorRef={libraryAnchor}

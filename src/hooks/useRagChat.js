@@ -4,6 +4,7 @@ import { toPersistable } from './ragChatPersist'
 import { recordPrompt } from '../lib/promptHistory'
 import { useRunFollow, cancelRun, resumeRun, answerRunInput, TERMINAL_STATES } from './useRunFollow'
 import { runRowToMessage } from './ragChatRunRow'
+import { readLastSessionId, writeLastSessionId, clearLastSessionId } from '../lib/chatSessionPointer'
 
 // Chat-state voor RagSearchView · Maestro RAG-chat.
 //
@@ -21,12 +22,24 @@ import { runRowToMessage } from './ragChatRunRow'
 // De assistent-stub met run_id wordt DIRECT bewaard (de oude "niet opslaan
 // tijdens streaming"-uitzondering is verdwenen) — dat is wat de re-attach
 // mogelijk maakt.
+//
+// v1.226 — terugkeer naar hetzelfde gesprek. `initialSessionId` (desktop: de
+// tab-wijzer als de URL geen ?session= heeft; mobiel: altijd de wijzer) wordt
+// bij mount geladen. De wijzer (lib/chatSessionPointer) volgt sessionId en
+// wordt alleen expliciet gewist: Nieuw, verwijderen, of een rij die niet meer
+// zichtbaar is. Bij unmount wordt een nog wachtende auto-save direct
+// uitgevoerd, anders verdwijnt de eerste vraag als je binnen 800 ms wegklikt.
 
-export function useRagChat() {
+export function useRagChat({ initialSessionId = null } = {}) {
   const [messages, setMessages] = useState([])
   const [sessionId, setSessionId] = useState(null)
   const [sessions, setSessions] = useState([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
+  // Alleen waar tijdens het herstel-laden bij mount: de UI laat dan even niets
+  // zien in plaats van het lege-gesprek-scherm dat meteen weer verdwijnt.
+  const [restoring, setRestoring] = useState(Boolean(initialSessionId))
+  const sessionIdRef = useRef(sessionId)
+  sessionIdRef.current = sessionId
 
   // Loading = er loopt nog een run (ook één die na een reload is hervat).
   const loading = useMemo(() => messages.some(m => m.role === 'assistant' && m.streaming), [messages])
@@ -75,32 +88,57 @@ export function useRagChat() {
   const messagesRef = useRef(messages)
   messagesRef.current = messages
   const saveTimerRef = useRef(null)
+  // Staat er nog een save te wachten? Dan voert de unmount-effect hem direct
+  // uit (zie onder). Leest alles uit refs zodat hij ook ná unmount klopt.
+  const savePendingRef = useRef(false)
+  const persistNow = useCallback(async () => {
+    savePendingRef.current = false
+    const current = messagesRef.current
+    if (current.length === 0) return
+    const firstUser = current.find(m => m.role === 'user')
+    const title = firstUser?.content?.slice(0, 80) || '(nieuw gesprek)'
+    const persistable = current.map(toPersistable)
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData?.user) return
+    const currentId = sessionIdRef.current
+    if (currentId) {
+      await supabase.from('rag_chat_sessions')
+        .update({ title, messages: persistable })
+        .eq('id', currentId)
+    } else {
+      const { data, error } = await supabase.from('rag_chat_sessions')
+        .insert({ owner_id: userData.user.id, title, messages: persistable })
+        .select('id')
+        .single()
+      if (!error && data) {
+        // Direct óók de wijzer: na een unmount komt de setState (en dus de
+        // wijzer-effect hieronder) niet meer aan.
+        sessionIdRef.current = data.id
+        writeLastSessionId(data.id)
+        setSessionId(data.id)
+      }
+    }
+    refreshSessions()
+  }, [refreshSessions])
   useEffect(() => {
     if (!saveKey) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(async () => {
-      const current = messagesRef.current
-      if (current.length === 0) return
-      const firstUser = current.find(m => m.role === 'user')
-      const title = firstUser?.content?.slice(0, 80) || '(nieuw gesprek)'
-      const persistable = current.map(toPersistable)
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData?.user) return
-      if (sessionId) {
-        await supabase.from('rag_chat_sessions')
-          .update({ title, messages: persistable })
-          .eq('id', sessionId)
-      } else {
-        const { data, error } = await supabase.from('rag_chat_sessions')
-          .insert({ owner_id: userData.user.id, title, messages: persistable })
-          .select('id')
-          .single()
-        if (!error && data) setSessionId(data.id)
-      }
-      refreshSessions()
-    }, 800)
+    savePendingRef.current = true
+    saveTimerRef.current = setTimeout(persistNow, 800)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [saveKey, sessionId, refreshSessions])
+  }, [saveKey, persistNow])
+  // Flush bij unmount (alleen dan: lege deps). De route-wissel naar een ander
+  // onderdeel unmount deze hook; zonder flush ging een vraag van < 800 ms oud
+  // verloren voor de sessie — onzichtbaar zolang niets herstelde, zichtbaar nu.
+  useEffect(() => () => {
+    if (savePendingRef.current) persistNow()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // De wijzer volgt het actieve gesprek. Bewust géén else-tak die wist: bij
+  // mount is sessionId altijd even null, en dan zou de wijzer verdwijnen vóór
+  // hij gelezen is. Wissen gebeurt expliciet in newSession/deleteSession/miss.
+  useEffect(() => { if (sessionId) writeLastSessionId(sessionId) }, [sessionId])
 
   const send = useCallback(async (msg, opts = {}) => {
     const text = (msg || '').trim()
@@ -198,31 +236,55 @@ export function useRagChat() {
   const newSession = useCallback(() => {
     setMessages([])
     setSessionId(null)
+    clearLastSessionId()
   }, [])
 
   // Laad sessie uit DB. Replace messages-array. Berichten met run_id zonder
   // antwoord worden door useRunFollow automatisch weer gevolgd.
-  const loadSession = useCallback(async (id) => {
+  //
+  // Token-guard: alleen het laatst gevraagde gesprek mag landen (twee snelle
+  // klikken in Geschiedenis, of StrictMode die de mount-load dubbel doet).
+  // `restore` = het stille herstel bij mount: dat mag nooit een gesprek
+  // overschrijven dat de gebruiker intussen al is begonnen (§2.4).
+  const loadTokenRef = useRef(0)
+  const loadSession = useCallback(async (id, { restore = false } = {}) => {
     if (!id) return
+    const token = ++loadTokenRef.current
     const { data, error } = await supabase
       .from('rag_chat_sessions')
       .select('id, messages')
       .eq('id', id)
       .maybeSingle()
-    if (error || !data) return
+    if (restore) setRestoring(false)
+    if (token !== loadTokenRef.current) return
+    if (error) return // tijdelijk (token-refresh, netwerk): wijzer laten staan
+    if (!data) {
+      // Rij weg of niet (meer) zichtbaar onder RLS: wijzer alleen wissen als
+      // hij precies naar dit gesprek wees; het scherm blijft leeg, geen fout.
+      if (readLastSessionId() === id) clearLastSessionId()
+      return
+    }
+    if (restore && messagesRef.current.length > 0 && !sessionIdRef.current) return
     const loaded = Array.isArray(data.messages) ? data.messages : []
     setMessages(loaded.map(reviveMessage))
     setSessionId(data.id)
   }, [])
 
+  // Herstel bij mount: de wijzer (of de URL, via de aanroeper) wint alleen als
+  // er nog niets in dit gesprek staat. Eén keer, bij de eerste render.
+  useEffect(() => {
+    if (initialSessionId) loadSession(initialSessionId, { restore: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const deleteSession = useCallback(async (id) => {
     await supabase.from('rag_chat_sessions').delete().eq('id', id)
-    if (id === sessionId) { setMessages([]); setSessionId(null) }
+    if (id === sessionId) { setMessages([]); setSessionId(null); clearLastSessionId() }
     refreshSessions()
   }, [sessionId, refreshSessions])
 
   return {
-    messages, loading, send, sendFeedback, cancel, resume, answerInput,
+    messages, loading, restoring, send, sendFeedback, cancel, resume, answerInput,
     sessionId, sessions, sessionsLoading,
     newSession, loadSession, deleteSession, refreshSessions,
   }

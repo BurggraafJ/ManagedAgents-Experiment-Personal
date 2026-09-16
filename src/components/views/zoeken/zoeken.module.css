@@ -427,6 +427,8 @@
 .libItem:hover { background: var(--paper-2); }
 .libItemLabel { font: 600 12.5px var(--font-sans); color: var(--ink); }
 .libItemPreview { font: 400 11.5px var(--font-sans); color: var(--neutral-500); line-height: 1.4; }
+/* v1.226 — de twee stresstests in de promptbibliotheek dragen een klein label. */
+.libItemBadge { margin-left: 8px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); font: 600 9.5px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--neutral-500); vertical-align: middle; }
 
 /* "Geschiedenis" — twee tabbladen in dezelfde .libPopover-schil: Gesprekken
    (rag_chat_sessions, primair) en Vragen (losse prompts uit localStorage).

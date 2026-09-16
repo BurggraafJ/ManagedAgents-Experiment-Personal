@@ -174,6 +174,14 @@ export const Ico = {
       <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
     </svg>
   ),
+  // v1.226 — de promptbibliotheek in de composer-bar (was de Maestro-sparkle,
+  // die is de badge). Zelfde glyph als MIcon 'book' op mobiel.
+  book: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </svg>
+  ),
 }
 
 export const SOURCE_ICONS = {
