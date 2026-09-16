@@ -10,6 +10,7 @@ import MIcon from '../MIcon'
 import { MSetHead, MSetGroup, MSetRow } from './MobileSettingsBits'
 import { MobileAgentsList, MobileAgentEditor } from './MobileSettingsAgents'
 import MobileSettingsTerminologie from './MobileSettingsTerminologie'
+import MobileSettingsSkills from './MobileSettingsSkills'
 import { MobileSettingsChat, MobileSettingsUitleg } from './MobileSettingsChat'
 import '../mobile-settings.css'
 
@@ -24,6 +25,7 @@ import '../mobile-settings.css'
  *   agents                 lijst: Met eigen regels · Alleen SKILL.md
  *   agents/<agent_name>    editor met gedockte Opslaan-balk
  *   chat                   Chat-assistent (system prompt + schrijfstijlen)
+ *   skills                 Werkwijzen + Begrippen, alleen lezen (v1.225)
  *   terminologie           fout → goed rijen
  *   connectors             koppelingen met externe systemen (Outlook, Confluence, HubSpot)
  *   uitleg/mail-verrijking, uitleg/autodraft, uitleg/pijplijn
@@ -71,6 +73,7 @@ export default function MobileSettings({ isOwner = false, profile, onLogout }) {
     return <MobileAgentEditor key={name} schedule={schedule} row={instr.lookup[name] || null} onBack={() => go('agents')} />
   }
   if (slug === 'chat') return <MobileSettingsChat onBack={() => go('')} />
+  if (slug === 'skills') return <MobileSettingsSkills onBack={() => go('')} />
   if (slug === 'terminologie') return <MobileSettingsTerminologie term={term} onBack={() => go('')} />
   if (slug === 'connectors') return <MobileSettingsConnectors onBack={() => go('')} />
   if (slug === 'uitleg/mail-verrijking') return <MobileSettingsUitleg page="mail-verrijking" onBack={() => go('')} />
@@ -207,6 +210,10 @@ function MobileSettingsHub({ agentsCount, rulesCount, termCount, profile, onLogo
             sub={agentsCount ? `${agentsCount} agents · ${rulesCount} met eigen regels` : 'Vrije-tekst regels per agent'}
             meta={agentsCount || null} onClick={() => go('agents')} />
           <MSetRow icon="chat" tone="warm" title="Chat-assistent" sub="Toon en regels voor de Home-chat" onClick={() => go('chat')} />
+          {/* v1.225 — de leeskant van Organisatie › Skills. Beheren blijft
+              desktop (MobileAdminHub houdt Skills in zijn desktop-blok); dit
+              is wat de vragenbak weet, en dat mag iedereen inzien. */}
+          <MSetRow icon="book" tone="warm" title="Skills" sub="Werkwijzen en begrippen die de vragenbak kent" onClick={() => go('skills')} />
         </MSetGroup>
 
         <MSetGroup label="Algemeen">

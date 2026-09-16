@@ -246,7 +246,71 @@
 }
 .user-pill--invite-na .user-pill__dot { background: var(--neutral-400, #a6a6a6); }
 
+/* Uit dienst (v1.222). Neutraal en gedempt, niet rood: dit is geen incident
+   maar een administratieve stand. Geblokkeerd blijft de rode. */
+.user-pill--deactivated {
+  background: var(--paper-2, #fafaf8);
+  color: var(--neutral-500, #737373);
+  border-color: var(--border-soft, #efece5);
+  border-style: dashed;
+}
+.user-pill--deactivated .user-pill__dot { background: var(--neutral-400, #a6a6a6); }
+
 .user-pill--spaced { margin-left: 6px; }
+
+/* Actief · Uitnodiging · Gedeactiveerd (v1.222) — drie bakken boven de tabel.
+   Geen kaartjes en geen kleur: de tellers doen het werk, de actieve tab is de
+   enige met een lijn eronder. */
+.users-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 12px;
+  border-bottom: 1px solid var(--border-soft, #efece5);
+}
+
+.users-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--neutral-500, #737373);
+  cursor: pointer;
+  transition: color .12s ease, border-color .12s ease;
+}
+
+.users-tab:hover { color: var(--ink, #1c1917); }
+
+.users-tab.is-active {
+  color: var(--ink, #1c1917);
+  border-bottom-color: var(--ink, #1c1917);
+  font-weight: 600;
+}
+
+.users-tab__count {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: var(--paper-2, #fafaf8);
+  border: 1px solid var(--border-soft, #efece5);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.users-tab.is-active .users-tab__count {
+  background: var(--ink, #1c1917);
+  border-color: var(--ink, #1c1917);
+  color: var(--paper, #fff);
+}
 
 /* Twee-regelige cel: hoofdwaarde + kleine context eronder
    (Ingelogd · aangemaakt op). */

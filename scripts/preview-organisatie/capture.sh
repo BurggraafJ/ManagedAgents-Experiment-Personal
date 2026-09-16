@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Rendert Organisatie › Platform (Config · Edge · Database), de mobiele
-# Organisatie-hub, de mobiele Instellingen-hub en — sinds v1.195 (P9) —
-# Instellingen › Uitleg › Pijplijn op desktop én telefoon. Alles op
-# fixture-data; de PNG's landen in docs/previews/.
+# Organisatie-hub, de mobiele Instellingen-hub, — sinds v1.195 (P9) —
+# Instellingen › Uitleg › Pijplijn op desktop én telefoon, en — sinds v1.225 —
+# Instellingen › Skills (owner, member en telefoon). Alles op fixture-data;
+# de PNG's landen in docs/previews/.
 # Gebruik: npm run preview:organisatie
 set -euo pipefail
 
@@ -41,6 +42,13 @@ shoot "view=platform&seg=config"     1440,1000 organisatie-platform-config
 shoot "view=platform&seg=edge"       1440,1000 organisatie-platform-edge
 shoot "view=platform&seg=database"   1440,1100 organisatie-platform-database
 shoot "view=pijplijn"                1440,1800 instellingen-uitleg-pijplijn
+shoot "view=skills"                  1440,1100 instellingen-skills
+shoot "view=skills&tab=org"          1440,1000 instellingen-skills-begrippen
+shoot "view=skills-member"           1440,1100 instellingen-skills-member
+shoot "view=org-skills"              1440,1100 organisatie-skills
 shoot "view=hub-mobiel"              430,1000  organisatie-hub-mobiel
-shoot "view=instellingen-mobiel"     430,1000  instellingen-mobiel
+shoot "view=instellingen-mobiel"     430,1050  instellingen-mobiel
 shoot "view=pijplijn-mobiel"         430,2500  instellingen-uitleg-pijplijn-mobiel
+shoot "view=skills-mobiel"           430,1500  instellingen-skills-mobiel
+shoot "view=skills-mobiel&open=1"    430,1600  instellingen-skills-mobiel-open
+shoot "view=skills-mobiel&open=6"    430,1500  instellingen-skills-mobiel-begrip

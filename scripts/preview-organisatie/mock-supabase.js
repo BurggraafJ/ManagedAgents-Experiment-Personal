@@ -76,6 +76,61 @@ const ROWS = {
   ],
   agent_runs_health_7d: [],
   security_findings: [],
+  // v1.225 — Instellingen › Skills (leeskant). Verzonnen, generieke werkwijzen
+  // en begrippen: de shot gaat over de vorm van de lijst, niet over wat er in
+  // de echte tabel staat (en deze repo is publiek).
+  app_skills: [
+    {
+      id: 'as-1', slug: 'overdracht-naar-customer-base', version: 3, sort_order: 10,
+      title: 'Overdracht van Sales naar Customer Base',
+      description: 'Open deze werkwijze als een deal net op Closed Won staat en iemand vraagt wat er nu moet gebeuren.',
+      body: 'Stap 1 — controleer of de licentieovereenkomst is getekend en aan de deal hangt.\nStap 2 — leg de negentien facturatievelden vast; wat niet in het contract staat vraag je na bij de accountmanager.\nStap 3 — verplaats de deal naar de Customer Base-pijplijn en zet de startdatum.\nStap 4 — plan het onboardinggesprek binnen tien werkdagen.',
+      triggers: ['overdracht', 'closed won', 'customer base'], scope: 'org', scope_user_id: null, scope_role: null,
+      tool_binding: null, active: true,
+    },
+    {
+      id: 'as-2', slug: 'qbr-voorbereiden', version: 1, sort_order: 20,
+      title: 'QBR voorbereiden',
+      description: 'Open bij een vraag over een kwartaalgesprek: wat neem je mee en in welke volgorde.',
+      body: 'Begin met adoptie over het afgelopen kwartaal, dan de openstaande wensen, dan pas de verlenging. Een QBR die met het contract begint gaat over geld; een QBR die met gebruik begint gaat over waarde.',
+      triggers: ['qbr', 'kwartaalgesprek'], scope: 'org', scope_user_id: null, scope_role: null,
+      tool_binding: null, active: true,
+    },
+    {
+      id: 'as-3', slug: 'verlenging-inschatten', version: 2, sort_order: 30,
+      title: 'Verlenging inschatten',
+      description: 'Open als iemand vraagt of een contract verlengd gaat worden.',
+      body: 'Kijk naar drie dingen, in deze volgorde: actieve gebruikers over de laatste acht weken, het aantal open vragen zonder antwoord, en of er sinds de laatste factuur nog contact is geweest.',
+      triggers: ['verlenging', 'renewal'], scope: 'role', scope_user_id: null, scope_role: 'owner',
+      tool_binding: 'active_pilots', active: true,
+    },
+    {
+      id: 'as-4', slug: 'eigen-inbox-opruimen', version: 1, sort_order: 40,
+      title: 'Mijn inbox-drempel',
+      description: '',
+      body: 'Alles wat langer dan twee weken ligt gaat naar Archief, tenzij er een datum in staat.',
+      triggers: [], scope: 'user', scope_user_id: 'owner-1', scope_role: null,
+      tool_binding: null, active: true,
+    },
+  ],
+  org_skills: [
+    {
+      id: 'os-1', slug: 'lead', title: 'Lead', category: 'lead', sort_order: 10, active: true, tool_binding: null,
+      body: 'Een lead is een organisatie die zelf contact heeft opgenomen óf waar een kennismaking is ingepland. Een gedownloade whitepaper alleen is geen lead.',
+    },
+    {
+      id: 'os-2', slug: 'pilot', title: 'Pilot', category: 'klant', sort_order: 20, active: true, tool_binding: 'active_pilots',
+      body: 'Een pilot loopt maximaal drie maanden en eindigt altijd met een evaluatie. Loopt hij door zonder evaluatie, dan telt hij als klant en niet meer als pilot.',
+    },
+    {
+      id: 'os-3', slug: 'afgesloten-gewonnen', title: 'Afgesloten - Gewonnen', category: 'pijplijn', sort_order: 30, active: true, tool_binding: 'count_by_stage',
+      body: 'De fase waarin de handtekening binnen is. Niet de fase waarin mondeling ja is gezegd — dat is nog Onderhandeling.',
+    },
+    {
+      id: 'os-4', slug: 'actieve-gebruiker', title: 'Actieve gebruiker', category: 'klant', sort_order: 40, active: false, tool_binding: null,
+      body: 'Iemand die in de afgelopen dertig dagen minimaal één keer heeft ingelogd.',
+    },
+  ],
 }
 
 const SYNC_HEALTH = {

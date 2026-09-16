@@ -21,8 +21,12 @@ import { MSetHead, MSetGroup, MSetRow } from '../MobileSettingsBits'
 // uitlegpagina voor terug. v1.195 (P9): die uitleg is naar Instellingen ›
 // Uitleg verhuisd en heeft daar een mobiele drill-in, dus hij staat niet meer
 // in dit blok — uitleg lezen kan prima op een telefoon.
+// v1.225: Skills blijft hier staan, maar de regel eronder is nu preciezer. De
+// editor is desktop-werk (lange tekstvelden); ze lézen kan sinds v1.225 wél op
+// de telefoon, onder Instellingen › Skills. De voetnoot wijst daarheen, zodat
+// "alleen op desktop" niet meer méér belooft af te schermen dan het doet.
 const DESKTOP_ONLY = [
-  { icon: 'book',    title: 'Skills',       sub: 'Begrippen en werkwijzen voor de vragenbak' },
+  { icon: 'book',    title: 'Skills',       sub: 'Begrippen en werkwijzen vastleggen' },
   { icon: 'sliders', title: 'Platform',     sub: 'Configuratie, Edge Functions en sync-status' },
   { icon: 'key',     title: 'API Keys',     sub: 'Credentials en identifiers' },
 ]
@@ -65,7 +69,7 @@ export default function MobileAdminHub({ go }) {
           </div>
         </section>
 
-        <p className="m-set__note"><MIcon name="laptop" size={18} /><span>Updates staan onder Instellingen › Wat is nieuw. Legal AI open je op desktop.</span></p>
+        <p className="m-set__note"><MIcon name="laptop" size={18} /><span>Skills lézen kan wél hier: Instellingen › Skills. Updates staan onder Instellingen › Wat is nieuw. Legal AI open je op desktop.</span></p>
       </div>
     </div>
   )

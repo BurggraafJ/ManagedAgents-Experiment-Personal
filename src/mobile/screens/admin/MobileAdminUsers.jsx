@@ -4,6 +4,7 @@ import { useUsers } from '../../../hooks/useUsers'
 import { useInviteReadiness } from '../../../hooks/useInviteReadiness'
 import {
   getInitials, statusFor, sortUsers, userStats,
+  USER_TABS, DEFAULT_USER_TAB, bucketFor, bucketCounts,
 } from '../../../lib/users'
 import EditUserModal from '../../../components/views/settings/pages/users/EditUserModal'
 import InviteModal from '../../../components/views/settings/pages/users/InviteModal'
@@ -33,6 +34,10 @@ export default function MobileAdminUsers({ onBack }) {
   const [createFor, setCreateFor] = useState(null)
   const [editing, setEditing] = useState(null)
   const [showInfo, setShowInfo] = useState(false)
+  // Dezelfde drie bakken als op desktop (v1.222), met dezelfde default. De
+  // groepskoppen OWNERS/MEMBERS blijven eronder staan — die zeggen iets anders
+  // (rol) dan de tabs (stand), en beide zijn hier nuttig.
+  const [tab, setTab] = useState(DEFAULT_USER_TAB)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data?.user?.id || null))
@@ -40,13 +45,16 @@ export default function MobileAdminUsers({ onBack }) {
 
   const sorted = useMemo(() => sortUsers(users), [users])
   const stats = useMemo(() => userStats(sorted), [sorted])
-  const owners = sorted.filter(u => u.app_role === 'owner')
-  const members = sorted.filter(u => u.app_role !== 'owner')
+  const counts = useMemo(() => bucketCounts(sorted), [sorted])
+  const zichtbaar = useMemo(() => sorted.filter(u => bucketFor(u) === tab), [sorted, tab])
+  const owners = zichtbaar.filter(u => u.app_role === 'owner')
+  const members = zichtbaar.filter(u => u.app_role !== 'owner')
   const isOwner = sorted.some(u => u.user_id === currentUserId && u.app_role === 'owner')
 
   const meta = sorted.length > 0 ? (
     <>
       {stats.total} mensen · {stats.owners} owner{stats.owners === 1 ? '' : 's'} · {stats.members} member{stats.members === 1 ? '' : 's'}
+      {stats.deactivated > 0 && <> · {stats.deactivated} uit dienst</>}
     </>
   ) : null
 
@@ -84,6 +92,31 @@ export default function MobileAdminUsers({ onBack }) {
         {!error && loading && sorted.length === 0 && <div className="m-set__empty">Laden…</div>}
         {!error && !loading && sorted.length === 0 && (
           <div className="m-set__empty">Geen gebruikers. Maak er eerst één aan, nodig daarna uit.</div>
+        )}
+
+        {!error && sorted.length > 0 && (
+          <div className="m-users-a__tabs" role="tablist" aria-label="Filter gebruikers">
+            {USER_TABS.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className={`m-users-a__tab${tab === t.id ? ' is-active' : ''}`}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}<i>{counts[t.id]}</i>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!error && sorted.length > 0 && zichtbaar.length === 0 && (
+          <div className="m-set__empty">
+            {tab === 'actief' && 'Niemand gebruikt de app op dit moment.'}
+            {tab === 'uitnodiging' && 'Niemand wacht op een uitnodiging.'}
+            {tab === 'gedeactiveerd' && 'Niemand staat op uit dienst.'}
+          </div>
         )}
 
         {owners.length > 0 && (
