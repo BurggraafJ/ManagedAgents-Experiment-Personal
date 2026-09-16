@@ -88,7 +88,11 @@ export function parseTriggers(text) {
 }
 export const triggersToText = (arr) => (Array.isArray(arr) ? arr.join(', ') : '')
 
-export function useAppSkills() {
+// `withUsers` — alleen de editor heeft de gebruikerslijst nodig (het
+// "Eén persoon"-keuzemenu). De leesweergave onder Instellingen (v1.225) vraagt
+// hem niet op: een member ziet in user_roles toch alleen zichzelf, dus die
+// query kost een rondje zonder iets te beantwoorden.
+export function useAppSkills({ withUsers = true } = {}) {
   const [skills, setSkills] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -101,13 +105,15 @@ export function useAppSkills() {
         .order('sort_order', { ascending: true }).order('title', { ascending: true }),
       // Wie kun je een persoonlijke werkwijze geven? user_roles is de enige
       // lijst die de browser mag lezen; auth.users mag hij niet.
-      supabase.from('user_roles').select('user_id, app_role, display_name').order('created_at'),
+      withUsers
+        ? supabase.from('user_roles').select('user_id, app_role, display_name').order('created_at')
+        : Promise.resolve({ data: [] }),
     ])
     if (err) { setError(err.message); setSkills([]) }
     else { setError(null); setSkills(data || []) }
     setUsers(roles.data || [])
     setLoading(false)
-  }, [])
+  }, [withUsers])
 
   useEffect(() => { refresh() }, [refresh])
 

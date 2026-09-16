@@ -14,9 +14,13 @@ import { VIEWS, NAV_GROUPS } from '../../src/routes/viewRegistry'
 //
 //   ?view=platform&seg=config|edge|database   Organisatie › Platform
 //   ?view=pijplijn                            Instellingen › Uitleg › Pijplijn
+//   ?view=skills[&tab=org]                    Instellingen › Skills (leeskant)
+//   ?view=skills-member                       idem, zoals een member hem krijgt
+//   ?view=org-skills                          Organisatie › Skills (beheerkant)
 //   ?view=hub-mobiel                          mobiele Organisatie-hub
 //   ?view=instellingen-mobiel                 mobiele Instellingen-hub
 //   ?view=pijplijn-mobiel                     mobiele Pijplijn-drill-in
+//   ?view=skills-mobiel[&open=1]              mobiele Skills-drill-in
 //
 // v1.195 (P9): de Pijplijn-scène wijst niet meer naar Organisatie › Leren maar
 // naar Instellingen › Uitleg; de losse "stap open"-scène is weg, want de keten
@@ -27,11 +31,12 @@ const profile = { display_name: 'Jelle Burggraaf', role: 'owner' }
 
 // Headless: ná de eerste render het gevraagde tabblad aanklikken, zodat één
 // URL één scène is.
-function clickLater(selector) {
+// `nr` is 1-gebaseerd voor lijsten waar je niet de eerste rij wil (v1.225).
+function clickLater(selector, nr = 1) {
   if (!selector) return
   let tries = 0
   const tick = () => {
-    const el = document.querySelector(selector)
+    const el = document.querySelectorAll(selector)[nr - 1]
     if (el) { el.click(); return }
     if (tries++ < 40) setTimeout(tick, 50)
   }
@@ -39,6 +44,9 @@ function clickLater(selector) {
 }
 const seg = q.get('seg')
 if (seg) clickLater(`.pf-seg__btn:nth-child(${['config', 'edge', 'database'].indexOf(seg) + 1})`)
+// v1.225 — Skills: desktop heeft twee tabbladen, de telefoon uitklapbare rijen.
+if (q.get('tab') === 'org') clickLater('.admin-skills__tab:nth-child(2)')
+if (q.get('open')) clickLater('.m-skl__row', Number(q.get('open')))
 
 function Desktop({ title, children }) {
   return (
@@ -75,6 +83,33 @@ const scenes = {
   pijplijn: {
     entry: '/instellingen/uitleg/pijplijn',
     el: <Desktop title="Instellingen">{settingsRoute}</Desktop>,
+  },
+  skills: {
+    entry: '/instellingen/skills',
+    el: <Desktop title="Instellingen">{settingsRoute}</Desktop>,
+  },
+  // De beheerkant, onveranderd sinds v1.156 — staat hier als tegenbeeld: als
+  // de leeskant per ongeluk de knoppen zou verbergen op de plek waar ze wél
+  // horen, zie je dat in deze shot.
+  'org-skills': {
+    entry: '/organisatie/skills',
+    el: <Desktop title="Organisatie">
+      <Route path="/organisatie/*" element={<OrganisatieView isOwner isLoadingRole={false} profile={profile} />} />
+    </Desktop>,
+  },
+  // Dezelfde pagina zoals een member hem krijgt: geen `isOwner`, geen `caps`,
+  // dus alleen de `instellingen.eigen`-pagina's in de nav en géén "Beheren in
+  // Organisatie"-knop. Dit is het scherm waar Part B om begonnen is.
+  'skills-member': {
+    entry: '/instellingen/skills',
+    el: <Desktop title="Instellingen">
+      <Route path="/instellingen/*" element={
+        <SettingsView isOwner={false} profile={{ display_name: 'Jay Hofman', role: 'member' }} />} />
+    </Desktop>,
+  },
+  'skills-mobiel': {
+    entry: '/instellingen/skills',
+    el: <MobileShell><Routes><Route path="/instellingen/*" element={<MobileSettings isOwner profile={profile} onLogout={() => {}} />} /></Routes></MobileShell>,
   },
   'hub-mobiel': {
     entry: '/organisatie',

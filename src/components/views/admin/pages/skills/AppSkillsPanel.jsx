@@ -17,6 +17,14 @@ import AppSkillEditor from './AppSkillEditor'
 // nooit geopend, en dat is precies het soort stille fout dat je wil zien.
 //
 // v1.156 (04 PR-B): nieuw.
+//
+// v1.225: `readOnly` — hetzelfde paneel draagt nu twee schermen. Onder
+// Organisatie › Skills beheer je ze (ongewijzigd); onder Instellingen › Skills
+// lees je ze, en dat is het pad waarlangs een member erbij komt. De knoppen
+// wegláten in plaats van ze te laten falen is een bewuste keuze: de RLS
+// (app_skills_admin_write → is_admin_or_higher) weigert een member toch, en een
+// knop die altijd een foutmelding geeft laat de gebruiker raden of het aan hem
+// of aan de data ligt. Dezelfde les als ADMIN_ONLY_PAGES in SettingsView.jsx.
 
 const EMPTY = {
   title: '', slug: '', description: '', body: '', triggers: '',
@@ -24,8 +32,8 @@ const EMPTY = {
   tool_binding: '', active: true, sort_order: 100,
 }
 
-export default function AppSkillsPanel() {
-  const { skills, users, loading, error, save, toggleActive, remove, stats } = useAppSkills()
+export default function AppSkillsPanel({ readOnly = false }) {
+  const { skills, users, loading, error, save, toggleActive, remove, stats } = useAppSkills({ withUsers: !readOnly })
   const [draft, setDraft] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -69,13 +77,21 @@ export default function AppSkillsPanel() {
     <>
       <div className="admin-skills__panelhead">
         <p className="admin-page-head__meta">
-          {loading ? 'laden…' : `${stats.active} van ${stats.total} actief`}
+          {loading ? 'laden…' : readOnly
+            // In de leesweergave staat er geen noemer die iets belooft: een
+            // member kríjgt alleen de actieve rijen die bij hem horen (de
+            // where in app_skills_visible), een beheerder ziet ook wat uit
+            // staat. "x van y" zou voor de een altijd "5 van 5" zijn.
+            ? `${stats.active} actief${stats.total > stats.active ? ` · ${stats.total - stats.active} uit` : ''}`
+            : `${stats.active} van ${stats.total} actief`}
           {stats.persoonlijk > 0 && <> · {stats.persoonlijk} persoonlijk of per rol</>}
-          {stats.titelTekens > 0 && <> · ±{stats.titelTekens} tekens titellijst per vraag</>}
+          {!readOnly && stats.titelTekens > 0 && <> · ±{stats.titelTekens} tekens titellijst per vraag</>}
         </p>
-        <button type="button" className="admin-btn admin-btn--primary" onClick={() => setDraft({ ...EMPTY })}>
-          Werkwijze toevoegen
-        </button>
+        {!readOnly && (
+          <button type="button" className="admin-btn admin-btn--primary" onClick={() => setDraft({ ...EMPTY })}>
+            Werkwijze toevoegen
+          </button>
+        )}
       </div>
 
       {error && <div className="admin-banner admin-banner--err">Kon werkwijzen niet laden: {error}</div>}
@@ -84,14 +100,14 @@ export default function AppSkillsPanel() {
           bij élke vraag mee. `titelTekens` is exact wat de blokfunctie telt
           (`- <slug>: <titel>` per regel), dus deze waarschuwing komt op
           hetzelfde moment als de afkapping in de chat. */}
-      {stats.overTitleCap && (
+      {!readOnly && stats.overTitleCap && (
         <div className="admin-banner admin-banner--warn">
           De titellijst is ±{stats.titelTekens} tekens en gaat bij élke vraag mee; boven {APP_SKILL_TITLES_CAP}
           {' '}neemt de vragenbak alleen de eerste titels mee (op skill-grens, geteld in de run-diagnostiek).
           Kort een paar titels in, zet er iets uit, of verlaag de sortering van wat zeker mee moet.
         </div>
       )}
-      {stats.overSetCap > 0 && (
+      {!readOnly && stats.overSetCap > 0 && (
         <div className="admin-banner admin-banner--warn">
           {stats.active} actieve werkwijzen — de vragenbak haalt de eerste {APP_SKILL_SET_CAP} rijen op.
           De laatste {stats.overSetCap} komen er niet in.
@@ -102,9 +118,19 @@ export default function AppSkillsPanel() {
         <div className="admin-empty">
           <div className="admin-empty__title">Nog geen werkwijzen</div>
           <div className="admin-empty__hint">
-            Een werkwijze is een procedure die je vaker uitlegt dan je zou willen: een overdracht, een
-            QBR-checklist, de stappen bij een verlenging. De vragenbak ziet altijd de titel, en haalt de
-            volledige tekst pas op als een vraag erover gaat — dus lengte kost hier niets bij elke andere vraag.
+            {readOnly ? (
+              <>
+                Er staat nog geen werkwijze klaar die bij jouw vragen meekomt. Een werkwijze is een procedure die
+                iemand vaker uitlegt dan hij zou willen — een overdracht, een QBR-checklist, de stappen bij een
+                verlenging. Een beheerder legt ze vast onder Organisatie › Skills; daarna werken ze direct in de chat.
+              </>
+            ) : (
+              <>
+                Een werkwijze is een procedure die je vaker uitlegt dan je zou willen: een overdracht, een
+                QBR-checklist, de stappen bij een verlenging. De vragenbak ziet altijd de titel, en haalt de
+                volledige tekst pas op als een vraag erover gaat — dus lengte kost hier niets bij elke andere vraag.
+              </>
+            )}
           </div>
         </div>
       )}
@@ -118,7 +144,7 @@ export default function AppSkillsPanel() {
                 <th>Voor wie</th>
                 <th>Trappen</th>
                 <th>Status</th>
-                <th aria-label="Acties" />
+                {!readOnly && <th aria-label="Acties" />}
               </tr>
             </thead>
             <tbody>
@@ -142,19 +168,21 @@ export default function AppSkillsPanel() {
                       <span className="admin-pill__dot" />{s.active ? 'actief' : 'uit'}
                     </span>
                   </td>
-                  <td className="admin-skills__actions">
-                    <div className="admin-skills__actions-row">
-                      <button type="button" className="admin-btn admin-btn--sm" onClick={() => onToggle(s)}>
-                        {s.active ? 'Uitzetten' : 'Aanzetten'}
-                      </button>
-                      <button type="button" className="admin-btn admin-btn--sm" onClick={() => setDraft({ ...s, tool_binding: s.tool_binding || '', triggers: triggersToText(s.triggers) })}>
-                        Bewerken
-                      </button>
-                      <button type="button" className="admin-btn admin-btn--sm admin-btn--danger" onClick={() => setConfirmDelete(s)}>
-                        Verwijderen
-                      </button>
-                    </div>
-                  </td>
+                  {!readOnly && (
+                    <td className="admin-skills__actions">
+                      <div className="admin-skills__actions-row">
+                        <button type="button" className="admin-btn admin-btn--sm" onClick={() => onToggle(s)}>
+                          {s.active ? 'Uitzetten' : 'Aanzetten'}
+                        </button>
+                        <button type="button" className="admin-btn admin-btn--sm" onClick={() => setDraft({ ...s, tool_binding: s.tool_binding || '', triggers: triggersToText(s.triggers) })}>
+                          Bewerken
+                        </button>
+                        <button type="button" className="admin-btn admin-btn--sm admin-btn--danger" onClick={() => setConfirmDelete(s)}>
+                          Verwijderen
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -175,47 +203,51 @@ export default function AppSkillsPanel() {
         </span>
       </p>
 
-      <Modal
-        open={!!draft}
-        onClose={() => setDraft(null)}
-        title={draft?.id ? 'Werkwijze bewerken' : 'Werkwijze toevoegen'}
-        size="lg"
-        className="theme-maestro"
-      >
-        {draft && (
-          <AppSkillEditor
-            draft={draft}
-            onChange={setDraft}
-            bindings={TOOL_BINDINGS}
-            users={users}
-          />
-        )}
-        <Modal.Footer>
-          <button type="button" className="btn" onClick={() => setDraft(null)}>Annuleer</button>
-          <button type="button" className="btn btn--accent" onClick={onSave} disabled={busy}>
-            {busy ? 'Bezig…' : 'Opslaan'}
-          </button>
-        </Modal.Footer>
-      </Modal>
+      {!readOnly && (
+        <>
+          <Modal
+            open={!!draft}
+            onClose={() => setDraft(null)}
+            title={draft?.id ? 'Werkwijze bewerken' : 'Werkwijze toevoegen'}
+            size="lg"
+            className="theme-maestro"
+          >
+            {draft && (
+              <AppSkillEditor
+                draft={draft}
+                onChange={setDraft}
+                bindings={TOOL_BINDINGS}
+                users={users}
+              />
+            )}
+            <Modal.Footer>
+              <button type="button" className="btn" onClick={() => setDraft(null)}>Annuleer</button>
+              <button type="button" className="btn btn--accent" onClick={onSave} disabled={busy}>
+                {busy ? 'Bezig…' : 'Opslaan'}
+              </button>
+            </Modal.Footer>
+          </Modal>
 
-      <Modal
-        open={!!confirmDelete}
-        onClose={() => setConfirmDelete(null)}
-        title="Werkwijze verwijderen"
-        size="sm"
-        className="theme-maestro"
-      >
-        <p className="skill-confirm">
-          “{confirmDelete?.title}” wordt verwijderd, inclusief de volledige tekst. De vragenbak kan hem daarna
-          niet meer opvragen. Wil je hem alleen tijdelijk uit de lijst halen, gebruik dan <strong>Uitzetten</strong>.
-        </p>
-        <Modal.Footer>
-          <button type="button" className="btn" onClick={() => setConfirmDelete(null)}>Annuleer</button>
-          <button type="button" className="btn btn--danger" onClick={onDelete} disabled={busy}>
-            {busy ? 'Bezig…' : 'Verwijderen'}
-          </button>
-        </Modal.Footer>
-      </Modal>
+          <Modal
+            open={!!confirmDelete}
+            onClose={() => setConfirmDelete(null)}
+            title="Werkwijze verwijderen"
+            size="sm"
+            className="theme-maestro"
+          >
+            <p className="skill-confirm">
+              “{confirmDelete?.title}” wordt verwijderd, inclusief de volledige tekst. De vragenbak kan hem daarna
+              niet meer opvragen. Wil je hem alleen tijdelijk uit de lijst halen, gebruik dan <strong>Uitzetten</strong>.
+            </p>
+            <Modal.Footer>
+              <button type="button" className="btn" onClick={() => setConfirmDelete(null)}>Annuleer</button>
+              <button type="button" className="btn btn--danger" onClick={onDelete} disabled={busy}>
+                {busy ? 'Bezig…' : 'Verwijderen'}
+              </button>
+            </Modal.Footer>
+          </Modal>
+        </>
+      )}
     </>
   )
 }

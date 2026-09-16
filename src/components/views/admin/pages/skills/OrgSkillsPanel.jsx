@@ -12,9 +12,15 @@ import SkillEditor from './SkillEditor'
 // import-paden zijn één map dieper en de header is nu de paneel-header in
 // plaats van de pagina-header.
 
+// v1.225: `readOnly` — zelfde paneel, tweede scherm. Onder Instellingen ›
+// Skills mag iedereen met `instellingen.eigen` de begrippen lézen (org_skills
+// heeft `org_skills_read using (true)`: ze sturen immers zíjn antwoorden);
+// schrijven blijft admin/owner mét tweede factor via org_skills_admin_write.
+// Zie AppSkillsPanel.jsx voor waarom de knoppen weg zijn in plaats van dood.
+
 const EMPTY = { title: '', slug: '', category: 'pijplijn', body: '', tool_binding: '', active: true, sort_order: 100 }
 
-export default function OrgSkillsPanel() {
+export default function OrgSkillsPanel({ readOnly = false }) {
   const { skills, loading, error, save, toggleActive, remove, stats } = useOrgSkills()
   const [draft, setDraft] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -54,9 +60,11 @@ export default function OrgSkillsPanel() {
           {loading ? 'laden…' : `${stats.active} van ${stats.total} actief`}
           {stats.bound > 0 && <> · {stats.bound} aan een tool gebonden</>}
         </p>
-        <button type="button" className="admin-btn admin-btn--primary" onClick={() => setDraft({ ...EMPTY })}>
-          Begrip toevoegen
-        </button>
+        {!readOnly && (
+          <button type="button" className="admin-btn admin-btn--primary" onClick={() => setDraft({ ...EMPTY })}>
+            Begrip toevoegen
+          </button>
+        )}
       </div>
 
       {error && <div className="admin-banner admin-banner--err">Kon Skills niet laden: {error}</div>}
@@ -65,9 +73,18 @@ export default function OrgSkillsPanel() {
         <div className="admin-empty">
           <div className="admin-empty__title">Nog geen begrippen</div>
           <div className="admin-empty__hint">
-            Leg vast wat de vragenbak over jullie pijplijn moet weten — bijvoorbeeld wat een fase betekent of
-            wanneer iets een lead is. Bind een regel aan een tool en het model leest hem precies wanneer het
-            die tool overweegt.
+            {readOnly ? (
+              <>
+                Er is nog niet vastgelegd wat de vragenbak over jullie pijplijn moet weten — bijvoorbeeld wat een
+                fase betekent of wanneer iets een lead is. Een beheerder doet dat onder Organisatie › Skills.
+              </>
+            ) : (
+              <>
+                Leg vast wat de vragenbak over jullie pijplijn moet weten — bijvoorbeeld wat een fase betekent of
+                wanneer iets een lead is. Bind een regel aan een tool en het model leest hem precies wanneer het
+                die tool overweegt.
+              </>
+            )}
           </div>
         </div>
       )}
@@ -81,7 +98,7 @@ export default function OrgSkillsPanel() {
                 <th>Categorie</th>
                 <th>Tool</th>
                 <th>Status</th>
-                <th aria-label="Acties" />
+                {!readOnly && <th aria-label="Acties" />}
               </tr>
             </thead>
             <tbody>
@@ -105,19 +122,21 @@ export default function OrgSkillsPanel() {
                   {/* Geen .admin-table__actions hier: die zet display:flex op de
                       <td> zelf, waardoor de cel uit de tabel-layout valt en de
                       knoppen buiten de kaart lopen. Flex op een binnen-div. */}
-                  <td className="admin-skills__actions">
-                    <div className="admin-skills__actions-row">
-                      <button type="button" className="admin-btn admin-btn--sm" onClick={() => onToggle(s)}>
-                        {s.active ? 'Uitzetten' : 'Aanzetten'}
-                      </button>
-                      <button type="button" className="admin-btn admin-btn--sm" onClick={() => setDraft({ ...s, tool_binding: s.tool_binding || '' })}>
-                        Bewerken
-                      </button>
-                      <button type="button" className="admin-btn admin-btn--sm admin-btn--danger" onClick={() => setConfirmDelete(s)}>
-                        Verwijderen
-                      </button>
-                    </div>
-                  </td>
+                  {!readOnly && (
+                    <td className="admin-skills__actions">
+                      <div className="admin-skills__actions-row">
+                        <button type="button" className="admin-btn admin-btn--sm" onClick={() => onToggle(s)}>
+                          {s.active ? 'Uitzetten' : 'Aanzetten'}
+                        </button>
+                        <button type="button" className="admin-btn admin-btn--sm" onClick={() => setDraft({ ...s, tool_binding: s.tool_binding || '' })}>
+                          Bewerken
+                        </button>
+                        <button type="button" className="admin-btn admin-btn--sm admin-btn--danger" onClick={() => setConfirmDelete(s)}>
+                          Verwijderen
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -135,47 +154,51 @@ export default function OrgSkillsPanel() {
       {/* Modals renderen via een portal buiten .admin-main, dus dragen ze zelf
           .theme-maestro voor de tokens (zie index.css § token-scope) en de
           globale .btn-classes i.p.v. de .admin-main-scoped .admin-btn. */}
-      <Modal
-        open={!!draft}
-        onClose={() => setDraft(null)}
-        title={draft?.id ? 'Begrip bewerken' : 'Begrip toevoegen'}
-        size="lg"
-        className="theme-maestro"
-      >
-        {draft && (
-          <SkillEditor
-            draft={draft}
-            onChange={setDraft}
-            categories={SKILL_CATEGORIES}
-            bindings={TOOL_BINDINGS}
-          />
-        )}
-        <Modal.Footer>
-          <button type="button" className="btn" onClick={() => setDraft(null)}>Annuleer</button>
-          <button type="button" className="btn btn--accent" onClick={onSave} disabled={busy}>
-            {busy ? 'Bezig…' : 'Opslaan'}
-          </button>
-        </Modal.Footer>
-      </Modal>
+      {!readOnly && (
+        <>
+          <Modal
+            open={!!draft}
+            onClose={() => setDraft(null)}
+            title={draft?.id ? 'Begrip bewerken' : 'Begrip toevoegen'}
+            size="lg"
+            className="theme-maestro"
+          >
+            {draft && (
+              <SkillEditor
+                draft={draft}
+                onChange={setDraft}
+                categories={SKILL_CATEGORIES}
+                bindings={TOOL_BINDINGS}
+              />
+            )}
+            <Modal.Footer>
+              <button type="button" className="btn" onClick={() => setDraft(null)}>Annuleer</button>
+              <button type="button" className="btn btn--accent" onClick={onSave} disabled={busy}>
+                {busy ? 'Bezig…' : 'Opslaan'}
+              </button>
+            </Modal.Footer>
+          </Modal>
 
-      <Modal
-        open={!!confirmDelete}
-        onClose={() => setConfirmDelete(null)}
-        title="Begrip verwijderen"
-        size="sm"
-        className="theme-maestro"
-      >
-        <p className="skill-confirm">
-          “{confirmDelete?.title}” wordt verwijderd en verdwijnt uit de system-prompt van de vragenbak.
-          Wil je hem alleen tijdelijk uitschakelen, gebruik dan <strong>Uitzetten</strong>.
-        </p>
-        <Modal.Footer>
-          <button type="button" className="btn" onClick={() => setConfirmDelete(null)}>Annuleer</button>
-          <button type="button" className="btn btn--danger" onClick={onDelete} disabled={busy}>
-            {busy ? 'Bezig…' : 'Verwijderen'}
-          </button>
-        </Modal.Footer>
-      </Modal>
+          <Modal
+            open={!!confirmDelete}
+            onClose={() => setConfirmDelete(null)}
+            title="Begrip verwijderen"
+            size="sm"
+            className="theme-maestro"
+          >
+            <p className="skill-confirm">
+              “{confirmDelete?.title}” wordt verwijderd en verdwijnt uit de system-prompt van de vragenbak.
+              Wil je hem alleen tijdelijk uitschakelen, gebruik dan <strong>Uitzetten</strong>.
+            </p>
+            <Modal.Footer>
+              <button type="button" className="btn" onClick={() => setConfirmDelete(null)}>Annuleer</button>
+              <button type="button" className="btn btn--danger" onClick={onDelete} disabled={busy}>
+                {busy ? 'Bezig…' : 'Verwijderen'}
+              </button>
+            </Modal.Footer>
+          </Modal>
+        </>
+      )}
     </>
   )
 }

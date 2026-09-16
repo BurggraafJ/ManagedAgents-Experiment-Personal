@@ -7,6 +7,7 @@ import ChatPage from './pages/ChatPage'
 import TemplatesPage from './pages/TemplatesPage'
 import ExternePartijenPage from './pages/ExternePartijenPage'
 import ConnectorsPage from './pages/ConnectorsPage'
+import SkillsSettingsPage from './pages/SkillsSettingsPage'
 import MailVerrijkingPage from './pages/uitleg/MailVerrijkingPage'
 import AutoDraftPage from './pages/uitleg/AutoDraftPage'
 import PijplijnPage from './pages/uitleg/PijplijnPage'
@@ -53,6 +54,11 @@ const NAV = [
     items: [
       { id: 'agents', label: 'Agents', icon: ICON(<><circle cx="12" cy="8" r="4" /><path d="M5 21a7 7 0 0 1 14 0" /></>) },
       { id: 'chat', label: 'Chat-assistent', icon: ICON(<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />) },
+      // v1.225 — Skills stond alleen onder Organisatie (`organisatie.skills`),
+      // dus alleen een beheerder kon zien wat de vragenbak over Legal Mind
+      // weet. Hier staat de leeskant, achter `instellingen.eigen`. Groep
+      // Instructies, want dat is wat een skill is: wat de agents moeten weten.
+      { id: 'skills', label: 'Skills', icon: ICON(<><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></>) },
     ],
   },
   {
@@ -86,6 +92,7 @@ const PAGE_SLUGS = {
   agents:               'agents',
   administratie:        'administratie',
   chat:                 'chat',
+  skills:               'skills',
   terminologie:         'terminologie',
   'externe-partijen':   'externe-partijen',
   connectors:           'connectors',
@@ -125,6 +132,12 @@ const PAGE_CAP = {
   administratie:            'instellingen.beheer',
   terminologie:             'instellingen.beheer',
   'externe-partijen':       'instellingen.beheer',
+  // Skills is hier de LEESkant (readOnly). Vandaar `instellingen.eigen` en niet
+  // `organisatie.skills`: wat de vragenbak over Legal Mind weet stuurt ieders
+  // antwoorden, dus iedereen mag het inzien. Vastleggen blijft Organisatie ›
+  // Skills achter `organisatie.skills`, en de RLS eronder (org_skills /
+  // app_skills `*_admin_write` → is_admin_or_higher) is niet aangeraakt.
+  skills:                   'instellingen.eigen',
   connectors:               'instellingen.eigen',
   'uitleg-mail-verrijking': 'instellingen.eigen',
   'uitleg-autodraft':       'instellingen.eigen',
@@ -139,19 +152,6 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
   const params = useParams()
   const slug = params['*'] || ''
 
-  if (!slug) {
-    // DEFAULT_PAGE is 'agents' en dat is sinds M2 een beheerpagina. Wie er niet
-    // bij mag landt op de eerste pagina die hij wél mag — nooit op een redirect
-    // naar een pagina die hem meteen terugstuurt.
-    const start = PAGE_CAP[DEFAULT_PAGE] && !isOwner && !caps?.has?.(PAGE_CAP[DEFAULT_PAGE])
-      ? 'connectors' : DEFAULT_PAGE
-    return <Navigate to={`${basePath}/${PAGE_SLUGS[start]}`} replace />
-  }
-  // Mobiele editor-deeplink (/instellingen/agents/<agent>) op desktop → Agents.
-  const page = SLUG_TO_PAGE[slug] || (slug.startsWith('agents/') ? 'agents' : null)
-  if (!page) {
-    return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
-  }
   // Zolang de rechten niet geladen zijn geldt de regel van vóór M2 (`isOwner`),
   // net als in de shell-navigatie: fail-open voor de owner, dicht voor een
   // member. Beheerpagina's waren voor een member sowieso al leeg.
@@ -162,11 +162,31 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
     if (!capsReady) return nodig === 'instellingen.eigen' || isOwner
     return caps.has(nodig)
   }
+  // Waar je landt zonder (of met een verboden) slug. DEFAULT_PAGE is 'agents'
+  // en dat is sinds M2 een beheerpagina; wie daar niet bij mag landt op
+  // Connectors — zijn eigen koppelingen, het enige hier waar een member iets
+  // kan instéllen. Skills staat in de nav bovenaan maar is een leespagina, en
+  // daar landen zou van Instellingen een scherm maken waar niets te doen valt.
+  //
+  // v1.225: dit stond op twee plekken met twee verschillende antwoorden — de
+  // ene tak stuurde hard naar 'connectors', de andere zocht de eerste
+  // toegestane sleutel (sindsdien 'skills'). Eén lijst, dus één landing.
+  const LANDING = [DEFAULT_PAGE, 'connectors']
+  const eersteToegestane = () =>
+    LANDING.find(magPagina) || Object.keys(PAGE_SLUGS).find(magPagina) || DEFAULT_PAGE
+
+  if (!slug) {
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[eersteToegestane()]}`} replace />
+  }
+  // Mobiele editor-deeplink (/instellingen/agents/<agent>) op desktop → Agents.
+  const page = SLUG_TO_PAGE[slug] || (slug.startsWith('agents/') ? 'agents' : null)
+  if (!page) {
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[DEFAULT_PAGE]}`} replace />
+  }
 
   // Direct een slug intypen die je niet mag → terug naar de default.
   if (!magPagina(page)) {
-    const eerste = Object.keys(PAGE_SLUGS).find(magPagina) || DEFAULT_PAGE
-    return <Navigate to={`${basePath}/${PAGE_SLUGS[eerste]}`} replace />
+    return <Navigate to={`${basePath}/${PAGE_SLUGS[eersteToegestane()]}`} replace />
   }
 
   // Filter NAV op isOwner — member ziet geen adminOnly-items; groepen die
@@ -208,6 +228,7 @@ export default function SettingsView({ basePath = DEFAULT_BASE_PATH, isOwner = f
       )}
       {page === 'administratie'       && <TemplatesPage />}
       {page === 'chat'                && <ChatPage />}
+      {page === 'skills'              && <SkillsSettingsPage canManage={isOwner || caps?.has?.('organisatie.skills')} />}
       {page === 'terminologie'        && <TerminologiePage />}
       {page === 'externe-partijen'    && <ExternePartijenPage />}
       {page === 'connectors'          && <ConnectorsPage />}
