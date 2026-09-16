@@ -1522,6 +1522,8 @@ button.m-tkrow__main { cursor: pointer; }
   display: flex; align-items: center; justify-content: center;
 }
 .m-vb__hist:active { background: var(--m-paper); color: var(--m-ink); }
+/* v1.226 — .m-vb__lib (promptbibliotheek) deelt deze stijl; de extra klasse is
+   alleen een haak voor tests/harnas. Twee knoppen + veld passen op 360 px. */
 .m-vb__send {
   width: 42px; height: 42px; border-radius: 11px; border: 0; cursor: pointer; flex-shrink: 0;
   background: var(--m-ink); color: var(--m-on-ink);

@@ -6,13 +6,16 @@ import ChatMode from './ChatMode'
 import ObjectsMode from './ObjectsMode'
 import HistoryPanel from './HistoryPanel'
 import { useRagChat } from '../../../hooks/useRagChat'
+import { readLastSessionId } from '../../../lib/chatSessionPointer'
 
 // RagSearchView — parent + topbar + mode-switch + sessions-state.
 // useRagChat hook hier zodat zowel ChatMode als topbar-knop (Geschiedenis)
 // dezelfde sessies + currentMessages zien.
 //
 // URL-state:
-//   /zoeken                              → nieuw chat (default)
+//   /zoeken                              → het gesprek waar je was in deze tab
+//                                          (wijzer in sessionStorage, v1.226),
+//                                          anders een nieuw gesprek
 //   /zoeken?session=<uuid>               → laad bestaande chat (bookmarkable)
 //   /zoeken?mode=objects&company_id=...  → objects mode op company
 const MODES = ['chat', 'objects']
@@ -47,7 +50,10 @@ export default function RagSearchView({ isOwner = false }) {
   }, [])
 
   // Chat-state inclusief sessions — gehoist zodat topbar erbij kan.
-  const chat = useRagChat()
+  // v1.226 — de URL wint; zonder ?session= herstelt de tab-wijzer het gesprek
+  // waar je was. Zodra dat geladen is, zet het sessionId→URL-effect hieronder
+  // ?session= weer in de URL (replace), net als na een klik in Geschiedenis.
+  const chat = useRagChat({ initialSessionId: urlSessionId ? null : readLastSessionId() })
   const [historyOpen, setHistoryOpen] = useState(false)
 
   // Sync URL → sessionId bij mount (en bij URL-wissel via bookmark).

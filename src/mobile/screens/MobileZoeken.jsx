@@ -6,8 +6,11 @@ import { ALL_SOURCES } from '../../lib/rag'
 import { keyboardInset } from '../../lib/keyboardInset'
 import { usePromptHistory } from '../../hooks/usePromptHistory'
 import { useAutoGrow } from '../../hooks/useAutoGrow'
+import { readLastSessionId } from '../../lib/chatSessionPointer'
+import { PROMPT_LIBRARY } from '../../lib/promptLibrary'
 import MIcon from '../MIcon'
 import MobileHistorySheet from '../MobileHistorySheet'
+import MobilePromptLibrarySheet from '../MobilePromptLibrarySheet'
 // v1.154 — de assistant-bubbel met zijn lagen staat in MobileChatTurn.jsx.
 import MobileChatTurn from './MobileChatTurn'
 
@@ -138,11 +141,15 @@ function SearchMode() {
 }
 
 function AskMode() {
-  const chat = useRagChat()
+  // v1.226 — mobiel heeft geen URL-state; de tab-wijzer is de enige ingang.
+  // Bonus: de Chat↔Zoeken-wissel hierboven unmount AskMode en komt nu ook
+  // terug in hetzelfde gesprek.
+  const chat = useRagChat({ initialSessionId: readLastSessionId() })
   const [text, setText] = useState('')
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const [histOpen, setHistOpen] = useState(false)
+  const [libOpen, setLibOpen] = useState(false)
   const promptHistory = usePromptHistory()
 
   // Composer groeit mee tot de max-height uit mobile.css; daarna scrollt het
@@ -198,6 +205,7 @@ function AskMode() {
   const onPickPrompt = (q) => {
     setText(q || '')
     setHistOpen(false)
+    setLibOpen(false)
     setTimeout(() => inputRef.current?.focus(), 0)
   }
 
@@ -210,19 +218,17 @@ function AskMode() {
   return (
     <>
       <div className="m-vb__body" ref={scrollRef}>
-        {chat.messages.length === 0 ? (
+        {chat.restoring ? null : chat.messages.length === 0 ? (
           <div className="m-zk__empty">
             <div className="m-zk__emptyico"><MIcon name="spark" size={22} /></div>
             <div className="m-zk__emptytitle">Vraag Maestro alles</div>
             <div className="m-zk__emptysub">Hele vragen werken het best — mails, meetings, contacten en notes worden meegenomen.</div>
             <div className="m-zk__suggestions">
-              {[
-                'Wat besprak ik laatst met Patrick?',
-                'Welke offertes lopen er nog?',
-                'Welke deals zijn deze week stilgevallen?',
-              ].map(q => (
-                <button key={q} type="button" className="m-zk__suggest" onClick={() => { setText(q) }}>
-                  <MIcon name="spark" size={11} /> {q}
+              {/* v1.226 — de eerste drie uit de promptbibliotheek (dezelfde
+                  set als desktop); tik vult de composer, verstuurt niet. */}
+              {PROMPT_LIBRARY.slice(0, 3).map(item => (
+                <button key={item.id} type="button" className="m-zk__suggest" onClick={() => { setText(item.prompt) }}>
+                  <MIcon name="spark" size={11} /> {item.label}
                 </button>
               ))}
             </div>
@@ -237,6 +243,11 @@ function AskMode() {
       <div className="m-vb__composer">
         <button type="button" className="m-vb__hist" onClick={() => setHistOpen(true)} aria-label="Geschiedenis — eerdere gesprekken" title="Geschiedenis">
           <MIcon name="clock" size={17} />
+        </button>
+        {/* v1.226 — promptbibliotheek, rechts naast de klok. Zelfde maat en
+            hit-area; opent een sheet met de 8 voorbeelden (vullen, niet sturen). */}
+        <button type="button" className="m-vb__hist m-vb__lib" onClick={() => setLibOpen(true)} aria-label="Promptbibliotheek — voorbeeldvragen" title="Promptbibliotheek">
+          <MIcon name="book" size={17} />
         </button>
         <textarea
           ref={inputRef}
@@ -265,6 +276,12 @@ function AskMode() {
         prompts={promptHistory.items}
         onPickPrompt={onPickPrompt}
         onClearPrompts={promptHistory.clear}
+      />
+
+      <MobilePromptLibrarySheet
+        open={libOpen}
+        onClose={() => setLibOpen(false)}
+        onPick={onPickPrompt}
       />
     </>
   )

@@ -7,7 +7,8 @@ import { CHAT_SUGGESTIONS } from '../../../lib/rag'
 // CLAUDE.md en dit blok heeft geen enkele band met de composer-state ernaast.
 // Verplaatst zonder wijziging.
 export default function ChatEmptyState({ onPick, suggestions }) {
-  // F.1g: dynamische voorbeeldvragen uit rag_prompt_library (DB) met fallback op de statische set.
+  // F.1g: voorbeeldvragen van de aanroeper (v1.226: de zes gewone uit
+  // lib/promptLibrary) met fallback op de statische set.
   const items = (suggestions && suggestions.length) ? suggestions : CHAT_SUGGESTIONS
   return (
     <div className={s.empty}>
